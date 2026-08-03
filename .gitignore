@@ -54,3 +54,4 @@ yarn-error.log*
 /server-*.log
 /.studenthub-server.log
 /.studenthub-server.err.log
+/supabase/.temp/
