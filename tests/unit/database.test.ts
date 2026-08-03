@@ -6,6 +6,7 @@ const multiUniversity = readFileSync(resolve("supabase/migrations/202608010002_m
 const facultyCalendars = readFileSync(resolve("supabase/migrations/202608020006_faculty_calendars.sql"), "utf8");
 const sourceModes = readFileSync(resolve("supabase/migrations/202608020007_source_monitoring_modes.sql"), "utf8");
 const multiCity = readFileSync(resolve("supabase/migrations/202608020004_multi_city_foundation.sql"), "utf8");
+const academicCatalog = readFileSync(resolve("lib/academic-catalog.ts"), "utf8");
 describe("databázová bezpečnost", () => {
   it("zapíná RLS na neveřejných tabulkách", () => { expect(migration).toContain("alter table public.service_requests enable row level security"); expect(migration).toContain("alter table public.submissions enable row level security"); });
   it("nedává anonymům čtení poptávek", () => { expect(migration).toContain("revoke all on public.service_requests from anon"); expect(migration).toContain("grant insert on public.service_requests to anon"); expect(migration).not.toContain("grant select on public.service_requests to anon"); });
@@ -17,5 +18,6 @@ describe("databázová bezpečnost", () => {
   it("podporuje městský, univerzitní, fakultní, programový a kampusový rozsah", () => { expect(facultyCalendars).toContain("'city','university','faculty','programme','campus','national'"); expect(facultyCalendars).toContain("programme_id"); expect(facultyCalendars).toContain("campus_id"); });
   it("verzuje PDF, normalizovaný obsah a audit změn", () => { expect(facultyCalendars).toContain("normalized_hash"); expect(facultyCalendars).toContain("source_change_audits"); expect(facultyCalendars).toContain("source_text text"); });
   it("používá skutečný stav kampusu a jednoznačné ID nabídky", () => { expect(facultyCalendars).toContain("c.enabled"); expect(facultyCalendars).not.toContain("c.is_active"); expect(multiCity).toContain("oc.offer_id = offers.id"); });
+  it("filtruje produkční katalog podle skutečného sloupce kampusu", () => { const campusQuery = academicCatalog.split("\n").find((line) => line.includes('from("campuses")')); expect(campusQuery).toContain('.eq("enabled", true)'); expect(campusQuery).not.toContain('.eq("is_active", true)'); });
   it("monitoruje všechny fakultní zdroje nezávisle na schválení", () => { expect(sourceModes).toContain("'automatic_publish','automatic_review','not_found_monitored'"); expect(sourceModes).toContain("set enabled = true"); expect(sourceModes).toContain("last_document_url"); });
 });

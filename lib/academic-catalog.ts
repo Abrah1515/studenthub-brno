@@ -12,7 +12,7 @@ export async function getAcademicCatalog(): Promise<AcademicCatalog> {
   const [{ data: universityRows, error: universityError }, { data: facultyRows, error: facultyError }, { data: campusRows, error: campusError }] = await Promise.all([
     client.from("universities").select("id,slug,name,short_name,website_url,is_active,last_verified_at").eq("is_active", true).order("name"),
     client.from("faculties").select("id,slug,university_id,name,short_name,official_url,is_active,last_verified_at").eq("is_active", true).order("name"),
-    client.from("campuses").select("id,city_id,university_id,name,latitude,longitude").eq("is_active", true).order("name"),
+    client.from("campuses").select("id,city_id,university_id,name,latitude,longitude,enabled").eq("enabled", true).order("name"),
   ]);
   if (universityError || facultyError || campusError) throw universityError || facultyError || campusError;
   const fallbackColors = new Map(fallbackAcademicCatalog.universities.map((item) => [item.id, item.color]));
