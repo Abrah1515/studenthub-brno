@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarPlus, ChevronDown, ExternalLink, FileDown, RotateCcw, Search, Settings2, Share2, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AcademicEvent } from "@/lib/types";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDayNumber, formatShortMonth } from "@/lib/format";
 import { useAcademicCatalog } from "@/components/academic-catalog-provider";
 import { useStudentPreference } from "@/lib/client-preferences";
 import { googleCalendarUrl } from "@/lib/calendar-export";
@@ -60,7 +60,7 @@ export function EventExplorer({ events, initialUniversityId = "", initialFaculty
     {shareNotice && <div className="success-message" role="status">{shareNotice}</div>}
     <section className="result-stack" aria-live="polite"><div className="result-count"><strong>{filtered.length}</strong> ověřených událostí</div>
       {filtered.length === 0 ? <div className="empty-state"><CalendarPlus size={26} /><h2>Zatím žádný ověřený termín</h2><p>Změňte filtry nebo zkontrolujte oficiální harmonogram své fakulty.</p></div> : filtered.map((event) => <article className={`result-card event-card ${event.changeState === "changed" ? "event-changed" : ""}`} key={event.id} id={event.id}>
-        <time dateTime={event.start}><strong>{new Date(event.start).getDate()}</strong><span>{new Intl.DateTimeFormat("cs-CZ", { month: "short" }).format(new Date(event.start))}</span></time>
+        <time dateTime={event.start}><strong>{formatDayNumber(event.start)}</strong><span>{formatShortMonth(event.start)}</span></time>
         <div className="result-main"><div className="result-labels"><span className="tag">{event.category}</span>{event.changeState === "changed" && <span className="sponsored">AKTUALIZOVÁNO</span>}{event.changeState === "cancelled" && <span className="sponsored">ZRUŠENO</span>}</div><h2>{event.title}</h2><p>{event.description}</p><dl className="meta-list"><div><dt>Škola / fakulta</dt><dd>{event.school} · {event.faculty}</dd></div><div><dt>Termín</dt><dd>{formatDate(event.start)}{event.end ? ` – ${formatDate(event.end)}` : ""}</dd></div><div><dt>Úroveň</dt><dd>{event.scope || "faculty"}</dd></div><div><dt>Naposledy ověřeno</dt><dd>{formatDate(event.lastVerifiedAt)}</dd></div></dl><small className="source-note">Zdroj: {event.sourceUrl ? <a href={event.sourceUrl} target="_blank" rel="noopener noreferrer">{event.sourceDocumentTitle || event.source}</a> : event.source}</small></div>
         <div className="card-actions"><a className="button button-secondary" target="_blank" rel="noopener noreferrer" href={googleCalendarUrl(event)}><ExternalLink size={16} />Google Calendar</a><a className="button button-secondary" href={`/api/calendar/${event.id}.ics?city=${cityId}`}><FileDown size={16} />Stáhnout .ics</a><button className="button button-secondary" type="button" onClick={() => shareEvent(event)}><Share2 size={16} />Sdílet</button></div>
       </article>)}

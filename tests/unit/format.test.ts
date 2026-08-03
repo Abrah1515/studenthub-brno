@@ -1,3 +1,3 @@
 import { describe, expect, it } from "vitest";
-import { classNames, daysUntil } from "@/lib/format";
-describe("pomocné funkce", () => { it("počítá celé dny bez záporného výsledku", () => { expect(daysUntil("2026-08-04T12:00:00Z", new Date("2026-08-01T12:00:00Z"))).toBe(3); expect(daysUntil("2026-07-01", new Date("2026-08-01"))).toBe(0); }); it("spojuje jen platné názvy tříd", () => expect(classNames("a", false, null, "b")).toBe("a b")); });
+import { classNames, daysUntil, formatDate, formatDayNumber } from "@/lib/format";
+describe("pomocné funkce", () => { it("počítá celé dny bez záporného výsledku", () => { expect(daysUntil("2026-08-04T12:00:00Z", new Date("2026-08-01T12:00:00Z"))).toBe(3); expect(daysUntil("2026-07-01", new Date("2026-08-01"))).toBe(0); }); it("formátuje půlnoční termíny stabilně v pražském čase", () => { const value = "2026-09-01T00:00:00+02:00"; expect(formatDayNumber(value)).toBe("1"); expect(formatDate(value)).toBe("1. září 2026"); }); it("spojuje jen platné názvy tříd", () => expect(classNames("a", false, null, "b")).toBe("a b")); });

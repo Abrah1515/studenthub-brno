@@ -1,5 +1,8 @@
-const dateFormatter = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric" });
-const shortDateFormatter = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short" });
+const pragueTimeZone = "Europe/Prague";
+const dateFormatter = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric", timeZone: pragueTimeZone });
+const shortDateFormatter = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short", timeZone: pragueTimeZone });
+const dayNumberFormatter = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", timeZone: pragueTimeZone });
+const shortMonthFormatter = new Intl.DateTimeFormat("cs-CZ", { month: "short", timeZone: pragueTimeZone });
 
 export function formatDate(value: string) {
   return dateFormatter.format(new Date(value));
@@ -7,6 +10,14 @@ export function formatDate(value: string) {
 
 export function formatShortDate(value: string) {
   return shortDateFormatter.format(new Date(value));
+}
+
+export function formatDayNumber(value: string) {
+  return dayNumberFormatter.formatToParts(new Date(value)).find((part) => part.type === "day")?.value || "";
+}
+
+export function formatShortMonth(value: string) {
+  return shortMonthFormatter.format(new Date(value));
 }
 
 export function daysUntil(value: string, now = new Date()) {
