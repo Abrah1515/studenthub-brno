@@ -1,0 +1,53 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { AcademicCatalog, StudentPreference } from "@/lib/types";
+
+import { defaultCitySlug } from "@/lib/cities";
+import { fallbackAcademicCatalog, resolveStudySelection } from "@/lib/universities";
+
+export const preferenceKey = "studenthub-preference-v2";
+export const legacyPreferenceKey = "studenthub-preference-v1";
+export const defaultPreference: StudentPreference = { version: 2, cityId: defaultCitySlug, universityId: null, facultyId: null, campusId: null, completed: false };
+
+export function normalizePreference(value: Partial<StudentPreference>, catalog: AcademicCatalog = fallbackAcademicCatalog): StudentPreference {
+  const selected = resolveStudySelection(value.universityId, value.facultyId, catalog);
+  const university = catalog.universities.find((item) => item.id === selected.universityId);
+  const campus = university?.campuses.find((item) => item.id === value.campusId && item.cityId === (value.cityId || defaultCitySlug));
+  return { version: 2, cityId: value.cityId || defaultCitySlug, universityId: selected.universityId || null, facultyId: selected.facultyId || null, campusId: campus?.id || null, completed: Boolean(value.completed) };
+}
+
+export function readPreference(catalog: AcademicCatalog = fallbackAcademicCatalog): StudentPreference {
+  if (typeof window === "undefined") return defaultPreference;
+  try {
+    const current = localStorage.getItem(preferenceKey);
+    const legacy = !current ? localStorage.getItem(legacyPreferenceKey) : null;
+    const parsed = JSON.parse(current || legacy || "{}") as Partial<StudentPreference>;
+    const value = normalizePreference({ ...defaultPreference, ...parsed }, catalog);
+    if (legacy || current !== JSON.stringify(value)) localStorage.setItem(preferenceKey, JSON.stringify(value));
+    if (legacy) localStorage.removeItem(legacyPreferenceKey);
+    return value;
+  } catch { return defaultPreference; }
+}
+
+export function savePreference(value: Partial<StudentPreference>, catalog: AcademicCatalog = fallbackAcademicCatalog) {
+  const next = normalizePreference({ ...readPreference(catalog), ...value }, catalog);
+  localStorage.setItem(preferenceKey, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent("studenthub-preference-changed", { detail: next }));
+  return next;
+}
+
+export function resetPreference() {
+  savePreference(defaultPreference);
+}
+
+export function useStudentPreference(catalog: AcademicCatalog = fallbackAcademicCatalog) {
+  const [preference, setPreference] = useState<StudentPreference>(defaultPreference);
+  useEffect(() => {
+    const update = () => setPreference(readPreference(catalog));
+    update();
+    window.addEventListener("studenthub-preference-changed", update);
+    return () => window.removeEventListener("studenthub-preference-changed", update);
+  }, [catalog]);
+  return preference;
+}

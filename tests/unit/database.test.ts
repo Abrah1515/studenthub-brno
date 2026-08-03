@@ -1,0 +1,21 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+const migration = readFileSync(resolve("supabase/migrations/202608010001_initial_schema.sql"), "utf8");
+const multiUniversity = readFileSync(resolve("supabase/migrations/202608010002_multi_university.sql"), "utf8");
+const facultyCalendars = readFileSync(resolve("supabase/migrations/202608020006_faculty_calendars.sql"), "utf8");
+const sourceModes = readFileSync(resolve("supabase/migrations/202608020007_source_monitoring_modes.sql"), "utf8");
+const multiCity = readFileSync(resolve("supabase/migrations/202608020004_multi_city_foundation.sql"), "utf8");
+describe("databázová bezpečnost", () => {
+  it("zapíná RLS na neveřejných tabulkách", () => { expect(migration).toContain("alter table public.service_requests enable row level security"); expect(migration).toContain("alter table public.submissions enable row level security"); });
+  it("nedává anonymům čtení poptávek", () => { expect(migration).toContain("revoke all on public.service_requests from anon"); expect(migration).toContain("grant insert on public.service_requests to anon"); expect(migration).not.toContain("grant select on public.service_requests to anon"); });
+  it("omezuje veřejný obsah na schválené záznamy", () => { expect(migration.match(/public reads approved/g)?.length).toBe(4); expect(migration).toContain("using (status = 'approved')"); });
+  it("normalizuje univerzity a fakulty", () => { expect(multiUniversity).toContain("create table public.universities"); expect(multiUniversity).toContain("create table public.faculties"); expect(multiUniversity).toContain("create table public.offer_universities"); });
+  it("omezuje fakultního editora na přiřazenou fakultu", () => { expect(multiUniversity).toContain("faculty_id = public.editor_faculty_id()"); expect(multiUniversity).toContain("role in ('user', 'faculty_editor', 'admin')"); });
+  it("ukládá agregované návštěvy podle školy, fakulty a referralu", () => { expect(multiUniversity).toContain("create table public.page_views"); expect(multiUniversity).toContain("page_views_school_day_idx"); expect(multiUniversity).toContain("page_views_referral_day_idx"); });
+  it("vynucuje fakultu patřící vybrané univerzitě", () => { expect(facultyCalendars).toContain("faculty_id does not belong to university_id"); expect(facultyCalendars).toContain("academic_event_relations_valid"); });
+  it("podporuje městský, univerzitní, fakultní, programový a kampusový rozsah", () => { expect(facultyCalendars).toContain("'city','university','faculty','programme','campus','national'"); expect(facultyCalendars).toContain("programme_id"); expect(facultyCalendars).toContain("campus_id"); });
+  it("verzuje PDF, normalizovaný obsah a audit změn", () => { expect(facultyCalendars).toContain("normalized_hash"); expect(facultyCalendars).toContain("source_change_audits"); expect(facultyCalendars).toContain("source_text text"); });
+  it("používá skutečný stav kampusu a jednoznačné ID nabídky", () => { expect(facultyCalendars).toContain("c.enabled"); expect(facultyCalendars).not.toContain("c.is_active"); expect(multiCity).toContain("oc.offer_id = offers.id"); });
+  it("monitoruje všechny fakultní zdroje nezávisle na schválení", () => { expect(sourceModes).toContain("'automatic_publish','automatic_review','not_found_monitored'"); expect(sourceModes).toContain("set enabled = true"); expect(sourceModes).toContain("last_document_url"); });
+});
