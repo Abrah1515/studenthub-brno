@@ -56,6 +56,17 @@ test("formulář spolku odešle přesný scope VUT + FEKT", async ({ page }, tes
 
 test("všechny tři formuláře odmítnou nevalidní JSON na serveru", async ({ request }, testInfo) => { test.skip(testInfo.project.name !== "desktop-1440"); for (const endpoint of ["/api/service-requests", "/api/jobs", "/api/submissions"]) { const response = await request.post(endpoint, { data: { company: "spam" } }); expect(response.status(), endpoint).toBe(422); } });
 
+test("honeypot formuláře není viditelný ani dostupný čtečce", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
+  await page.goto("/pomoc");
+  const honeypot = page.locator("label.honeypot");
+  await expect(honeypot).toHaveCount(1);
+  await expect(honeypot).toBeHidden();
+  await expect(honeypot).toHaveAttribute("aria-hidden", "true");
+  await expect(honeypot.locator("input")).toHaveAttribute("tabindex", "-1");
+  expect(await honeypot.evaluate((element) => getComputedStyle(element).display)).toBe("none");
+});
+
 test("staré URL přesměrují a školní stránky uvádějí nezávislost", async ({ page }) => { await page.goto("/kalendar"); await expect(page).toHaveURL(/\/brno\/kalendar$/); for (const school of ["muni", "vut", "mendelu"]) { await page.goto(`/${school}`); await expect(page).toHaveURL(new RegExp(`/brno/skoly/${school}$`)); await expect(page.getByText(/Nezávislý projekt:/)).toBeVisible(); await expect(page.getByText(/nenahrazuje školní informační systém/)).toBeVisible(); } });
 
 test("validuje a uloží poptávku technické pomoci", async ({ page }, testInfo) => { test.skip(testInfo.project.name !== "desktop-1440"); await page.goto("/pomoc"); await page.getByRole("button", { name: "Odeslat poptávku" }).click(); await expect(page.getByText("Uveďte prosím jméno.")).toBeVisible(); const form = page.getByTestId("service-request-form"); await form.getByLabel("Veřejný název žádosti *").fill("Pomoc s vypínáním notebooku"); await form.getByLabel("Jméno *").fill("Testovací Student"); await form.locator('input[name="email"]').fill("student@example.cz"); await form.getByLabel("Popis problému *").fill("Notebook se při startu vypíná a potřebuji bezpečně zkontrolovat hardware."); await form.getByLabel("Přibližná lokalita *").fill("Brno-střed"); await form.getByLabel("Preferovaný termín *").fill("2026-08-10"); await form.getByText(/Souhlasím se zpracováním uvedených údajů/).click(); await form.getByText(/Souhlasím, aby se po schválení zobrazil název/).click(); await form.getByRole("button", { name: "Odeslat poptávku" }).click(); await expect(page.getByTestId("request-success")).toBeVisible(); });
