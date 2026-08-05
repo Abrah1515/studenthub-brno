@@ -3,7 +3,7 @@ import { getAdminUser } from "@/lib/admin-auth";
 import { deleteRecord, insertRecord, listRecords, updateRecord, type TableName } from "@/lib/data-store";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 
-const allowed = new Set<TableName>(["cities", "academic_events", "places", "offers", "jobs", "submissions"]);
+const allowed = new Set<TableName>(["cities", "academic_events", "places", "offers", "jobs", "submissions", "service_requests", "buddy_posts", "content_reports"]);
 type Context = { params: Promise<{ resource: string }> };
 type AdminUser = NonNullable<Awaited<ReturnType<typeof getAdminUser>>>;
 async function table(context: Context) { const value = (await context.params).resource as TableName; return allowed.has(value) ? value : null; }
@@ -28,7 +28,7 @@ export async function POST(request: Request, context: Context) {
   if (resource === "cities" && user.role !== "super_admin") return NextResponse.json({ message: "Nové město může založit pouze super administrátor." }, { status: 403 });
   if (user.role === "faculty_editor" && !user.facultyId) return NextResponse.json({ message: "Editor nemá přiřazenou fakultu." }, { status: 403 });
   const body = await request.json();
-  const localResource = ["places", "jobs", "submissions"].includes(resource);
+  const localResource = ["places", "jobs", "submissions", "service_requests", "buddy_posts", "content_reports"].includes(resource);
   if (localResource && user.role !== "super_admin" && !user.cityId) return NextResponse.json({ message: "Editor nemá přiřazené město." }, { status: 403 });
   const saved = await insertRecord(resource, { ...body, ...(localResource ? { city_id: user.cityId } : {}), faculty_id: user.role === "faculty_editor" ? user.facultyId : body.faculty_id, status: body.status || "pending", ...(resource === "cities" ? {} : { is_demo: false }) });
   if (resource === "offers" && isSupabaseConfigured() && user.cityId) await createServiceClient().from("offer_cities").upsert({ offer_id: saved.id, city_id: user.cityId });

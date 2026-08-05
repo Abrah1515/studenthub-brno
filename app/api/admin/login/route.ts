@@ -14,7 +14,10 @@ export async function POST(request: Request) {
     const response = NextResponse.json({ ok: true });
     const supabase = createServerClient(url, anon, { cookies: { getAll: () => [], setAll: (values) => values.forEach(({ name, value, options }) => response.cookies.set(name, value, options)) } });
     const { data, error } = await supabase.auth.signInWithPassword({ email: body.email, password: body.password });
-    if (error || !["super_admin", "admin", "city_editor", "faculty_editor"].includes(String(data.user?.app_metadata?.role))) return NextResponse.json({ message: "Přihlášení se nezdařilo nebo účet nemá redakční roli." }, { status: 401 });
+    const claimedRole = String(data.user?.app_metadata?.role || ""); const claimedCityId = typeof data.user?.app_metadata?.city_id === "string" ? data.user.app_metadata.city_id : null; const claimedFacultyId = typeof data.user?.app_metadata?.faculty_id === "string" ? data.user.app_metadata.faculty_id : null;
+    if (error || !data.user || !["super_admin", "admin", "city_editor", "faculty_editor"].includes(claimedRole)) return NextResponse.json({ message: "Přihlášení se nezdařilo nebo účet nemá redakční roli." }, { status: 401 });
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("role,city_id,faculty_id").eq("id", data.user.id).single();
+    if (profileError || !profile || profile.role !== claimedRole || (profile.city_id || null) !== claimedCityId || (profile.faculty_id || null) !== claimedFacultyId) return NextResponse.json({ message: "Role účtu není synchronizovaná. Kontaktujte hlavního správce." }, { status: 403 });
     return response;
   }
   const localAllowed = process.env.DEMO_MODE === "true" && process.env.ALLOW_LOCAL_FILE_STORE === "true";

@@ -7,8 +7,13 @@ import { useModalDialog } from "@/lib/use-modal-dialog";
 type Consent = { analytics: boolean; marketing: boolean };
 const defaultConsent: Consent = { analytics: false, marketing: false };
 
+function syncAnalyticsCookie(consent: Consent) {
+  document.cookie = consent.analytics ? `sh_analytics_consent=1; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}` : "sh_analytics_consent=; Path=/; Max-Age=0; SameSite=Lax";
+}
+
 function saveConsent(consent: Consent) {
   localStorage.setItem("studenthub-consent", JSON.stringify(consent));
+  syncAnalyticsCookie(consent);
   window.dispatchEvent(new CustomEvent("studenthub-consent-changed", { detail: consent }));
 }
 
@@ -26,7 +31,7 @@ export function CookieConsent() {
   useEffect(() => {
     const saved = localStorage.getItem("studenthub-consent");
     if (saved) {
-      try { setConsent(JSON.parse(saved)); } catch { setOpen(true); }
+      try { const parsed = JSON.parse(saved) as Consent; setConsent(parsed); syncAnalyticsCookie(parsed); } catch { setOpen(true); }
     } else setOpen(true);
     const handler = () => { setSettings(true); setOpen(true); };
     window.addEventListener("open-cookie-settings", handler);

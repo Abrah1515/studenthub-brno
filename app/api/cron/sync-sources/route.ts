@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { syncEnabledSources } from "@/lib/sources/sync";
 import { defaultCitySlug } from "@/lib/cities";
 import { getPublishedCity } from "@/lib/city-data";
+import { expireBuddyPosts } from "@/lib/buddy";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,8 +21,8 @@ async function run(request: Request) {
   const university = new URL(request.url).searchParams.get("university") || undefined;
   const citySlug = new URL(request.url).searchParams.get("city") || defaultCitySlug; const city = await getPublishedCity(citySlug);
   if (!city) return NextResponse.json({ message: "Město není aktivní; synchronizace nebyla spuštěna." }, { status: 409 });
-  const results = await syncEnabledSources({ cityId: city.id, universityId: university });
-  return NextResponse.json({ ok: true, city: city.id, university: university || "all", results: results.map((result) => result.status === "fulfilled" ? result.value : { status: "failed", message: result.reason instanceof Error ? result.reason.message : "Neznámá chyba" }) });
+  const [results, expiredBuddyPosts] = await Promise.all([syncEnabledSources({ cityId: city.id, universityId: university }), expireBuddyPosts()]);
+  return NextResponse.json({ ok: true, city: city.id, university: university || "all", expiredBuddyPosts, results: results.map((result) => result.status === "fulfilled" ? result.value : { status: "failed", message: result.reason instanceof Error ? result.reason.message : "Neznámá chyba" }) });
 }
 
 export const GET = run;

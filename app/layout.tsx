@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { CookieConsent } from "@/components/cookie-consent";
 import { PwaRegister } from "@/components/pwa-register";
+import { PwaInstallProvider } from "@/components/pwa-install";
 import { FirstRunPicker } from "@/components/preference-picker";
 import { PrivacyAnalytics } from "@/components/privacy-analytics";
 import { Suspense } from "react";
@@ -21,6 +22,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/brno" },
   manifest: "/manifest.webmanifest",
   icons: { icon: [{ url: brand.assets.icon192, sizes: "192x192", type: "image/png" }], apple: brand.assets.icon192 },
+  appleWebApp: { capable: true, title: brand.editionName, statusBarStyle: "default" },
   openGraph: {
     type: "website",
     locale: "cs_CZ",
@@ -52,11 +54,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <head><script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=localStorage.getItem('studenthub-theme')||'system';var d=p==='dark'||(p==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.dataset.themePreference=p}catch(e){}})()` }} /></head>
       <body>
         <a className="skip-link" href="#hlavni-obsah">Přeskočit na obsah</a>
-        <SiteShell cities={cities} catalog={catalog}>{children}</SiteShell>
-        <CookieConsent />
-        <FirstRunPicker cities={cities} catalog={catalog} />
-        <Suspense fallback={null}><PrivacyAnalytics /></Suspense>
-        <PwaRegister />
+        <PwaInstallProvider>
+          <SiteShell cities={cities} catalog={catalog}>{children}</SiteShell>
+          <CookieConsent />
+          <FirstRunPicker cities={cities} catalog={catalog} />
+          <Suspense fallback={null}><PrivacyAnalytics /></Suspense>
+          <PwaRegister />
+        </PwaInstallProvider>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} />
       </body>
     </html>

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const reservedTopLevelRoutes = new Set([
   "admin",
   "api",
+  "auth",
   "brand",
   "brigady",
   "cookies",
@@ -16,8 +17,10 @@ const reservedTopLevelRoutes = new Set([
   "navrhnout-obsah",
   "o-projektu",
   "podminky",
+  "partak",
   "pomoc",
   "soukromi",
+  "ucet",
   "vut",
   "_sites-preview",
 ]);
@@ -54,7 +57,15 @@ export function proxy(request: NextRequest) {
   if (pathname.startsWith("/admin") && pathname !== "/admin/prihlaseni") {
     const hasDemo = Boolean(request.cookies.get("sh_admin"));
     const hasSupabase = request.cookies.getAll().some((cookie) => cookie.name.startsWith("sb-") && cookie.name.includes("auth-token"));
-    if (!hasDemo && !hasSupabase) return NextResponse.redirect(new URL("/admin/prihlaseni?from=/admin", request.url));
+    if (!hasDemo && !hasSupabase) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/admin/prihlaseni";
+      loginUrl.search = "?from=%2Fadmin";
+      if (loginUrl.hostname === "127.0.0.1" || loginUrl.hostname === "localhost") loginUrl.protocol = "http:";
+      const response = NextResponse.redirect(loginUrl);
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
   }
 
   const firstSegment = pathname.split("/").filter(Boolean)[0]?.toLowerCase();

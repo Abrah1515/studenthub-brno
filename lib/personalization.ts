@@ -9,16 +9,14 @@ export function filterAcademicEvents(events: AcademicEvent[], selection: StudySe
   return events.filter((event) => academicEventMatchesSelection(event, selection));
 }
 
-export function filterPlaces(places: Place[], selection: StudySelection & { campus?: string }) {
+export function filterPlaces(places: Place[], selection: StudySelection) {
   return places.filter((place) => audienceMatches(place.universityIds, selection.universityId)
-    && audienceMatches(place.facultyIds, selection.facultyId)
-    && (!selection.campus || place.campusId === selection.campus || place.campus?.toLocaleLowerCase("cs-CZ") === selection.campus.toLocaleLowerCase("cs-CZ")));
+    && audienceMatches(place.facultyIds, selection.facultyId));
 }
 
-export function filterOffers(offers: Offer[], selection: StudySelection & { campus?: string }) {
+export function filterOffers(offers: Offer[], selection: StudySelection) {
   return offers.filter((offer) => audienceMatches(offer.universityIds, selection.universityId)
-    && audienceMatches(offer.facultyIds, selection.facultyId)
-    && (!selection.campus || offer.campusId === selection.campus || offer.campus?.toLocaleLowerCase("cs-CZ") === selection.campus.toLocaleLowerCase("cs-CZ")));
+    && audienceMatches(offer.facultyIds, selection.facultyId));
 }
 
 export function filterJobs(jobs: Job[], selection: StudySelection) {

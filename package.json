@@ -2,6 +2,7 @@
   "name": "studenthub-brno",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@11.9.0",
   "engines": {
     "node": ">=22.13.0"
@@ -16,7 +17,10 @@
     "test:watch": "vitest --configLoader runner",
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:e2e",
-    "check:links": "node --experimental-strip-types scripts/check-links.mjs"
+    "check:links": "node --experimental-strip-types scripts/check-links.mjs",
+    "check:pwa": "node scripts/check-pwa.mjs",
+    "admin:invite": "node scripts/invite-superadmin.mjs",
+    "admin:recover": "node scripts/invite-superadmin.mjs --recover"
   },
   "dependencies": {
     "@hookform/resolvers": "5.6.0",

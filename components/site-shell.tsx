@@ -3,8 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { BriefcaseBusiness, CalendarDays, Handshake, HeartHandshake, Home, Info, MapPinned, Menu, Monitor, Moon, Settings, Sun, Wrench, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { BriefcaseBusiness, CalendarDays, Handshake, HeartHandshake, Home, Info, MapPinned, Menu, Monitor, Moon, Settings, Sun, Users, Wrench, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { brand } from "@/lib/brand";
 import type { City } from "@/lib/cities";
 import { classNames } from "@/lib/format";
@@ -12,6 +13,7 @@ import type { AcademicCatalog } from "@/lib/types";
 import { AcademicCatalogProvider } from "@/components/academic-catalog-provider";
 import { SelectedStudyContext } from "@/components/selected-study-context";
 import { useModalDialog } from "@/lib/use-modal-dialog";
+import { PwaInstallButton } from "@/components/pwa-install";
 
 function navigationFor(citySlug: string, cityName: string) {
   const cityBase = `/${citySlug}`;
@@ -22,6 +24,7 @@ function navigationFor(citySlug: string, cityName: string) {
     { href: `${cityBase}/nabidky`, label: "Nabídky a slevy", short: "Slevy", icon: Handshake },
     { href: `${cityBase}/brigady`, label: "Brigády", short: "Brigády", icon: BriefcaseBusiness },
     { href: "/pomoc", label: "Technická pomoc", short: "Pomoc", icon: Wrench },
+    { href: "/partak", label: "Hledám parťáka", short: "Parťák", icon: Users },
     { href: "/nastaveni", label: "Moje škola", short: "Nastavení", icon: Settings },
   ];
 }
@@ -40,19 +43,25 @@ function ThemeToggle() {
 function isActive(pathname: string, href: string, cityRoot: string) { return pathname === href || (href === cityRoot && pathname === "/"); }
 function CitySwitcher({ cities, pathname }: { cities: City[]; pathname: string }) { const current = cities.find((city) => pathname === `/${city.slug}` || pathname.startsWith(`/${city.slug}/`)) || cities[0]; return <label className="city-switcher"><span>Město</span><select aria-label="Změnit město" value={current?.slug || ""} onChange={(event) => { const suffix = current && pathname.startsWith(`/${current.slug}`) ? pathname.slice(current.slug.length + 1) : ""; window.location.assign(`/${event.target.value}${suffix}`); }}>{cities.map((city) => <option key={city.id} value={city.slug}>{city.name}</option>)}</select></label>; }
 
+function MobileMenu({ open, close, navigation, pathname, cityRoot, returnFocus }: { open: boolean; close: () => void; navigation: ReturnType<typeof navigationFor>; pathname: string; cityRoot: string; returnFocus: () => HTMLElement | null }) {
+  const ref = useModalDialog<HTMLElement>(open, close);
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(<div className="mobile-menu-layer" data-modal-layer><button className="mobile-menu-backdrop" data-modal-layer aria-label="Zavřít nabídku" onClick={close} /><aside ref={ref} tabIndex={-1} className="mobile-menu-panel" aria-label="Mobilní nabídka" role="dialog" aria-modal="true" data-modal-layer><div className="sidebar-head"><Brand href={cityRoot} /><button className="icon-button" data-autofocus aria-label="Zavřít nabídku" onClick={close}><X size={20} /></button></div><nav className="desktop-nav" aria-label="Hlavní navigace">{navigation.map(({ href, label, icon: Icon }) => { const active = isActive(pathname, href, cityRoot); return <Link key={href} href={href} onClick={close} className={classNames("nav-link", active && "nav-link-active")} aria-current={active ? "page" : undefined}><Icon size={19} /><span>{label}</span></Link>; })}</nav><div className="sidebar-note"><Info size={18} /><p>Nezávislý projekt. Není oficiálně spojený s žádnou univerzitou.</p></div><nav className="sidebar-legal" aria-label="Doplňkové odkazy"><Link href="/o-projektu" onClick={close}>O projektu</Link><PwaInstallButton onBeforeOpen={close} returnFocus={returnFocus} /><Link href="/navrhnout-obsah" onClick={close}>Pro spolky</Link><Link href="/kontakt" onClick={close}>Kontakt</Link><Link href="/admin" onClick={close}>Administrace</Link></nav></aside></div>, document.body);
+}
+
 export function SiteShell({ children, cities, catalog }: { children: React.ReactNode; cities: City[]; catalog: AcademicCatalog }) {
-  const pathname = usePathname(); const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useModalDialog<HTMLElement>(menuOpen, () => setMenuOpen(false));
+  const pathname = usePathname(); const [menuOpen, setMenuOpen] = useState(false); const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { const close = () => setMenuOpen(false); window.addEventListener("popstate", close); return () => window.removeEventListener("popstate", close); }, []);
   if (pathname.startsWith("/admin")) return <AcademicCatalogProvider catalog={catalog}>{children}</AcademicCatalogProvider>;
   const currentCity = cities.find((city) => pathname === `/${city.slug}` || pathname.startsWith(`/${city.slug}/`)) || cities[0];
   const citySlug = currentCity?.slug || "brno";
   const cityRoot = `/${citySlug}`;
   const navigation = navigationFor(citySlug, currentCity?.name || "Brně");
   return <AcademicCatalogProvider catalog={catalog}><div className="app-shell">
-    <aside ref={menuRef} tabIndex={menuOpen ? -1 : undefined} className={classNames("sidebar", menuOpen && "sidebar-open")} aria-label="Postranní panel" role={menuOpen ? "dialog" : undefined} aria-modal={menuOpen || undefined} data-modal-layer={menuOpen || undefined}><div className="sidebar-head"><div className="brand-context"><Brand href={cityRoot} /><SelectedStudyContext /></div><button className="icon-button mobile-only" data-autofocus={menuOpen || undefined} aria-label="Zavřít nabídku" onClick={() => setMenuOpen(false)}><X size={20} /></button></div><nav className="desktop-nav" aria-label="Hlavní navigace">{navigation.map(({ href, label, icon: Icon }) => { const active = isActive(pathname, href, cityRoot); return <Link key={href} href={href} onClick={() => setMenuOpen(false)} className={classNames("nav-link", active && "nav-link-active")} aria-current={active ? "page" : undefined}><Icon size={19} aria-hidden="true" /><span>{label}</span></Link>; })}</nav><div className="sidebar-note"><Info size={18} aria-hidden="true" /><p>Nezávislý projekt. Není oficiálně spojený s žádnou univerzitou.</p></div><nav className="sidebar-legal" aria-label="Doplňkové odkazy"><Link href="/o-projektu">O projektu</Link><Link href="/navrhnout-obsah">Pro spolky</Link><Link href="/kontakt">Kontakt</Link><Link href="/admin">Administrace</Link></nav></aside>
+    <aside className="sidebar desktop-sidebar" aria-label="Postranní panel"><div className="sidebar-head"><div className="brand-context"><Brand href={cityRoot} /><SelectedStudyContext /></div></div><nav className="desktop-nav" aria-label="Hlavní navigace">{navigation.map(({ href, label, icon: Icon }) => { const active = isActive(pathname, href, cityRoot); return <Link key={href} href={href} className={classNames("nav-link", active && "nav-link-active")} aria-current={active ? "page" : undefined}><Icon size={19} aria-hidden="true" /><span>{label}</span></Link>; })}</nav><div className="sidebar-note"><Info size={18} aria-hidden="true" /><p>Nezávislý projekt. Není oficiálně spojený s žádnou univerzitou.</p></div><nav className="sidebar-legal" aria-label="Doplňkové odkazy"><Link href="/o-projektu">O projektu</Link><PwaInstallButton /><Link href="/navrhnout-obsah">Pro spolky</Link><Link href="/kontakt">Kontakt</Link><Link href="/admin">Administrace</Link></nav></aside>
+    <MobileMenu open={menuOpen} close={() => setMenuOpen(false)} navigation={navigation} pathname={pathname} cityRoot={cityRoot} returnFocus={() => menuTriggerRef.current} />
     {cities.length > 1 && <CitySwitcher cities={cities} pathname={pathname} />}
-    {menuOpen && <button className="backdrop" data-modal-layer aria-label="Zavřít nabídku" onClick={() => setMenuOpen(false)} />}
-    <div className="main-column"><header className="topbar"><button className="icon-button mobile-only" aria-label="Otevřít nabídku" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><div className="mobile-brand"><Brand href={cityRoot} /></div><div className="topbar-spacer" /><ThemeToggle /></header><main id="hlavni-obsah" className="content">{children}</main><footer className="footer"><p>{brand.editionName} · nezávislý studentský projekt</p><div><Link href="/soukromi">Soukromí</Link><Link href="/cookies">Cookies</Link><Link href="/podminky">Podmínky</Link><button type="button" onClick={() => window.dispatchEvent(new Event("open-cookie-settings"))}>Nastavení cookies</button></div></footer></div>
+    <div className="main-column"><header className="topbar"><button ref={menuTriggerRef} className="icon-button mobile-only" aria-label="Otevřít nabídku" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><div className="mobile-brand"><Brand href={cityRoot} /></div><div className="topbar-spacer" /><ThemeToggle /></header><main id="hlavni-obsah" className="content">{children}</main><footer className="footer"><p>{brand.editionName} · nezávislý studentský projekt</p><div><Link href="/soukromi">Soukromí</Link><Link href="/cookies">Cookies</Link><Link href="/podminky">Podmínky</Link><button type="button" onClick={() => window.dispatchEvent(new Event("open-cookie-settings"))}>Nastavení cookies</button></div></footer></div>
     <nav className="bottom-nav" aria-label="Mobilní navigace">{navigation.slice(0, 5).map(({ href, short, icon: Icon }) => { const active = isActive(pathname, href, cityRoot); return <Link key={href} href={href} className={classNames(active && "active")} aria-current={active ? "page" : undefined}><Icon size={20} aria-hidden="true" /><span>{short}</span></Link>; })}</nav><Link href="/pomoc" className="floating-help" aria-label="Potřebuji technickou pomoc"><HeartHandshake size={22} /><span>Technická pomoc</span></Link>
   </div></AcademicCatalogProvider>;
 }

@@ -1,19 +1,24 @@
 # StudentHub Brno
 
-Nezávislá PWA pro studenty všech brněnských vysokých škol, připravená k produkčnímu nasazení po dokončení checklistu v tomto dokumentu. Spojuje ověřené veřejné akademické termíny, užitečná místa, nabídky, brigády a neveřejné poptávky technické pomoci. Není oficiální službou žádné univerzity a nepřihlašuje se do školních informačních systémů.
+Nezávislá PWA pro studenty všech brněnských vysokých škol, připravená k produkčnímu nasazení po dokončení checklistu v tomto dokumentu. Spojuje ověřené veřejné akademické termíny, užitečná místa, nabídky, brigády, moderované žádosti o lokální pomoc a hledání parťáků. Není oficiální službou žádné univerzity a nepřihlašuje se do školních informačních systémů.
 
 ## Co aplikace obsahuje
 
 - personalizovaný dashboard bez registrace pro MUNI, VUT, MENDELU, VETUNI a JAMU;
 - 27 fakult a městské routy `/brno`, `/brno/kalendar`, `/brno/mista`, `/brno/nabidky`, `/brno/brigady` a `/brno/skoly/<škola>`; původní URL bezpečně přesměrovávají;
 - fakultní kalendář s validovanými URL parametry (`?university=muni&faculty=muni-fi`), sjednocením univerzitních a fakultních termínů, odkazem na zdroj, sdílením, Google Calendar a korektním `.ics` exportem;
-- reaktivní výběr školy/fakulty bez registrace a aktuální studijní kontext pod značkou v desktopové i mobilní navigaci;
+- povinný sekvenční onboarding města/školy/fakulty bez registrace, vědomé pokračování pro celé město a aktuální studijní kontext pod značkou v desktopové i mobilní navigaci;
 - Leaflet/OpenStreetMap mapu i plně použitelný seznam ověřených míst;
 - nabídky a brigády s moderací, expirací a označením sponzorství/affiliate;
-- bezpečně uložené poptávky technické pomoci a návrhy studentských spolků;
+- moderované veřejné žádosti o lokální pomoc s neveřejnými kontakty, filtry, vlastnickým tokenem, úpravou/smazáním a hlášením;
+- sekci „Hledám parťáka“ pro ověřené Supabase účty s filtry, kapacitou, žádostmi o připojení, expirací, moderací a bezpečnostními doporučeními;
+- návrhy studentských spolků s fakultním rozsahem a serverovou validací;
 - administraci pro role `super_admin`, brněnský `admin`, městsky omezený `city_editor` a fakultně omezený `faculty_editor`;
 - registr zdrojů, synchronizační historii, snapshoty, frontu nejistých změn a kontrolu odkazů;
-- opt-in cookie consent, tři režimy motivu, PWA/offline obrazovku, SEO a bezpečnostní hlavičky.
+- privacy-first návštěvnost 7/30/90 dnů pouze po opt-in, správu administrátorů hlavním superadminem, tři režimy motivu, SEO a bezpečnostní hlavičky;
+- instalovatelnou PWA: Chrome/Edge používají `beforeinstallprompt`, iOS/iPadOS a vestavěné prohlížeče dostanou přizpůsobený návod. Instalační položka je v desktopovém i mobilním menu a na stránce Místa.
+
+Service worker používá verzovanou cache jen pro `/_next/static/`, fonty a vlastní brand obrázky. Navigace se vždy načítá ze sítě a při výpadku vrátí pouze `offline.html`; `/admin`, `/api`, `/auth`, účty a soukromé přehledy se nikdy necachují. Aktualizace workeru nevyvolává automatický reload, takže nemůže vzniknout obnovovací smyčka.
 
 Veřejné UI nikdy nepoužívá falešné partnery, brigády ani „výplňové“ akademické termíny. Nabídky a brigády jsou po čisté instalaci prázdné. Ověřený seed obsahuje jen ručně ověřené veřejné termíny a reálná místa s odkazy na zdroje.
 
@@ -54,6 +59,7 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `NEXT_PUBLIC_SUPABASE_URL` | klient/server | ano | URL Supabase projektu |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | klient/server | ano | veřejný anon klíč, chráněný RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | pouze server | ano | serverové formuláře, synchronizace a administrace; nikdy ne do klienta |
+| `SUPERADMIN_EMAIL` | pouze lokální CLI | při prvním účtu | skutečný e-mail pro jednorázovou pozvánku; nepřidávat do Vercelu ani repozitáře |
 | `CRON_SECRET` | pouze server | ano | Bearer autorizace obou cron endpointů |
 | `RATE_LIMIT_SALT` | pouze server | ano | pseudonymizace IP pro lokální rate limit |
 | `SYNC_USER_AGENT` | server | ano | identifikace slušného crawleru s kontaktem |
@@ -61,6 +67,9 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `NEXT_PUBLIC_CONTACT_EMAIL` | build | doporučeno | veřejný kontakt |
 | `NEXT_PUBLIC_PARTNER_EMAIL` | build | doporučeno | kontakt pro partnery |
 | `FAJN_BRIGADY_FEED_ENABLED` | server | ne | rezervovaný, výchozí `false`; bez smluvního feedu se nepoužije |
+| `FAJN_BRIGADY_FEED_URL` | server | ne | pouze smluvní XML/JSON endpoint, nikdy stránka ke scrapování |
+| `ISIC_FEED_ENABLED` / `ISIC_FEED_URL` | server | ne | rezervovaný autorizovaný feed; ve výchozím stavu `false` |
+| `OCR_ENDPOINT_URL` / `OCR_API_KEY` | pouze server | ne | volitelné HTTPS OCR API pro skenované PDF; výsledek vždy čeká na schválení |
 | `DEMO_MODE` | server | ne | výhradně lokální testovací přihlášení |
 | `ALLOW_LOCAL_FILE_STORE` | server | ne | lokální souborové úložiště; vyžaduje současně `DEMO_MODE=true` |
 | `ALLOW_VERIFIED_FALLBACK` | server | ne | kurátorovaný fallback bez DB; v produkci ponechat `false` |
@@ -83,34 +92,34 @@ pnpm dlx supabase db push
 4. Obsah `supabase/seed.sql` po obsahové kontrole spusťte jednorázově v Supabase SQL Editoru a ověřte počty i označení importovaných záznamů. V produkci nepoužívejte `db push --include-seed`; tato volba patří jen do čerstvého vývojového nebo stagingového prostředí.
 
 5. Z Project Settings → API zkopírujte URL, anon key a service role key do `.env.local`/Vercelu. Service role klíč nesmí mít prefix `NEXT_PUBLIC_` a nesmí být commitnutý.
+6. V Authentication → URL Configuration nastavte produkční Site URL a povolte přesný redirect `https://VAŠE-DOMÉNA/auth/callback`. Stejný callback dokončuje magic link, pozvánku i obnovu; administrátor pak nastaví heslo na `/admin/obnova`. Pro veřejné přihlášení nastavte vlastní SMTP, rate limity a šablony e-mailů.
 
 Migrace jsou pořadové a nedestruktivní:
 
 - `202608010001_initial_schema.sql` – obsah, formuláře, základní RLS;
 - `202608010002_multi_university.sql` – univerzity, fakulty, role, referral a statistiky;
 - `202608010003_production_sources.sql` – produkční zdroje, verzování, review queue, link checks, přísnější RLS a archivace dřívějších testovacích řádků.
-- `202608020004_multi_city_foundation.sql` – města, vazby univerzit, kampusy, městský scope obsahu a statistik, nové role, RLS, indexy a publikační outbox bez PII. Migrace nejdřív vloží Brno, potom backfilluje existující řádky a až následně zpřísní omezení.
+- `202608020004_multi_city_foundation.sql` – města, vazby univerzit, historický základ kampusů, městský scope obsahu a statistik, nové role, RLS, indexy a publikační outbox bez PII. Migrace nejdřív vloží Brno, potom backfilluje existující řádky a až následně zpřísní omezení.
 - `202608020005_refresh_vut_source_urls.sql` – idempotentní oprava přesunutých oficiálních zdrojů FAST a FA VUT bez změny publikovaných událostí.
-- `202608020006_faculty_calendars.sql` – oficiální metadata všech 27 fakult, scope `city/university/faculty/programme/campus`, vazební trigger, metadata zdrojů, normalizované hashe, PDF snapshoty, review text a audit změn.
+- `202608020006_faculty_calendars.sql` – oficiální metadata všech 27 fakult, původní rozšířený scope, vazební trigger, metadata zdrojů, normalizované hashe, PDF snapshoty, review text a audit změn.
 - `202608020007_source_monitoring_modes.sql` – oddělené režimy `automatic_publish/automatic_review/not_found_monitored`, monitoring všech 27 fakult, stabilní MUNI/JAMU/VETUNI zdroje, opravená RLS oprávnění a stav kontroly odkazů.
 - `202608020008_source_validation_and_editor_scope.sql` – ukládání finální URL/MIME/blokace, rozšířená validace odkazů a bezpečný městský rozsah pro univerzitní termíny bez `city_id`.
+- `202608040009_community_help_and_privacy.sql` – bezpečný archiv a vypnutí kampusového modelu, čísla PDF stran, veřejná pomoc, parťáci a kapacitní trigger, hlášení, superadmin RLS a analytika zapisovatelná pouze serverem po souhlasu.
 
-## První administrátor
+## První hlavní superadmin
 
-1. V Supabase Authentication → Users vytvořte uživatele s ověřeným e-mailem.
-2. V SQL Editoru nastavte profil:
+Nezadávejte heslo ani service-role key do kódu, argumentu příkazu nebo dokumentace. Po aplikaci všech migrací nastavte údaje pouze v lokálním shellu a spusťte jednorázovou pozvánku:
 
-```sql
-update public.profiles set role = 'admin', city_id = 'brno' where id = 'UUID_UZIVATELE';
+```powershell
+$env:NEXT_PUBLIC_SUPABASE_URL="https://VAS_PROJEKT.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY="..."
+$env:SUPERADMIN_EMAIL="vas-skutecny-email@example.cz"
+pnpm admin:invite
 ```
 
-3. V Authentication → Users → uživatel → App metadata nastavte:
+Skript odmítne vytvořit dalšího hlavního superadmina, nastaví shodnou roli `super_admin` v profilu i App metadata a odešle oficiální Supabase pozvánku. Heslo nevytváří ani nezobrazuje. Po dokončení se aktualizuje ignorovaný lokální soubor `ADMIN-PRISTUP-LOKALNE.txt`; `git check-ignore ADMIN-PRISTUP-LOKALNE.txt` musí soubor najít. Obnova přístupu používá stejné lokální proměnné a `pnpm admin:recover`.
 
-```json
-{ "role": "admin", "city_id": "brno" }
-```
-
-Pro fakultního editora nastavte profil `role='faculty_editor'`, `faculty_id='vut-fit'` (nebo jinou fakultu). Pro městského editora nastavte `role='city_editor'`, `city_id='brno'`. `super_admin` je jediná globální role a používejte ji jen pro zakládání a publikování nových měst. Stejné hodnoty uložte do App metadata. Server kontroluje metadata při přihlášení; RLS kontroluje profil v databázi. Obě vrstvy musí souhlasit.
+Další role (`admin`, `city_editor`, `faculty_editor`) spravuje přihlášený superadmin v Administrace → Správci. Server kontroluje App metadata při přihlášení a RLS profil v databázi; obě vrstvy musí souhlasit.
 
 Administrace je na `/admin`. Bez platné serverově ověřené session přesměruje na `/admin/prihlaseni`.
 
@@ -120,7 +129,7 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 15 strukturovaných fakultních zdrojů může publikovat automaticky, 11 se automaticky stahuje s ručním schválením a FRRMS MENDELU je ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje všech osm migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`. Plnohodnotný Supabase Auth/REST stack je před veřejným nasazením nutné navíc ověřit proti skutečnému Supabase projektu.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje všech devět migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu a kapacitu parťáků. Plnohodnotný Supabase Auth/REST stack je před veřejným nasazením nutné navíc ověřit proti skutečnému Supabase projektu.
 
 Automatický tok:
 
@@ -128,8 +137,8 @@ Automatický tok:
 2. zdroj se atomicky zamkne, načte s timeoutem, limitem 5 MB, maximálně třemi redirecty a podmíněnými hlavičkami ETag/Last-Modified;
 3. URL projde HTTPS allowlistem, DNS kontrolou a blokací privátních/metadata adres; crawler respektuje `robots.txt`;
 4. odpověď se hashne a nezměněný obsah se znovu neparsuje;
-5. uloží se bezpečný snapshot; HTML/ICS/JSON nebo PDF.js parser normalizuje `Europe/Prague`, celodenní/časované termíny, školu, fakultu, program/kampus a akademický rok;
-6. jistota ≥ 0,90 může být publikována; PDF a nejisté změny vždy čekají v administraci;
+5. uloží se bezpečný snapshot; HTML/ICS/JSON nebo PDF.js parser normalizuje `Europe/Prague`, celodenní/časované termíny, školu, fakultu, program, akademický rok a číslo PDF stránky; volitelné OCR přijímá jen HTTPS JSON rozhraní;
+6. jistota ≥ 0,90 může být publikována pouze u bezpečného strukturovaného zdroje; PDF, OCR a nejisté změny vždy čekají v administraci;
 7. chybějící budoucí záznam se archivuje pouze po úspěšném kompletním načtení; ruční override se nepřepisuje;
 8. po třech chybách je zdroj označen `stale`, nikoli automaticky smazán.
 
@@ -148,13 +157,13 @@ Vercel cron běží denně v 03:15 UTC a kontrola odkazů v 04:45 UTC. Vercel p�
 Nová edice nevzniká kopií projektu. Používá stejný kód, dynamické routy `app/[city]`, společné tabulky a městský scope. Postupujte v tomto pořadí:
 
 1. Jako `super_admin` vložte do `cities` město ve stavu `draft`, s `enabled=false`, správným časovým pásmem, středem, zoomem a hranicemi mapy. Nevkládejte město jen kvůli ukázce.
-2. Propojte skutečně působící školy přes `university_cities`; jedna univerzita může mít více měst. Doplňte pouze ověřené kampusy do `campuses`.
+2. Propojte skutečně působící školy přes `university_cities`; jedna univerzita může mít více měst. Kampusy nejsou součástí aktivního profilu ani filtrování.
 3. Založte městské/referral komunity a přiřaďte `city_id`. Vytvořte editora s `role='city_editor'` a stejným `city_id` v profilu i App metadata.
 4. Přidejte ověřené veřejné zdroje. Lokální zdroj musí mít `city_id`; centrální akademický zdroj může zůstat bez města. Nikdy nepřidávejte neveřejný školní systém ani školní heslo.
 5. Spusťte ruční sync pouze pro nové město (`/api/cron/sync-sources?city=<slug>`), projděte review queue, zdroje bez výsledku a data posledního ověření. Neaktivní město se nesmí synchronizací publikovat.
-6. Nahrajte reálná místa s `city_id`/`campus_id`, nabídky přes `offer_cities`, lokální brigády s `city_id`; vzdálená brigáda může být `remote` bez města. Nepoužívejte falešná produkční data.
+6. Nahrajte reálná místa s `city_id`, volitelnou školou/fakultou a souřadnicemi, nabídky přes `offer_cities`, lokální brigády s `city_id`; vzdálená brigáda může být `remote` bez města. Nepoužívejte falešná produkční data.
 7. Doplňte `brand_config`, kontakty a povolené assety edice. Neměňte společnou značku a nepoužívejte univerzitní loga bez svolení. Generátor manifestu je v `lib/pwa-manifest.ts`.
-8. V administraci zkontrolujte readiness: souřadnice a hranice, kampusy, počty obsahu, chybějící zdroje, právní texty, odpovědnou osobu a RLS test městského editora.
+8. V administraci zkontrolujte readiness: souřadnice a hranice, počty obsahu, chybějící zdroje, právní texty, odpovědnou osobu a RLS test městského editora.
 9. Spusťte `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` a `pnpm test:e2e`; testovací druhé město smí existovat pouze ve fixture/testu. Ověřte 390×844, 768×1024 a 1440×900, canonical, OG, sitemap a 404 neaktivní edice.
 10. Teprve poté nastavte `public_status='published'`, `enabled=true`, přidejte slug do `PUBLISHED_CITY_SLUGS` a zapněte `MULTI_CITY_ENABLED=true` i `NEXT_PUBLIC_MULTI_CITY_ENABLED=true`. Ověřte, že selektor se ukáže až při nejméně dvou publikovaných městech a sitemap neobsahuje drafty.
 
@@ -171,9 +180,18 @@ pnpm test
 pnpm build
 pnpm test:e2e
 pnpm check:links
+pnpm check:pwa
 ```
 
 Unit testy navíc pokrývají validaci vazby školy a fakulty, migraci a perzistenci preferencí, sjednocení univerzitních/fakultních termínů bez průniku jiné fakulty, textové/tabulkové/skenované PDF, změnu hashe na stejné URL, přesun a zrušení termínu, databázové scope/RLS, více měst, shodu brand assetů a outbox bez PII. Playwright prochází jednu fakultu každé z pěti škol na desktopu 1440×900, tabletu 768×1024 a mobilu 390×844, URL filtry, světlý/tmavý motiv, navigaci a horizontální overflow.
+
+Regresní sada dále ověřuje číslo stránky PDF, honeypot, bezpečné vlastní úpravy veřejné pomoci, budoucí termín a kapacitní limit parťáků, zákaz přímého zápisu analytiky přes anon klíč, odstranění query/full-referrer dat a sekvenční modalitu cookies/onboardingu. PWA scénáře kontrolují manifest, všechny čtyři ikony, `beforeinstallprompt`, iOS návod, již nainstalovaný režim, jediný přístupný dialog, mapu bez overflow, service-worker cache bez dynamického HTML a skutečnou offline navigaci.
+
+`pnpm check:pwa` provede statickou kontrolu. Pro kontrolu běžícího webu předejte URL:
+
+```powershell
+pnpm check:pwa -- https://studenthub-brno.vercel.app
+```
 
 `pnpm check:links` používá bezpečný GET s limitem velikosti, kontroluje finální URL, MIME, akademický rok, PDF hlavičku a očekávanou strukturu obsahu. Sdílené IS stránky načítá jednou s omezeným backoff retry a při dočasné nedostupnosti nic nemění. Produkční cron uchovává historii a za definitivně rozbitý označí odkaz až po třech selháních.
 
@@ -189,6 +207,8 @@ DEMO_MODE=false
 ALLOW_LOCAL_FILE_STORE=false
 ALLOW_VERIFIED_FALLBACK=false
 NEXT_PUBLIC_ADS_ENABLED=false
+FAJN_BRIGADY_FEED_ENABLED=false
+ISIC_FEED_ENABLED=false
 DEFAULT_CITY_SLUG=brno
 NEXT_PUBLIC_DEFAULT_CITY_SLUG=brno
 MULTI_CITY_ENABLED=false
@@ -197,7 +217,7 @@ PUBLISHED_CITY_SLUGS=brno
 ```
 
 4. Vygenerujte tajemství například `openssl rand -base64 48` pro `CRON_SECRET` a `RATE_LIMIT_SALT`.
-5. Deployněte a ověřte `/`, `/admin`, `/api/cron/sync-sources` (bez tokenu musí vrátit 401) a Supabase logy.
+5. Deployněte a ověřte `/`, `/admin`, `/api/cron/sync-sources` (bez tokenu musí vrátit 401), Supabase logy a `pnpm check:pwa -- https://studenthub-brno.vercel.app`.
 
 CLI varianta:
 
@@ -230,11 +250,13 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 - [ ] právník zkontroloval soukromí, cookies a obchodní podmínky;
 - [ ] skutečné kontaktní e-maily přijímají poštu a mají správce;
 - [ ] migrace a seed proběhly na produkčním Supabase bez chyb;
-- [ ] první brněnský `admin`, případní `city_editor`/`faculty_editor` a nouzový `super_admin` mají shodný profil i App metadata;
+- [ ] první hlavní `super_admin` vznikl přes `pnpm admin:invite`; pozvánka, magic link, obnova a odhlášení fungují se skutečným SMTP;
+- [ ] případní `admin`, `city_editor`/`faculty_editor` mají shodný profil i App metadata a otestovaný rozsah;
 - [ ] service role, cron a rate-limit tajemství jsou pouze ve Vercelu a byla rotována;
 - [ ] tři produkční testovací přepínače jsou `false`;
 - [ ] všechny automatické zdroje prošly prvním během a ruční zdroje mají vlastníka;
 - [ ] nabídky/brigády jsou podložené souhlasem partnera nebo smluvním feedem;
+- [ ] `FAJN_BRIGADY_FEED_ENABLED=false` a `ISIC_FEED_ENABLED=false`, dokud není písemný souhlas a dokumentovaný feed;
 - [ ] reklamní pozice zůstává vypnutá, dokud není implementováno consent-aware načtení konkrétní sítě;
 - [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm test:e2e` jsou zelené;
 - [ ] vizuální kontrola proběhla na 390×844, 768×1024 a 1440×900;
@@ -244,13 +266,17 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 ## Struktura
 
 - `app/` – App Router stránky, metadata a serverové API;
-- `components/` – dashboard, filtry, mapa, formuláře, onboarding, consent a administrace;
+- `components/` – dashboard, filtry, mapa, formuláře, onboarding, consent, PWA instalace a administrace;
 - `lib/brand.ts`, `lib/cities.ts`, `lib/city-data.ts`, `lib/academic-catalog.ts` – centrální značka, fallback Brna, databázový katalog škol/fakult a serverový seznam pouze publikovaných edic;
 - `lib/publication-feed.ts` – interní read-only výstup ověřeného veřejného obsahu bez PII;
 - `lib/sources/` – registr, SSRF-safe fetch, parsery, normalizace, reconciliace a sync;
+- `lib/external-content-providers.ts` – ve výchozím stavu vypnutá rozhraní budoucích smluvních feedů bez scrapování;
+- `lib/anonymous-owner.ts`, `lib/user-auth.ts`, `lib/buddy.ts` – vlastnický token žádostí, ověřené Supabase účty a expirace parťáků;
+- `scripts/invite-superadmin.mjs` – jednorázová bezpečná pozvánka a obnova hlavního správce bez hesla v kódu;
 - `lib/verified-data.ts` – kurátorovaný fallback ověřených veřejných záznamů;
 - `supabase/migrations/` a `supabase/seed.sql` – schéma, RLS a produkční startovní data;
+- `scripts/check-pwa.mjs` – kontrola manifestu, rozměrů ikon, bezpečného workeru a živé HTTPS instalovatelnosti;
 - `tests/fixtures`, `tests/unit`, `tests/e2e` – fixture, unit a Playwright testy;
 - `vercel.json` – region, crony a cache pravidlo service workeru.
 
-Logo assety `public/icon-192.png`, `public/icon-512.png` a `public/og.png` jsou zachované beze změny. Bitově shodné kopie pro konfigurovatelnou edici jsou v `public/brand/brno/`; žádné univerzitní ani fiktivní celostátní logo nebylo vytvořeno.
+Logo assety `public/icon-192.png`, `public/icon-512.png` a `public/og.png` jsou zachované beze změny. Bitově shodné kopie pro konfigurovatelnou edici jsou v `public/brand/brno/`; maskable varianty mají bezpečný ořez a zachovávají proporce stejného brněnského symbolu. Žádné univerzitní ani fiktivní celostátní logo nebylo vytvořeno.

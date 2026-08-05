@@ -37,12 +37,12 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         create role authenticated nologin;
         create role service_role nologin bypassrls;
         create schema auth;
-        create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}'::jsonb);
+        create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz, raw_user_meta_data jsonb not null default '{}'::jsonb);
         create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(8);
+      expect(files).toHaveLength(9);
       for (const file of files) {
         const statements = sqlStatements(await readFile(`supabase/migrations/${file}`, "utf8"));
         for (let index = 0; index < statements.length; index += 1) {
@@ -52,10 +52,10 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       }
       await db.exec(await readFile("supabase/seed.sql", "utf8"));
       await db.exec(`
-        insert into auth.users(id,email) values
-          ('71111111-1111-4111-8111-111111111111','faculty@example.cz'),
-          ('71111111-1111-4111-8111-111111111112','city@example.cz'),
-          ('71111111-1111-4111-8111-111111111113','super@example.cz');
+        insert into auth.users(id,email,email_confirmed_at) values
+          ('71111111-1111-4111-8111-111111111111','faculty@example.cz',now()),
+          ('71111111-1111-4111-8111-111111111112','city@example.cz',now()),
+          ('71111111-1111-4111-8111-111111111113','super@example.cz',now());
         update public.profiles set role='faculty_editor', university_id='vut', faculty_id='vut-fekt', city_id='brno' where id='71111111-1111-4111-8111-111111111111';
         update public.profiles set role='city_editor', city_id='brno' where id='71111111-1111-4111-8111-111111111112';
         update public.profiles set role='super_admin', city_id=null where id='71111111-1111-4111-8111-111111111113';
@@ -79,7 +79,14 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
           ('61111111-1111-4111-8111-111111111114','RLS FIT','Cizí fakulta','teaching','VUT','FIT','2026-09-14 00:00:00+02',true,'Europe/Prague','2026/2027','Fixture','https://www.fit.vut.cz/',0.8,'2026-08-02','needs_review','pending',false,'faculty','vut','vut-fit');
         insert into public.service_requests(id,city_id,name,email,service_type,description,preferred_date,consent_at,status)
         values ('81111111-1111-4111-8111-111111111111','brno','RLS Student','rls@example.cz','backup','Neveřejná testovací poptávka pro ověření RLS.','2026-08-10',now(),'new');
+        insert into public.buddy_posts(id,owner_id,city_id,activity_type,approximate_location,starts_at,description,max_participants,status,moderation_status,expires_at)
+        values ('91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111111','brno','study','Veřejná knihovna','2030-09-14 18:00:00+02','Bezpečný veřejný popis integračního setkání bez kontaktů.',2,'active','approved','2030-09-15 06:00:00+02');
+        insert into public.buddy_join_requests(id,post_id,requester_id,message,status) values
+          ('92111111-1111-4111-8111-111111111111','91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111112','První žádost','pending'),
+          ('92111111-1111-4111-8111-111111111112','91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111113','Druhá žádost','pending');
+        update public.buddy_join_requests set status='accepted' where id='92111111-1111-4111-8111-111111111111';
       `);
+      await expect(db.exec("update public.buddy_join_requests set status='accepted' where id='92111111-1111-4111-8111-111111111112'")).rejects.toThrow(/capacity/i);
 
       const vetuni = contentSources.find((item) => item.id === "src-vetuni-fvl")!;
       const pdfResult = await parsePdf({ source: { ...vetuni, format: "pdf", parserKey: "pdf-review", sourceUrl: "https://www.vetuni.cz/files/fixture.pdf" }, body: await readFile("tests/fixtures/calendar-text.pdf"), contentType: "application/pdf", checkedAt: "2026-08-02T10:00:00Z" });
@@ -94,12 +101,15 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect(publicEvents.rows.map((row) => row.title)).toEqual([expect.stringMatching(/^Integration approved/)]);
       await expect(db.query("select * from public.service_requests")).rejects.toThrow();
       await expect(db.query("select * from public.content_sources")).rejects.toThrow();
+      expect((await db.query<{ approximate_location: string }>("select approximate_location from public.buddy_posts")).rows).toEqual([{ approximate_location: "Veřejná knihovna" }]);
+      await expect(db.query("insert into public.page_views(path,city_id) values ('/obchazeni-souhlasu','brno')")).rejects.toThrow();
       await db.exec("reset role");
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111111"]); await db.exec("set role authenticated");
       expect((await db.query<{ title: string }>("select title from public.academic_events where title like 'RLS %' order by title")).rows.map((row) => row.title)).toEqual(["RLS FEKT"]);
       expect((await db.query("update public.academic_events set description='Upraveno FEKT' where title='RLS FEKT' returning id")).rows).toHaveLength(1);
       expect((await db.query("update public.academic_events set description='Zakázáno' where title='RLS FIT' returning id")).rows).toHaveLength(0);
+      await expect(db.query("insert into public.buddy_posts(owner_id,city_id,activity_type,approximate_location,starts_at,description,max_participants,expires_at) values ('71111111-1111-4111-8111-111111111111','brno','study','Obejití API','2031-01-01 18:00:00+01','Přímý zápis musí odmítnout databázová oprávnění.',3,'2031-01-02 06:00:00+01')")).rejects.toThrow();
       expect((await db.query("select * from public.service_requests")).rows).toHaveLength(0); await db.exec("reset role");
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111112"]); await db.exec("set role authenticated");

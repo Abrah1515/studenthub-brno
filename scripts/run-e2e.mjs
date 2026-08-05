@@ -99,7 +99,8 @@ try {
   await waitForServer(server);
 
   console.log("\n[E2E] Spouštím Playwright…\n");
-  await waitForExit(run(process.execPath, [playwrightCli, "test"], { env: { PLAYWRIGHT_BASE_URL: address } }));
+  const playwrightArguments = process.argv.slice(2).filter((argument) => argument !== "--");
+  await waitForExit(run(process.execPath, [playwrightCli, "test", ...playwrightArguments], { env: { PLAYWRIGHT_BASE_URL: address } }));
 } catch (error) {
   console.error("\n[E2E]", error instanceof Error ? error.message : error);
   process.exitCode = 1;

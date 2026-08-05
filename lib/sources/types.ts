@@ -6,7 +6,6 @@ export type SourceMonitoringMode = "automatic_publish" | "automatic_review" | "n
 export type ContentSource = {
   id: string;
   cityId?: string;
-  campusId?: string;
   universityId: string;
   facultyId: string;
   sourceType: "academic_calendar";
@@ -46,9 +45,9 @@ export type NormalizedEvent = {
   status: "approved" | "pending";
   lastVerifiedAt: string;
   cityId?: string;
-  campusId?: string;
   programmeId?: string;
   sourceDocumentTitle?: string;
+  sourcePage?: number;
   originalText?: string;
 };
 

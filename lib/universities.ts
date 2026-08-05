@@ -3,11 +3,11 @@ import type { AcademicCatalog, Faculty, University } from "@/lib/types";
 const verifiedAt = "2026-08-02T00:00:00.000Z";
 
 export const universities: University[] = [
-  { id: "muni", slug: "muni", name: "Masarykova univerzita", shortName: "MUNI", color: "#2856a4", officialUrl: "https://www.muni.cz/", active: true, lastVerifiedAt: verifiedAt, campuses: [{ id: "brno-muni-bohunice", cityId: "brno", name: "Bohunice", lat: 49.1774, lng: 16.5692 }, { id: "brno-muni-veveri", cityId: "brno", name: "Veveří", lat: 49.209, lng: 16.596 }, { id: "brno-muni-vinarska", cityId: "brno", name: "Vinařská", lat: 49.1879, lng: 16.5849 }] },
-  { id: "vut", slug: "vut", name: "Vysoké učení technické v Brně", shortName: "VUT", color: "#0b6b4d", officialUrl: "https://www.vut.cz/", active: true, lastVerifiedAt: verifiedAt, campuses: [{ id: "brno-vut-ppv", cityId: "brno", name: "Pod Palackého vrchem", lat: 49.2292, lng: 16.5747 }, { id: "brno-vut-udolni", cityId: "brno", name: "Údolní", lat: 49.1988, lng: 16.5982 }] },
-  { id: "mendelu", slug: "mendelu", name: "Mendelova univerzita v Brně", shortName: "MENDELU", color: "#52752c", officialUrl: "https://mendelu.cz/", active: true, lastVerifiedAt: verifiedAt, campuses: [{ id: "brno-mendelu-cerna-pole", cityId: "brno", name: "Černá Pole", lat: 49.2115, lng: 16.6166 }] },
-  { id: "vetuni", slug: "vetuni", name: "Veterinární univerzita Brno", shortName: "VETUNI", color: "#7b4e2d", officialUrl: "https://www.vetuni.cz/", active: true, lastVerifiedAt: verifiedAt, campuses: [{ id: "brno-vetuni-kralovo-pole", cityId: "brno", name: "Královo Pole", lat: 49.2175, lng: 16.5965 }] },
-  { id: "jamu", slug: "jamu", name: "Janáčkova akademie múzických umění", shortName: "JAMU", color: "#7c3a68", officialUrl: "https://www.jamu.cz/", active: true, lastVerifiedAt: verifiedAt, campuses: [{ id: "brno-jamu-centrum", cityId: "brno", name: "Centrum", lat: 49.1968, lng: 16.6085 }] },
+  { id: "muni", slug: "muni", name: "Masarykova univerzita", shortName: "MUNI", color: "#2856a4", officialUrl: "https://www.muni.cz/", active: true, lastVerifiedAt: verifiedAt },
+  { id: "vut", slug: "vut", name: "Vysoké učení technické v Brně", shortName: "VUT", color: "#0b6b4d", officialUrl: "https://www.vut.cz/", active: true, lastVerifiedAt: verifiedAt },
+  { id: "mendelu", slug: "mendelu", name: "Mendelova univerzita v Brně", shortName: "MENDELU", color: "#52752c", officialUrl: "https://mendelu.cz/", active: true, lastVerifiedAt: verifiedAt },
+  { id: "vetuni", slug: "vetuni", name: "Veterinární univerzita Brno", shortName: "VETUNI", color: "#7b4e2d", officialUrl: "https://www.vetuni.cz/", active: true, lastVerifiedAt: verifiedAt },
+  { id: "jamu", slug: "jamu", name: "Janáčkova akademie múzických umění", shortName: "JAMU", color: "#7c3a68", officialUrl: "https://www.jamu.cz/", active: true, lastVerifiedAt: verifiedAt },
 ];
 
 const faculty = (id: string, universityId: string, name: string, shortName: string, officialUrl: string): Faculty => ({ id, slug: id, universityId, name, shortName, officialUrl, active: true, lastVerifiedAt: verifiedAt });

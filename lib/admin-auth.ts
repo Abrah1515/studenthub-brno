@@ -31,9 +31,13 @@ export async function getAdminUser() {
   const supabase = createServerClient(url, anon, { cookies: { getAll: () => cookieStore.getAll(), setAll: () => undefined } });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const role = user.app_metadata?.role;
-  if (!["super_admin", "admin", "city_editor", "faculty_editor"].includes(String(role))) return null;
-  return { id: user.id, email: user.email || "admin", mode: "supabase" as const, role: String(role) as "super_admin" | "admin" | "city_editor" | "faculty_editor", cityId: typeof user.app_metadata?.city_id === "string" ? user.app_metadata.city_id : null, facultyId: typeof user.app_metadata?.faculty_id === "string" ? user.app_metadata.faculty_id : null };
+  const claimedRole = String(user.app_metadata?.role || "");
+  const claimedCityId = typeof user.app_metadata?.city_id === "string" ? user.app_metadata.city_id : null;
+  const claimedFacultyId = typeof user.app_metadata?.faculty_id === "string" ? user.app_metadata.faculty_id : null;
+  if (!["super_admin", "admin", "city_editor", "faculty_editor"].includes(claimedRole)) return null;
+  const { data: profile, error } = await supabase.from("profiles").select("role,city_id,faculty_id").eq("id", user.id).single();
+  if (error || !profile || profile.role !== claimedRole || (profile.city_id || null) !== claimedCityId || (profile.faculty_id || null) !== claimedFacultyId) return null;
+  return { id: user.id, email: user.email || "admin", mode: "supabase" as const, role: claimedRole as "super_admin" | "admin" | "city_editor" | "faculty_editor", cityId: claimedCityId, facultyId: claimedFacultyId };
 }
 
 export const adminCookie = { name: COOKIE_NAME, options: { httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 8 } };

@@ -54,4 +54,7 @@ yarn-error.log*
 /server-*.log
 /.studenthub-server.log
 /.studenthub-server.err.log
+/.studenthub-prod.log
+/.studenthub-prod.err.log
 /supabase/.temp/
+/ADMIN-PRISTUP-LOKALNE.txt

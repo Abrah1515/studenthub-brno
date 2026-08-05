@@ -1,1 +1,21 @@
-<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b6b4d"><title>StudentHub Brno – offline</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f2f6f3;color:#12231e;font:16px system-ui,sans-serif}.card{max-width:480px;margin:24px;padding:28px;border:1px solid #dce5e0;border-radius:10px;background:white;text-align:center}.mark{width:52px;height:52px;margin:auto;display:grid;place-items:center;border-radius:10px;background:#0b6b4d;color:white;font-weight:900}h1{font-size:24px}p{color:#61716b;line-height:1.6}button{min-height:42px;padding:0 16px;border:0;border-radius:8px;background:#0b6b4d;color:white;font-weight:700}</style></head><body><main class="card"><div class="mark">SH</div><h1>Teď jste offline</h1><p>Některé dříve navštívené stránky mohou být dostupné z mezipaměti. Pro aktuální termíny a odeslání formulářů se znovu připojte.</p><button onclick="location.reload()">Zkusit znovu</button></main></body></html>
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b6b4d">
+  <meta name="robots" content="noindex">
+  <title>StudentHub Brno – offline</title>
+  <style>
+    :root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f3f7f5;color:#12231e;font:16px system-ui,sans-serif}.card{width:min(480px,calc(100% - 32px));padding:28px;border:1px solid #dce5e0;border-radius:10px;background:#fff;text-align:center;box-shadow:0 18px 50px rgb(10 50 37/10%)}img{width:64px;height:64px;border-radius:13px}h1{margin:18px 0 8px;font-size:24px}p{margin:0 0 20px;color:#61716b;line-height:1.6}button{min-height:44px;padding:0 18px;border:0;border-radius:8px;background:#0b6b4d;color:#fff;font:700 15px system-ui,sans-serif;cursor:pointer}button:focus-visible{outline:3px solid #62d7b1;outline-offset:3px}@media(prefers-color-scheme:dark){body{background:#101915;color:#edf7f2}.card{background:#16231e;border-color:#30443b}.card p{color:#afbeb7}}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <img src="/brand/brno/icon-192.png" alt="">
+    <h1>Teď jste offline</h1>
+    <p>Základní obrazovka je dostupná, ale aktuální termíny, mapa, přihlášení a odesílání formulářů vyžadují připojení. Po obnovení sítě načteme vždy čerstvou verzi.</p>
+    <button type="button" onclick="location.reload()">Zkusit znovu</button>
+  </main>
+</body>
+</html>

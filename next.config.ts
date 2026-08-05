@@ -4,6 +4,7 @@ import { assertProductionConfiguration } from "./lib/runtime-config";
 assertProductionConfiguration();
 
 const isDevelopment = process.env.NODE_ENV !== "production";
+const enforceHttps = process.env.APP_ENV === "production" || process.env.VERCEL_ENV === "production";
 const scriptSrc = ["'self'", "'unsafe-inline'", ...(isDevelopment ? ["'unsafe-eval'"] : [])].join(" ");
 const csp = [
   "default-src 'self'",
@@ -16,7 +17,7 @@ const csp = [
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
-  ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
+  ...(enforceHttps ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [
@@ -32,6 +33,13 @@ const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
   poweredByHeader: false,
   reactStrictMode: true,
-  async headers() { return [{ source: "/(.*)", headers: securityHeaders }]; },
+  async headers() {
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Service-Worker-Allowed", value: "/" }] },
+      { source: "/manifest.webmanifest", headers: [{ key: "Cache-Control", value: "no-cache, must-revalidate" }] },
+      { source: "/offline.html", headers: [{ key: "Cache-Control", value: "no-cache, must-revalidate" }] },
+    ];
+  },
 };
 export default nextConfig;
