@@ -13,7 +13,7 @@ if (!url || !serviceKey) throw new Error("Nastavte NEXT_PUBLIC_SUPABASE_URL a SU
 const client = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
 if (recovery) {
-  const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: `${siteUrl}/auth/callback?next=/admin/obnova` });
+  const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: `${siteUrl}/admin/obnova` });
   if (error) throw error;
   console.log(`E-mail pro obnovu přístupu byl odeslán na ${email}.`);
   process.exit(0);
@@ -23,7 +23,7 @@ const { data: existingProfiles, error: profileReadError } = await client.from("p
 if (profileReadError) throw profileReadError;
 if (existingProfiles?.length) throw new Error("Superadministrátor už existuje. Pro obnovu použijte pnpm admin:recover; další role spravujte v administraci.");
 
-const { data, error } = await client.auth.admin.inviteUserByEmail(email, { redirectTo: `${siteUrl}/auth/callback?next=/admin/obnova`, data: { invited_as: "super_admin" } });
+const { data, error } = await client.auth.admin.inviteUserByEmail(email, { redirectTo: `${siteUrl}/admin/obnova`, data: { invited_as: "super_admin" } });
 if (error || !data.user) throw error || new Error("Supabase nevrátil vytvořeného uživatele.");
 const metadata = { role: "super_admin", city_id: null, faculty_id: null };
 const { error: metadataError } = await client.auth.admin.updateUserById(data.user.id, { app_metadata: metadata });
