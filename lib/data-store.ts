@@ -3,14 +3,14 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 
-export type TableName = "cities" | "campuses" | "service_requests" | "submissions" | "outbound_clicks" | "page_views" | "academic_events" | "places" | "offers" | "jobs" | "content_sources" | "source_sync_runs" | "source_review_queue" | "link_checks" | "content_publication_events" | "buddy_posts" | "buddy_join_requests" | "content_reports";
+export type TableName = "cities" | "campuses" | "service_requests" | "submissions" | "outbound_clicks" | "page_views" | "academic_events" | "places" | "offers" | "jobs" | "content_sources" | "source_sync_runs" | "source_review_queue" | "link_checks" | "content_publication_events" | "buddy_posts" | "buddy_join_requests" | "content_reports" | "contact_messages" | "academic_event_conflicts";
 type RecordValue = Record<string, unknown>;
 type LocalStore = Record<TableName, RecordValue[]>;
 const dataDirectory = path.join(process.cwd(), ".data");
 const dataFile = path.join(dataDirectory, "local-test-store.json");
 
 function localStoreAllowed() { return process.env.DEMO_MODE === "true" && process.env.ALLOW_LOCAL_FILE_STORE === "true"; }
-function emptyStore(): LocalStore { return { cities: [], campuses: [], service_requests: [], submissions: [], outbound_clicks: [], page_views: [], academic_events: [], places: [], offers: [], jobs: [], content_sources: [], source_sync_runs: [], source_review_queue: [], link_checks: [], content_publication_events: [], buddy_posts: [], buddy_join_requests: [], content_reports: [] }; }
+function emptyStore(): LocalStore { return { cities: [], campuses: [], service_requests: [], submissions: [], outbound_clicks: [], page_views: [], academic_events: [], places: [], offers: [], jobs: [], content_sources: [], source_sync_runs: [], source_review_queue: [], link_checks: [], content_publication_events: [], buddy_posts: [], buddy_join_requests: [], content_reports: [], contact_messages: [], academic_event_conflicts: [] }; }
 async function readLocalStore(): Promise<LocalStore> { try { return { ...emptyStore(), ...JSON.parse(await readFile(dataFile, "utf8")) }; } catch { return emptyStore(); } }
 async function writeLocalStore(store: LocalStore) { await mkdir(dataDirectory, { recursive: true }); await writeFile(dataFile, JSON.stringify(store, null, 2), "utf8"); }
 function assertStorage() { if (!localStoreAllowed()) throw new Error("Produkční úložiště není nakonfigurované. Nastavte Supabase."); }

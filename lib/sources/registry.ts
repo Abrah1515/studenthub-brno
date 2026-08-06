@@ -31,6 +31,7 @@ const registeredSources: RegisteredSource[] = [
 
 export const contentSources: ContentSource[] = registeredSources.map((source) => ({
   ...source,
+  refreshIntervalHours: Math.min(source.refreshIntervalHours, 9),
   allowedDomains: source.universityId === "muni" ? ["muni.cz"] : source.universityId === "vut" ? ["vut.cz", "vutbr.cz"] : source.universityId === "mendelu" ? ["mendelu.cz"] : source.universityId === "vetuni" ? ["vetuni.cz"] : ["jamu.cz"],
   academicYear: source.sourceUrl.match(/20\d{2}[-_/](?:20)?\d{2}/)?.[0]?.replace(/[-_]/g, "/").replace(/\/(\d{2})$/, (_match, year: string) => `/${String(Number(year.slice(0, 2)) + 2000)}`) || null,
   confidence: source.monitoringMode === "automatic_publish" ? 0.96 : source.monitoringMode === "not_found_monitored" ? 0 : 0.6,

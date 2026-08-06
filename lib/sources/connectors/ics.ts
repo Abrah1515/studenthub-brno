@@ -22,7 +22,7 @@ export async function parseIcs(context: ConnectorContext): Promise<ConnectorResu
     if (!uid || !title || !start) { warnings.push("Událost bez UID, názvu nebo začátku byla přesunuta ke kontrole."); continue; }
     const normalizedEnd = start.allDay && end?.allDay ? new Date(new Date(end.iso).getTime() - 60_000).toISOString() : end?.iso;
     const sourceHash = await sha256(`${uid}|${title}|${start.iso}|${normalizedEnd || ""}`);
-    events.push({ externalId: uid, title, description: property(block, "DESCRIPTION")?.value || "", startAt: start.iso, endAt: normalizedEnd, allDay: start.allDay, timezone: "Europe/Prague", category: inferCategory(title), academicYear: academicYearFor(new Date(start.iso)), universityId: context.source.universityId, facultyId: context.source.facultyId, sourceId: context.source.id, sourceUrl: context.source.sourceUrl, sourceUpdatedAt: property(block, "LAST-MODIFIED")?.value, sourceHash, confidence: 1, status: "approved", lastVerifiedAt: context.checkedAt });
+    events.push({ externalId: uid, title, description: property(block, "DESCRIPTION")?.value || "", startAt: start.iso, endAt: normalizedEnd, allDay: start.allDay, timezone: "Europe/Prague", category: inferCategory(title), academicYear: academicYearFor(new Date(start.iso)), universityId: context.source.universityId, facultyId: context.source.facultyId, sourceId: context.source.id, sourceUrl: context.source.sourceUrl, sourceUpdatedAt: property(block, "LAST-MODIFIED")?.value, sourceModifiedBasis: property(block, "LAST-MODIFIED")?.value ? "document_revision" : undefined, sourceHash, confidence: 1, status: "approved", lastVerifiedAt: context.checkedAt });
   }
   return { events, warnings };
 }

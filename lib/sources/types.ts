@@ -40,6 +40,7 @@ export type NormalizedEvent = {
   sourceId: string;
   sourceUrl: string;
   sourceUpdatedAt?: string;
+  sourceModifiedBasis?: "explicit_school_update" | "document_revision" | "http_last_modified" | "first_detected";
   sourceHash: string;
   confidence: number;
   status: "approved" | "pending";

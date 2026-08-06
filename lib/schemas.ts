@@ -34,7 +34,25 @@ export const buddyPostSchema = z.object({
   company: honeypot,
 }).refine((value) => new Date(value.startsAt).getTime() > Date.now() + 30 * 60 * 1000, { path: ["startsAt"], message: "Termín musí být alespoň 30 minut v budoucnu." });
 
+export const buddyPostUpdateSchema = z.object({
+  approximateLocation: z.string().trim().min(2).max(100).optional(),
+  startsAt: z.string().datetime({ offset: true }).optional(),
+  description: z.string().trim().min(20).max(1200).optional(),
+  maxParticipants: z.coerce.number().int().min(2).max(30).optional(),
+  status: z.enum(["active", "closed"]).optional(),
+}).refine((value) => Object.keys(value).length > 0, "Není co změnit.")
+  .refine((value) => !value.startsAt || new Date(value.startsAt).getTime() > Date.now() + 30 * 60 * 1000, { path: ["startsAt"], message: "Termín musí být alespoň 30 minut v budoucnu." });
+
 export const buddyJoinSchema = z.object({ message: z.string().trim().max(500).default("") });
+
+export const contactMessageSchema = z.object({
+  name: z.string().trim().min(2, "Uveďte své jméno.").max(100),
+  email: z.string().trim().email("Zadejte platný e-mail.").max(254),
+  subject: z.string().trim().min(3, "Doplňte předmět.").max(160),
+  message: z.string().trim().min(20, "Zpráva musí mít alespoň 20 znaků.").max(4000),
+  company: honeypot,
+  cityId,
+});
 
 export const jobSubmissionSchema = z.object({
   companyName: z.string().trim().min(2).max(120), title: z.string().trim().min(4).max(140), contactEmail: z.string().email(),
@@ -60,3 +78,4 @@ export type ServiceRequestInput = z.infer<typeof serviceRequestSchema>;
 export type JobSubmissionInput = z.infer<typeof jobSubmissionSchema>;
 export type ContentSubmissionInput = z.infer<typeof contentSubmissionSchema>;
 export type BuddyPostInput = z.infer<typeof buddyPostSchema>;
+export type ContactMessageInput = z.infer<typeof contactMessageSchema>;

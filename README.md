@@ -66,9 +66,12 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `NEXT_PUBLIC_ADS_ENABLED` | klient/build | ne | `true` pouze po obchodním a cookie nastavení |
 | `NEXT_PUBLIC_CONTACT_EMAIL` | build | doporučeno | veřejný kontakt |
 | `NEXT_PUBLIC_PARTNER_EMAIL` | build | doporučeno | kontakt pro partnery |
+| `CONTACT_TO_EMAIL` / `CONTACT_FROM_EMAIL` | pouze server | ano pro formulář | pevný příjemce a ověřená odesílací identita; e-mail návštěvníka se používá jen jako Reply-To |
+| `RESEND_API_KEY` | pouze server | ano pro formulář | serverové doručení kontaktní zprávy; nikdy ne do klienta |
 | `FAJN_BRIGADY_FEED_ENABLED` | server | ne | rezervovaný, výchozí `false`; bez smluvního feedu se nepoužije |
+| `FAJN_BRIGADY_PERMISSION_CONFIRMED` | server | ne | musí být `true` až po písemném oprávnění; samotný feed flag nestačí |
 | `FAJN_BRIGADY_FEED_URL` | server | ne | pouze smluvní XML/JSON endpoint, nikdy stránka ke scrapování |
-| `ISIC_FEED_ENABLED` / `ISIC_FEED_URL` | server | ne | rezervovaný autorizovaný feed; ve výchozím stavu `false` |
+| `ISIC_FEED_ENABLED` / `ISIC_FEED_PERMISSION_CONFIRMED` / `ISIC_FEED_URL` | server | ne | rezervovaný autorizovaný feed; bez písemného oprávnění zůstává vynuceně vypnutý |
 | `OCR_ENDPOINT_URL` / `OCR_API_KEY` | pouze server | ne | volitelné HTTPS OCR API pro skenované PDF; výsledek vždy čeká na schválení |
 | `DEMO_MODE` | server | ne | výhradně lokální testovací přihlášení |
 | `ALLOW_LOCAL_FILE_STORE` | server | ne | lokální souborové úložiště; vyžaduje současně `DEMO_MODE=true` |
@@ -105,6 +108,8 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608020007_source_monitoring_modes.sql` – oddělené režimy `automatic_publish/automatic_review/not_found_monitored`, monitoring všech 27 fakult, stabilní MUNI/JAMU/VETUNI zdroje, opravená RLS oprávnění a stav kontroly odkazů.
 - `202608020008_source_validation_and_editor_scope.sql` – ukládání finální URL/MIME/blokace, rozšířená validace odkazů a bezpečný městský rozsah pro univerzitní termíny bez `city_id`.
 - `202608040009_community_help_and_privacy.sql` – bezpečný archiv a vypnutí kampusového modelu, čísla PDF stran, veřejná pomoc, parťáci a kapacitní trigger, hlášení, superadmin RLS a analytika zapisovatelná pouze serverem po souhlasu.
+- `202608060010_content_operations.sql` – přesné plánování přes `next_check_at`, atomické claimy, retry a upozornění zdrojů, konflikty termínů, okamžité publikování parťáků, deduplikace hlášení a soukromý kontaktní inbox.
+- `202608060011_verified_brno_places.sql` – doplnění ověřeného katalogu na 30 skutečných brněnských míst s oficiálními zdroji, souřadnicemi a absolutním časem ověření.
 
 ## První hlavní superadmin
 
@@ -129,11 +134,11 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 15 strukturovaných fakultních zdrojů může publikovat automaticky, 11 se automaticky stahuje s ručním schválením a FRRMS MENDELU je ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje všech devět migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu a kapacitu parťáků. Plnohodnotný Supabase Auth/REST stack je před veřejným nasazením nutné navíc ověřit proti skutečnému Supabase projektu.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje všech jedenáct migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Plnohodnotný Supabase Auth/REST stack je před veřejným nasazením nutné navíc ověřit proti skutečnému Supabase projektu.
 
 Automatický tok:
 
-1. cron ověří `Authorization: Bearer $CRON_SECRET`;
+1. hodinový plánovač ověří `Authorization: Bearer $CRON_SECRET` (nebo serverové tajemství Supabase Scheduleru) a atomicky si vyzvedne jen zdroje, jejichž `next_check_at` už nastal; každý úspěšný běh naplánuje další kontrolu za 9 hodin, takže i s hodinovým plánovačem zůstává horní mez 10 hodin;
 2. zdroj se atomicky zamkne, načte s timeoutem, limitem 5 MB, maximálně třemi redirecty a podmíněnými hlavičkami ETag/Last-Modified;
 3. URL projde HTTPS allowlistem, DNS kontrolou a blokací privátních/metadata adres; crawler respektuje `robots.txt`;
 4. odpověď se hashne a nezměněný obsah se znovu neparsuje;
@@ -150,7 +155,7 @@ GET /api/cron/check-links
 Authorization: Bearer <CRON_SECRET>
 ```
 
-Vercel cron běží denně v 03:15 UTC a kontrola odkazů v 04:45 UTC. Vercel předává `CRON_SECRET` jako Bearer automaticky.
+Vercel cron kontroluje splatné zdroje každou hodinu v minutě 17; databázové `next_check_at` brání zbytečnému stahování. Kontrola odkazů běží denně v 04:45 UTC. Pokud tarif Vercelu hodinový cron nepovoluje, nastavte stejný hodinový GET v Supabase Cron/Vault s `SUPABASE_SCHEDULER_SECRET`; nikdy neukládejte tajemství přímo do SQL. Vercel předává `CRON_SECRET` jako Bearer automaticky.
 
 ## Jak přidat nové město
 
@@ -208,7 +213,9 @@ ALLOW_LOCAL_FILE_STORE=false
 ALLOW_VERIFIED_FALLBACK=false
 NEXT_PUBLIC_ADS_ENABLED=false
 FAJN_BRIGADY_FEED_ENABLED=false
+FAJN_BRIGADY_PERMISSION_CONFIRMED=false
 ISIC_FEED_ENABLED=false
+ISIC_FEED_PERMISSION_CONFIRMED=false
 DEFAULT_CITY_SLUG=brno
 NEXT_PUBLIC_DEFAULT_CITY_SLUG=brno
 MULTI_CITY_ENABLED=false
@@ -256,7 +263,7 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 - [ ] tři produkční testovací přepínače jsou `false`;
 - [ ] všechny automatické zdroje prošly prvním během a ruční zdroje mají vlastníka;
 - [ ] nabídky/brigády jsou podložené souhlasem partnera nebo smluvním feedem;
-- [ ] `FAJN_BRIGADY_FEED_ENABLED=false` a `ISIC_FEED_ENABLED=false`, dokud není písemný souhlas a dokumentovaný feed;
+- [ ] feed flagy i `*_PERMISSION_CONFIRMED` zůstávají `false`, dokud není písemný souhlas a dokumentovaný smluvní feed;
 - [ ] reklamní pozice zůstává vypnutá, dokud není implementováno consent-aware načtení konkrétní sítě;
 - [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm test:e2e` jsou zelené;
 - [ ] vizuální kontrola proběhla na 390×844, 768×1024 a 1440×900;

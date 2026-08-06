@@ -2,11 +2,13 @@ import "server-only";
 
 export type ProviderKind = "jobs" | "offers";
 export type ProviderItem = { externalId: string; title: string; sourceUrl: string; updatedAt: string; expiresAt: string; payload: Record<string, unknown> };
-export type ContentProvider = { id: string; kind: ProviderKind; format: "api" | "json" | "xml"; enabled: boolean; feedUrl?: string; fetchItems(): Promise<ProviderItem[]> };
+export type ContentProvider = { id: string; kind: ProviderKind; format: "api" | "json" | "xml"; enabled: boolean; permissionConfirmed: boolean; maxCheckIntervalHours: 9; statusReason: string; feedUrl?: string; fetchItems(): Promise<ProviderItem[]> };
 
-function configuredProvider(id: string, kind: ProviderKind, format: ContentProvider["format"], flag: string | undefined, feedUrl: string | undefined): ContentProvider {
-  const enabled = flag === "true" && Boolean(feedUrl);
-  return { id, kind, format, enabled, feedUrl, async fetchItems() {
+function configuredProvider(id: string, kind: ProviderKind, format: ContentProvider["format"], flag: string | undefined, permissionFlag: string | undefined, feedUrl: string | undefined): ContentProvider {
+  const permissionConfirmed = permissionFlag === "true";
+  const enabled = flag === "true" && permissionConfirmed && Boolean(feedUrl);
+  const statusReason = !permissionConfirmed ? "Vypnuto: chybí potvrzení písemného oprávnění." : !feedUrl ? "Vypnuto: není nastaven smluvní feed." : flag !== "true" ? "Vypnuto feature flagem." : "Zapnuto pro smluvní feed.";
+  return { id, kind, format, enabled, permissionConfirmed, maxCheckIntervalHours: 9, statusReason, feedUrl, async fetchItems() {
     if (!enabled || !feedUrl) return [];
     throw new Error(`Provider ${id} je připravený pouze pro smluvní feed. Implementaci adaptéru zapněte až po obdržení dokumentace a písemného souhlasu.`);
   } };
@@ -15,8 +17,8 @@ function configuredProvider(id: string, kind: ProviderKind, format: ContentProvi
 /** Žádný provider nepoužívá scraping. Ve výchozím stavu jsou oba smluvní feedy vypnuté. */
 export function externalContentProviders(): ContentProvider[] {
   return [
-    configuredProvider("fajn-brigady", "jobs", "xml", process.env.FAJN_BRIGADY_FEED_ENABLED, process.env.FAJN_BRIGADY_FEED_URL),
-    configuredProvider("isic", "offers", "json", process.env.ISIC_FEED_ENABLED, process.env.ISIC_FEED_URL),
+    configuredProvider("fajn-brigady", "jobs", "xml", process.env.FAJN_BRIGADY_FEED_ENABLED, process.env.FAJN_BRIGADY_PERMISSION_CONFIRMED, process.env.FAJN_BRIGADY_FEED_URL),
+    configuredProvider("isic", "offers", "json", process.env.ISIC_FEED_ENABLED, process.env.ISIC_FEED_PERMISSION_CONFIRMED, process.env.ISIC_FEED_URL),
   ];
 }
 

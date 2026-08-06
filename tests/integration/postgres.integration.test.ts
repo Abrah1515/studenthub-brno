@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(9);
+      expect(files).toHaveLength(11);
       for (const file of files) {
         const statements = sqlStatements(await readFile(`supabase/migrations/${file}`, "utf8"));
         for (let index = 0; index < statements.length; index += 1) {
@@ -51,6 +51,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         }
       }
       await db.exec(await readFile("supabase/seed.sql", "utf8"));
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(30);
       await db.exec(`
         insert into auth.users(id,email,email_confirmed_at) values
           ('71111111-1111-4111-8111-111111111111','faculty@example.cz',now()),

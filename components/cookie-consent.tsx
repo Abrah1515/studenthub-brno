@@ -40,10 +40,10 @@ export function CookieConsent() {
 
   if (!open) return null;
   return (
-    <div ref={dialogRef} tabIndex={-1} className="consent-panel" role="dialog" aria-modal="true" aria-labelledby="consent-title" data-testid="cookie-consent" data-modal-layer>
+    <div className="consent-backdrop" data-modal-layer><div ref={dialogRef} tabIndex={-1} className="consent-panel" role="dialog" aria-modal="true" aria-labelledby="consent-title" data-testid="cookie-consent" data-modal-layer>
       <div className="consent-icon"><Cookie size={22} /></div>
       <div className="consent-copy">
-        <div className="consent-title-row"><h2 id="consent-title">Vaše soukromí, vaše volba</h2>{settings && <button className="icon-button" aria-label="Zavřít nastavení cookies" onClick={close}><X size={18} /></button>}</div>
+        <div className="consent-title-row"><h2 id="consent-title">Vaše soukromí, vaše volba</h2>{settings && hasResolvedCookieConsent() && <button className="icon-button" aria-label="Zavřít nastavení cookies" onClick={close}><X size={18} /></button>}</div>
         <p>Technické cookies zajišťují chod aplikace. Analytiku ani reklamu bez vašeho souhlasu nenačítáme.</p>
         {settings && (
           <div className="consent-settings">
@@ -54,11 +54,9 @@ export function CookieConsent() {
         )}
       </div>
       <div className="consent-actions">
-        <button className="button button-secondary" onClick={() => setSettings(true)}><SlidersHorizontal size={17} />Upravit</button>
-        <button className="button button-secondary" data-autofocus onClick={() => { saveConsent(defaultConsent); setOpen(false); }}>Pouze nezbytné</button>
-        <button className="button button-primary" onClick={() => { const all = { analytics: true, marketing: true }; saveConsent(all); setConsent(all); setOpen(false); }}>Povolit vše</button>
-        {settings && <button className="button button-primary" onClick={() => { saveConsent(consent); setOpen(false); }}>Uložit volbu</button>}
+        {!settings && <><button className="button button-primary" data-autofocus onClick={() => { const all = { analytics: true, marketing: true }; saveConsent(all); setConsent(all); setOpen(false); }}>Přijmout vše</button><button className="button button-secondary" onClick={() => { saveConsent(defaultConsent); setOpen(false); }}>Odmítnout volitelné</button><button className="button button-secondary" onClick={() => setSettings(true)}><SlidersHorizontal size={17} />Nastavení</button></>}
+        {settings && <><button className="button button-secondary" onClick={() => { saveConsent(defaultConsent); setConsent(defaultConsent); setOpen(false); }}>Odmítnout volitelné</button><button className="button button-primary" data-autofocus onClick={() => { saveConsent(consent); setOpen(false); }}>Uložit nastavení</button></>}
       </div>
-    </div>
+    </div></div>
   );
 }

@@ -4,8 +4,8 @@ export const brand = {
   editionShortName: "Brno",
   defaultCitySlug: process.env.DEFAULT_CITY_SLUG || process.env.NEXT_PUBLIC_DEFAULT_CITY_SLUG || "brno",
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
-  contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL || "ahoj@studenthub-brno.cz",
-  partnerEmail: process.env.NEXT_PUBLIC_PARTNER_EMAIL || "partneri@studenthub-brno.cz",
+  contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL || "studenthubbrno@gmail.com",
+  partnerEmail: process.env.NEXT_PUBLIC_PARTNER_EMAIL || "studenthubbrno@gmail.com",
   assets: {
     icon192: "/brand/brno/icon-192.png",
     icon512: "/brand/brno/icon-512.png",

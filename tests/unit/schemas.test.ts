@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buddyPostSchema, contentSubmissionSchema, jobSubmissionSchema, pageViewSchema, reportSchema, serviceRequestSchema, serviceRequestUpdateSchema } from "@/lib/schemas";
+import { buddyPostSchema, contactMessageSchema, contentSubmissionSchema, jobSubmissionSchema, pageViewSchema, reportSchema, serviceRequestSchema, serviceRequestUpdateSchema } from "@/lib/schemas";
 
 const validRequest = { publicTitle: "Pomoc se zálohou notebooku", name: "Jan Novák", email: "jan@example.cz", phone: "", serviceType: "backup", description: "Potřebuji bezpečně zazálohovat celý notebook.", location: "Brno-střed", preferredDate: "2026-08-10", consent: true, publishConsent: true, company: "" };
 
@@ -16,6 +16,12 @@ describe("validace návrhu brigády", () => {
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.reward).toBe(190);
   });
+});
+
+describe("validace kontaktní zprávy", () => {
+  const valid = { name: "Adam Novák", email: "adam@example.cz", subject: "Oprava údaje", message: "Na stránce místa je potřeba upravit provozní dobu.", company: "", cityId: "brno" };
+  it("přijme úplnou zprávu", () => expect(contactMessageSchema.safeParse(valid).success).toBe(true));
+  it("odmítne heslo v honeypotu a neplatný e-mail", () => { expect(contactMessageSchema.safeParse({ ...valid, company: "robot" }).success).toBe(false); expect(contactMessageSchema.safeParse({ ...valid, email: "neplatny" }).success).toBe(false); });
 });
 
 describe("validace komunitního obsahu", () => {

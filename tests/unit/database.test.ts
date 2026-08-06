@@ -7,6 +7,7 @@ const facultyCalendars = readFileSync(resolve("supabase/migrations/202608020006_
 const sourceModes = readFileSync(resolve("supabase/migrations/202608020007_source_monitoring_modes.sql"), "utf8");
 const multiCity = readFileSync(resolve("supabase/migrations/202608020004_multi_city_foundation.sql"), "utf8");
 const community = readFileSync(resolve("supabase/migrations/202608040009_community_help_and_privacy.sql"), "utf8");
+const operations = readFileSync(resolve("supabase/migrations/202608060010_content_operations.sql"), "utf8");
 describe("databázová bezpečnost", () => {
   it("zapíná RLS na neveřejných tabulkách", () => { expect(migration).toContain("alter table public.service_requests enable row level security"); expect(migration).toContain("alter table public.submissions enable row level security"); });
   it("nedává anonymům čtení poptávek", () => { expect(migration).toContain("revoke all on public.service_requests from anon"); expect(migration).toContain("grant insert on public.service_requests to anon"); expect(migration).not.toContain("grant select on public.service_requests to anon"); });
@@ -22,4 +23,6 @@ describe("databázová bezpečnost", () => {
   it("monitoruje všechny fakultní zdroje nezávisle na schválení", () => { expect(sourceModes).toContain("'automatic_publish','automatic_review','not_found_monitored'"); expect(sourceModes).toContain("set enabled = true"); expect(sourceModes).toContain("last_document_url"); });
   it("vynucuje analytický opt-in na serveru a kapacitu parťáků v databázi", () => { expect(community).toContain('drop policy if exists "anonymous records consented page views"'); expect(community).toContain("revoke insert on public.page_views from anon,authenticated"); expect(community).toContain("enforce_buddy_capacity"); expect(community).toContain("capacity - 1"); });
   it("neumožňuje obejít rate limit přímým zápisem přes anon klíč", () => { expect(community).toContain("revoke insert,update,delete on public.buddy_posts,public.buddy_join_requests from authenticated"); expect(community).toContain("revoke insert,update,delete on public.content_reports from authenticated"); });
+  it("plánuje zdroje s rezervou pod deseti hodinami a atomicky je nárokuje", () => { expect(operations).toContain("interval '9 hours'"); expect(operations).toContain("interval '10 hours'"); expect(operations).toContain("for update skip locked"); expect(operations).toContain("claim_due_content_sources"); });
+  it("chrání kontaktní inbox a odmítá duplicitní hlášení", () => { expect(operations).toContain("alter table public.contact_messages enable row level security"); expect(operations).toContain("content_reports_session_target_unique"); expect(operations).toContain("content_reports_user_target_unique"); });
 });

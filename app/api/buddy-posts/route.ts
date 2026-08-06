@@ -5,7 +5,7 @@ import { getPublishedCity } from "@/lib/city-data";
 import { insertRecord, listRecords } from "@/lib/data-store";
 import { allowRequest, requestFingerprint } from "@/lib/rate-limit";
 import { buddyPostSchema } from "@/lib/schemas";
-import { isSupabaseConfigured } from "@/lib/supabase-server";
+import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 import { getCurrentUser } from "@/lib/user-auth";
 
 export async function GET(request: Request) {
@@ -20,9 +20,11 @@ export async function POST(request: Request) {
   if (!allowRequest(`buddy-post:${requestFingerprint(request)}`, 5, 24 * 60 * 60 * 1000)) return NextResponse.json({ message: "Denní limit příspěvků byl vyčerpán." }, { status: 429 });
   if (!isSupabaseConfigured()) return NextResponse.json({ message: "Parťáci vyžadují připojený Supabase Auth." }, { status: 503 });
   const user = await getCurrentUser(); if (!user) return NextResponse.json({ message: "Přihlaste se ověřovacím odkazem." }, { status: 401 });
+  const { data: profile } = await createServiceClient().from("profiles").select("is_blocked").eq("id", user.id).maybeSingle();
+  if (profile?.is_blocked) return NextResponse.json({ message: "Váš účet má pozastavené komunitní publikování." }, { status: 403 });
   const parsed = buddyPostSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte příspěvek.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
   const city = await getPublishedCity(parsed.data.cityId || defaultCitySlug); if (!city) return NextResponse.json({ message: "Město není aktivní." }, { status: 422 });
   const startsAt = new Date(parsed.data.startsAt); const expiresAt = new Date(startsAt.getTime() + 12 * 60 * 60 * 1000);
-  const saved = await insertRecord("buddy_posts", { owner_id: user.id, city_id: city.id, activity_type: parsed.data.activityType, approximate_location: parsed.data.approximateLocation, starts_at: startsAt.toISOString(), description: parsed.data.description, max_participants: parsed.data.maxParticipants, status: "active", moderation_status: "pending", expires_at: expiresAt.toISOString() });
-  return NextResponse.json({ id: saved.id, message: "Příspěvek čeká na schválení moderátorem." }, { status: 201 });
+  const saved = await insertRecord("buddy_posts", { owner_id: user.id, city_id: city.id, activity_type: parsed.data.activityType, approximate_location: parsed.data.approximateLocation, starts_at: startsAt.toISOString(), description: parsed.data.description, max_participants: parsed.data.maxParticipants, status: "active", moderation_status: "approved", expires_at: expiresAt.toISOString() });
+  return NextResponse.json({ id: saved.id, message: "Příspěvek je zveřejněný. Kdykoli jej můžete upravit, uzavřít nebo odstranit." }, { status: 201 });
 }

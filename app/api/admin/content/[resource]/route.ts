@@ -3,7 +3,7 @@ import { getAdminUser } from "@/lib/admin-auth";
 import { deleteRecord, insertRecord, listRecords, updateRecord, type TableName } from "@/lib/data-store";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 
-const allowed = new Set<TableName>(["cities", "academic_events", "places", "offers", "jobs", "submissions", "service_requests", "buddy_posts", "content_reports"]);
+const allowed = new Set<TableName>(["cities", "academic_events", "places", "offers", "jobs", "submissions", "service_requests", "buddy_posts", "content_reports", "contact_messages", "academic_event_conflicts"]);
 type Context = { params: Promise<{ resource: string }> };
 type AdminUser = NonNullable<Awaited<ReturnType<typeof getAdminUser>>>;
 async function table(context: Context) { const value = (await context.params).resource as TableName; return allowed.has(value) ? value : null; }
@@ -41,6 +41,16 @@ export async function PATCH(request: Request, context: Context) {
   const body = await request.json(); if (!body.id) return NextResponse.json({ message: "Chybí ID." }, { status: 422 });
   if (!await canEdit(resource, String(body.id), user)) return NextResponse.json({ message: "Záznam není v rozsahu editora." }, { status: 403 });
   const { id, ...changes } = body;
+  if (resource === "content_reports" && (body.hideTarget || body.blockAuthor)) {
+    const report = (await listRecords("content_reports")).find((row) => String(row.id) === String(body.id));
+    if (!report) return NextResponse.json({ message: "Hlášení nebylo nalezeno." }, { status: 404 });
+    const targetTable = report.target_type === "buddy_post" ? "buddy_posts" : "service_requests";
+    const target = (await listRecords(targetTable)).find((row) => String(row.id) === String(report.target_id));
+    if (body.hideTarget && target) await updateRecord(targetTable, String(target.id), { moderation_status: "hidden" });
+    if (body.blockAuthor && target?.owner_id && isSupabaseConfigured()) await createServiceClient().from("profiles").update({ is_blocked: true }).eq("id", target.owner_id);
+    changes.status = "actioned"; changes.reviewed_by = user.id === "local-admin" ? null : user.id; changes.reviewed_at = new Date().toISOString(); changes.resolution = body.blockAuthor ? "Obsah skryt a autor zablokován." : "Obsah skryt.";
+    delete changes.hideTarget; delete changes.blockAuthor;
+  }
   if (resource === "cities" && user.role !== "super_admin") { delete changes.slug; delete changes.enabled; delete changes.public_status; }
   return NextResponse.json(await updateRecord(resource, String(id), changes));
 }
