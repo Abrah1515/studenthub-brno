@@ -113,6 +113,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608110012_supabase_hourly_scheduler.sql` – hodinový dispatcher zdrojů přes Supabase Cron/pg_net; autorizační tajemství čte za běhu z Vaultu a nikdy je neobsahuje v SQL ani repozitáři.
 - `202608110013_autonomous_faculty_calendars.sql` – autonomní dohledání aktuálních plánů FEKT/FCH/FP přes úřední desku VUT, devítihodinový interval všech kalendářů, aktuální FRRMS zdroj a bezpečný reset hashů změněných konektorů.
 - `202608110014_twenty_minute_calendar_dispatcher.sql` – malá dávka splatných zdrojů každých 20 minut; jednotlivé zdroje nadále respektují devítihodinový interval a nové VUT konektory dostanou prioritu v prvním běhu.
+- `202608120015_academic_event_schedule_uniqueness.sql` – rozlišuje legitimní opakované termíny stejného typu podle skutečného začátku a konce, při zachování sémantického otisku pro porovnání změn mezi zdroji.
 
 ## První hlavní superadmin
 
