@@ -112,6 +112,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608060011_verified_brno_places.sql` – doplnění ověřeného katalogu na 30 skutečných brněnských míst s oficiálními zdroji, souřadnicemi a absolutním časem ověření.
 - `202608110012_supabase_hourly_scheduler.sql` – hodinový dispatcher zdrojů přes Supabase Cron/pg_net; autorizační tajemství čte za běhu z Vaultu a nikdy je neobsahuje v SQL ani repozitáři.
 - `202608110013_autonomous_faculty_calendars.sql` – autonomní dohledání aktuálních plánů FEKT/FCH/FP přes úřední desku VUT, devítihodinový interval všech kalendářů, aktuální FRRMS zdroj a bezpečný reset hashů změněných konektorů.
+- `202608110014_twenty_minute_calendar_dispatcher.sql` – malá dávka splatných zdrojů každých 20 minut; jednotlivé zdroje nadále respektují devítihodinový interval a nové VUT konektory dostanou prioritu v prvním běhu.
 
 ## První hlavní superadmin
 
@@ -140,7 +141,7 @@ V současném registru se 18 fakultních zdrojů může publikovat automaticky a
 
 Automatický tok:
 
-1. hodinový plánovač ověří `Authorization: Bearer $CRON_SECRET` (nebo serverové tajemství Supabase Scheduleru) a atomicky si vyzvedne jen zdroje, jejichž `next_check_at` už nastal; každý úspěšný běh naplánuje další kontrolu za 9 hodin, takže i s hodinovým plánovačem zůstává horní mez 10 hodin;
+1. plánovač každých 20 minut ověří `Authorization: Bearer $CRON_SECRET` (nebo serverové tajemství Supabase Scheduleru) a atomicky si vyzvedne jen malou dávku zdrojů, jejichž `next_check_at` už nastal; každý úspěšný běh naplánuje další kontrolu daného zdroje za 9 hodin;
 2. zdroj se atomicky zamkne, načte s timeoutem, limitem 5 MB, maximálně třemi redirecty a podmíněnými hlavičkami ETag/Last-Modified;
 3. URL i každý redirect projdou HTTPS allowlistem, DNS kontrolou a blokací privátních/metadata adres; crawler respektuje `robots.txt`;
 4. odpověď se hashne a nezměněný obsah se znovu neparsuje;
@@ -157,7 +158,7 @@ GET /api/cron/check-links
 Authorization: Bearer <CRON_SECRET>
 ```
 
-Supabase Cron kontroluje splatné zdroje každou hodinu v minutě 17; databázové `next_check_at` brání zbytečnému stahování. Autorizační hodnota `SUPABASE_SCHEDULER_SECRET` musí být shodná ve Vercelu a v Supabase Vault pod názvem `studenthub_scheduler_secret`. Vercel Hobby navíc spouští povolenou denní zálohu ve 03:17 UTC a kontrolu odkazů v 04:45 UTC; Vercel předává `CRON_SECRET` jako Bearer automaticky. Tajemství nikdy nevkládejte přímo do migrace ani do příkazu v dokumentaci.
+Supabase Cron kontroluje splatné zdroje v minutách 17, 37 a 57; databázové `next_check_at` brání tomu, aby byl stejný zdroj stahován častěji než jednou za 9 hodin. Autorizační hodnota `SUPABASE_SCHEDULER_SECRET` musí být shodná ve Vercelu a v Supabase Vault pod názvem `studenthub_scheduler_secret`. Vercel Hobby navíc spouští povolenou denní zálohu ve 03:17 UTC a kontrolu odkazů v 04:45 UTC; Vercel předává `CRON_SECRET` jako Bearer automaticky. Tajemství nikdy nevkládejte přímo do migrace ani do příkazu v dokumentaci.
 
 ## Jak přidat nové město
 

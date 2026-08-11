@@ -40,7 +40,7 @@ async function screenCrossSourceConflicts(client: ReturnType<typeof createServic
   }
   return { publishable, review };
 }
-// Hodinový dispatcher + devítihodinová splatnost drží i nejhorší běh pod limitem 10 hodin.
+// A 20-minute dispatcher plus a nine-hour due time keeps temporary backlogs below 10 hours.
 const nextCheckAt = (finishedAt: string, hours = 9) => new Date(new Date(finishedAt).getTime() + hours * 60 * 60 * 1000).toISOString();
 const retryAt = (finishedAt: string, failures: number) => new Date(new Date(finishedAt).getTime() + Math.min(6 * 60, 15 * 2 ** Math.min(failures - 1, 5)) * 60 * 1000).toISOString();
 

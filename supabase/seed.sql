@@ -41,6 +41,30 @@ update public.content_sources set source_url='https://www.vetuni.cz/Rozpis_vyuky
 update public.content_sources set enabled=true, monitoring_mode='automatic_review', requires_review=true, refresh_interval=interval '9 hours' where source_type='academic_calendar' and id not in ('src-vut-fit','src-vut-fsi','src-mendelu-pef','src-mendelu-frrms') and university_id not in ('muni','jamu');
 update public.content_sources set parser_key='not-found-monitor', enabled=true, monitoring_mode='not_found_monitored', requires_review=true, confidence=0, refresh_interval=interval '9 hours' where id='src-mendelu-frrms';
 
+-- Keep fresh environments aligned with the autonomous connectors introduced after
+-- the original seed was written.
+update public.content_sources set
+  source_url='https://www.vut.cz/uredni-deska/vnitrni-legislativa-fekt/rozhodnuti-s8',
+  official_domain='vut.cz', parser_key='linked-document-auto', enabled=true,
+  monitoring_mode='automatic_publish', requires_review=false, confidence=0.96,
+  refresh_interval=interval '9 hours'
+where id='src-vut-fekt';
+update public.content_sources set
+  source_url=case id
+    when 'src-vut-fch' then 'https://www.vut.cz/uredni-deska/vnitrni-legislativa-fch/vnitrni-normy-sp103'
+    when 'src-vut-fp' then 'https://www.vut.cz/uredni-deska/vnitrni-legislativa-fp/rozhodnuti-s56'
+  end,
+  official_domain='vut.cz', parser_key='linked-document-auto', enabled=true,
+  monitoring_mode='automatic_publish', requires_review=false, confidence=0.96,
+  refresh_interval=interval '9 hours'
+where id in ('src-vut-fch','src-vut-fp');
+update public.content_sources set
+  source_url='https://frrms.mendelu.cz/student/prakticke-informace/',
+  official_domain='frrms.mendelu.cz', parser_key='generic-academic-html', enabled=true,
+  monitoring_mode='automatic_review', requires_review=true, confidence=0.60,
+  refresh_interval=interval '9 hours'
+where id='src-mendelu-frrms';
+
 insert into public.academic_events (id, external_id, title, description, category, school, faculty, starts_at, ends_at, all_day, timezone, academic_year, source_id, source_name, source_url, source_updated_at, source_hash, confidence, last_verified_at, verification_status, status, is_demo, scope_type, university_id, faculty_id) values
 ('51111111-1111-4111-8111-111111111111','muni-2026-semester-start','Začátek podzimního semestru 2026','Oficiálně zveřejněný začátek semestru; začátek výuky se může lišit podle fakulty.','semester_start','MUNI','Všechny fakulty','2026-09-01 00:00:00+02',null,true,'Europe/Prague','2026/2027',null,'Kalendář Masarykovy univerzity','https://www.muni.cz/kalendar/zari-2026','2026-08-01','2d5f9b54f7ad9d35f8464bb5729997123ac0b56e889a13829c1a95eacdd14f21',0.980,'2026-08-01','verified','approved',false,'university','muni',null),
 ('51111111-1111-4111-8111-111111111112','fit-2026-winter-teaching','Výuka v zimním semestru FIT VUT','Období výuky podle veřejného časového plánu FIT VUT.','teaching','VUT','FIT','2026-09-14 00:00:00+02','2026-12-11 23:59:59+01',true,'Europe/Prague','2026/2027','src-vut-fit','Časový plán FIT VUT 2026/2027','https://www.fit.vut.cz/study/calendar/2026/.cs','2026-08-01','f22994a114c00f53baf19965274ab9cb754770c2885f024294691e82766eb3c6',1.000,'2026-08-01','verified','approved',false,'faculty','vut','vut-fit'),

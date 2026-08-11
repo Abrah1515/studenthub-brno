@@ -42,10 +42,10 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(13);
-      // PGlite nemá provozní rozšíření pg_cron/pg_net; obsah této jediné
-      // infrastrukturní migrace ověřuje samostatný unit test a produkční smoke SQL.
-      for (const file of files.filter((file) => !file.endsWith("_supabase_hourly_scheduler.sql"))) {
+      expect(files).toHaveLength(14);
+      // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
+      // unit tests verify both scheduler migrations and their Vault-only secrets.
+      for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
         const statements = sqlStatements(await readFile(`supabase/migrations/${file}`, "utf8"));
         for (let index = 0; index < statements.length; index += 1) {
           try { await db.exec(`${statements[index]};`); }
@@ -65,7 +65,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       `);
 
       const modes = await db.query<{ monitoring_mode: string; count: number }>("select monitoring_mode, count(*)::int as count from public.content_sources where source_type='academic_calendar' group by monitoring_mode order by monitoring_mode");
-      expect(modes.rows).toEqual([{ monitoring_mode: "automatic_publish", count: 15 }, { monitoring_mode: "automatic_review", count: 11 }, { monitoring_mode: "not_found_monitored", count: 1 }]);
+      expect(modes.rows).toEqual([{ monitoring_mode: "automatic_publish", count: 18 }, { monitoring_mode: "automatic_review", count: 9 }]);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.content_sources where source_type='academic_calendar' and enabled")).rows[0].count).toBe(27);
 
       const pef = contentSources.find((item) => item.id === "src-mendelu-pef")!;
