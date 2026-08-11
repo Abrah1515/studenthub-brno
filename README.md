@@ -196,7 +196,7 @@ Regresní sada dále ověřuje číslo stránky PDF, honeypot, bezpečné vlastn
 `pnpm check:pwa` provede statickou kontrolu. Pro kontrolu běžícího webu předejte URL:
 
 ```powershell
-pnpm check:pwa -- https://studenthub-brno.vercel.app
+pnpm check:pwa https://studenthub-brno.vercel.app
 ```
 
 `pnpm check:links` používá bezpečný GET s limitem velikosti, kontroluje finální URL, MIME, akademický rok, PDF hlavičku a očekávanou strukturu obsahu. Sdílené IS stránky načítá jednou s omezeným backoff retry a při dočasné nedostupnosti nic nemění. Produkční cron uchovává historii a za definitivně rozbitý označí odkaz až po třech selháních.
@@ -225,7 +225,7 @@ PUBLISHED_CITY_SLUGS=brno
 ```
 
 4. Vygenerujte tajemství například `openssl rand -base64 48` pro `CRON_SECRET` a `RATE_LIMIT_SALT`.
-5. Deployněte a ověřte `/`, `/admin`, `/api/cron/sync-sources` (bez tokenu musí vrátit 401), Supabase logy a `pnpm check:pwa -- https://studenthub-brno.vercel.app`.
+5. Deployněte a ověřte `/`, `/admin`, `/api/cron/sync-sources` (bez tokenu musí vrátit 401), Supabase logy a `pnpm check:pwa https://studenthub-brno.vercel.app`.
 
 CLI varianta:
 
