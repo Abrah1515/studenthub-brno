@@ -11,6 +11,7 @@ const operations = readFileSync(resolve("supabase/migrations/202608060010_conten
 const scheduler = readFileSync(resolve("supabase/migrations/202608110012_supabase_hourly_scheduler.sql"), "utf8");
 const frequentScheduler = readFileSync(resolve("supabase/migrations/202608110014_twenty_minute_calendar_dispatcher.sql"), "utf8");
 const eventScheduleUniqueness = readFileSync(resolve("supabase/migrations/202608120015_academic_event_schedule_uniqueness.sql"), "utf8");
+const reprocessVutSchedules = readFileSync(resolve("supabase/migrations/202608120016_reprocess_vut_html_schedules.sql"), "utf8");
 describe("databázová bezpečnost", () => {
   it("zapíná RLS na neveřejných tabulkách", () => { expect(migration).toContain("alter table public.service_requests enable row level security"); expect(migration).toContain("alter table public.submissions enable row level security"); });
   it("nedává anonymům čtení poptávek", () => { expect(migration).toContain("revoke all on public.service_requests from anon"); expect(migration).toContain("grant insert on public.service_requests to anon"); expect(migration).not.toContain("grant select on public.service_requests to anon"); });
@@ -29,5 +30,6 @@ describe("databázová bezpečnost", () => {
   it("plánuje zdroje s rezervou pod deseti hodinami a atomicky je nárokuje", () => { expect(operations).toContain("interval '9 hours'"); expect(operations).toContain("interval '10 hours'"); expect(operations).toContain("for update skip locked"); expect(operations).toContain("claim_due_content_sources"); });
   it("používá Supabase Cron a tajemství čte pouze z Vaultu", () => { expect(scheduler).toContain("vault.decrypted_secrets"); expect(frequentScheduler).toContain("'17,37,57 * * * *'"); expect(frequentScheduler).toContain("vault.decrypted_secrets"); expect(frequentScheduler).toContain("studenthub_scheduler_secret"); expect(`${scheduler}\n${frequentScheduler}`).not.toMatch(/Bearer\s+[A-Za-z0-9_-]{16,}/); });
   it("umožňuje více legitimních termínů stejného typu, ale odmítá přesnou duplicitu", () => { expect(eventScheduleUniqueness).toContain("duplicate_fingerprint"); expect(eventScheduleUniqueness).toContain("starts_at"); expect(eventScheduleUniqueness).toContain("coalesce(ends_at, starts_at)"); });
+  it("vynutí jednorázový přepočet opravených FIT/FSI parserů bez mazání událostí", () => { expect(reprocessVutSchedules).toContain("'src-vut-fit', 'src-vut-fsi'"); expect(reprocessVutSchedules).toContain("content_hash = null"); expect(reprocessVutSchedules).toContain("etag = null"); expect(reprocessVutSchedules).not.toMatch(/delete\s+from\s+public\.academic_events/i); });
   it("chrání kontaktní inbox a odmítá duplicitní hlášení", () => { expect(operations).toContain("alter table public.contact_messages enable row level security"); expect(operations).toContain("content_reports_session_target_unique"); expect(operations).toContain("content_reports_user_target_unique"); });
 });

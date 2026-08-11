@@ -114,6 +114,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608110013_autonomous_faculty_calendars.sql` – autonomní dohledání aktuálních plánů FEKT/FCH/FP přes úřední desku VUT, devítihodinový interval všech kalendářů, aktuální FRRMS zdroj a bezpečný reset hashů změněných konektorů.
 - `202608110014_twenty_minute_calendar_dispatcher.sql` – malá dávka splatných zdrojů každých 20 minut; jednotlivé zdroje nadále respektují devítihodinový interval a nové VUT konektory dostanou prioritu v prvním běhu.
 - `202608120015_academic_event_schedule_uniqueness.sql` – rozlišuje legitimní opakované termíny stejného typu podle skutečného začátku a konce, při zachování sémantického otisku pro porovnání změn mezi zdroji.
+- `202608120016_reprocess_vut_html_schedules.sql` – bezpečně vynutí jednorázové znovunačtení FIT/FSI po opravě strukturovaného parseru; stávající události před úspěšným během nemaže.
 
 ## První hlavní superadmin
 
@@ -138,7 +139,7 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje třináct datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje čtrnáct datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
 Automatický tok:
 

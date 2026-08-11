@@ -77,7 +77,8 @@ export async function syncSource(sourceId: string, cityId?: string, options: { c
     const result = { ...connectorResult, events: [...new Map(connectorResult.events.map((event) => [event.externalId, event])).values()] };
     const connectorIssue = inspectConnectorResult(effectiveSource, result);
     const normalizedHash = result.normalizedHash || await sha256(JSON.stringify(result.events.map((event) => ({ externalId: event.externalId, sourceHash: event.sourceHash }))));
-    await client.from("source_snapshots").insert({ source_id: source.id, sync_run_id: run.id, content_hash: contentHash, normalized_hash: normalizedHash, content_type: fetched.contentType, document_title: result.documentTitle || source.sourceDocumentTitle || null, extracted_text: result.sourceText || null, content: `\\x${Buffer.from(fetched.body).toString("hex")}` });
+    const { error: snapshotError } = await client.from("source_snapshots").upsert({ source_id: source.id, sync_run_id: run.id, content_hash: contentHash, normalized_hash: normalizedHash, content_type: fetched.contentType, document_title: result.documentTitle || source.sourceDocumentTitle || null, extracted_text: result.sourceText || null, content: `\\x${Buffer.from(fetched.body).toString("hex")}` }, { onConflict: "source_id,content_hash" });
+    if (snapshotError) throw snapshotError;
     const { data: existingRows, error: existingError } = await client.from("academic_events").select("id,external_id,source_hash,manual_override,starts_at,ends_at,title,is_cancelled,academic_year").eq("source_id", source.id); if (existingError) throw existingError;
     const partition = partitionEventsForMonitoring(source.monitoringMode, result.events);
     let certain = connectorIssue ? [] : partition.publishable;
