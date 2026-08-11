@@ -1,6 +1,6 @@
 import type { ConnectorContext, ConnectorResult, NormalizedEvent } from "@/lib/sources/types";
 import { academicYearFor, inferCategory, parseCzechDateRange, sha256 } from "@/lib/sources/normalize";
-import { parseIsAcademicPeriods, parseMendeluPef } from "@/lib/sources/connectors/academic-tables";
+import { parseIsAcademicPeriods, parseMendeluPef, parseVutSchedule } from "@/lib/sources/connectors/academic-tables";
 
 function decodeHtml(value: string) { return value.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&ndash;|&mdash;/gi, "–").replace(/&amp;/gi, "&").replace(/&quot;/gi, "\"").replace(/\s+/g, " ").trim(); }
 function candidates(html: string) {
@@ -13,6 +13,7 @@ export async function parseHtml(context: ConnectorContext): Promise<ConnectorRes
   const html = new TextDecoder().decode(context.body); const warnings: string[] = []; const events: NormalizedEvent[] = [];
   if (["muni-is-periods", "jamu-is-periods"].includes(context.source.parserKey)) return parseIsAcademicPeriods(context);
   if (context.source.parserKey === "mendelu-pef-html") return parseMendeluPef(context);
+  if (["vut-fit-html", "vut-fsi-html"].includes(context.source.parserKey) && /\bc-schedule__item\b/i.test(html)) return parseVutSchedule(context);
   if (["linked-document-review", "linked-document-auto", "not-found-monitor"].includes(context.source.parserKey)) return { events, warnings: [context.source.monitoringMode === "not_found_monitored" ? "Veřejný harmonogram zatím nebyl nalezen; stránka zůstává monitorovaná." : "Na stránce nebyl nalezen jednoznačný aktuální dokument harmonogramu."] };
   for (const text of candidates(html)) {
     const parsed = parseCzechDateRange(text); if (!parsed) continue;

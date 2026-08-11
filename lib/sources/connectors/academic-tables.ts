@@ -1,5 +1,5 @@
 import type { ConnectorContext, ConnectorResult, NormalizedEvent } from "@/lib/sources/types";
-import { inferCategory, parseCzechDatePoint, parseCzechDateRange, sha256 } from "@/lib/sources/normalize";
+import { academicYearFor, inferCategory, parseCzechDatePoint, parseCzechDateRange, sha256, zonedDateTimeToIso } from "@/lib/sources/normalize";
 
 type Cell = { attributes: string; text: string; facultyCode?: string };
 
@@ -49,6 +49,46 @@ async function event(context: ConnectorContext, values: { title: string; startAt
     confidence: context.source.monitoringMode === "automatic_publish" ? 0.98 : 0.82, status: sourceStatus(context),
     lastVerifiedAt: context.checkedAt, sourceDocumentTitle: "Přehled harmonogramu období fakult", originalText: values.originalText,
   };
+}
+
+function htmlDateTime(value: string, endOfDay = false) {
+  const match = value.match(/^(20\d{2})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::\d{2})?)?$/);
+  if (!match) return null;
+  const hasTime = Boolean(match[4]);
+  return {
+    iso: zonedDateTimeToIso(Number(match[1]), Number(match[2]), Number(match[3]), hasTime ? Number(match[4]) : endOfDay ? 23 : 0, hasTime ? Number(match[5]) : endOfDay ? 59 : 0),
+    hasTime,
+    clock: hasTime ? `${match[4]}:${match[5]}` : null,
+  };
+}
+
+function withinAcademicYear(startAt: string, endAt: string | undefined, academicYear: string) {
+  const startYear = Number(academicYear.slice(0, 4));
+  const lower = Date.UTC(startYear, 0, 1); const upper = Date.UTC(startYear + 1, 8, 1);
+  const start = new Date(startAt).getTime(); const end = new Date(endAt || startAt).getTime();
+  return Number.isFinite(start) && Number.isFinite(end) && start >= lower && end < upper && end >= start;
+}
+
+export async function parseVutSchedule(context: ConnectorContext): Promise<ConnectorResult> {
+  const html = new TextDecoder().decode(context.body); const parsed: NormalizedEvent[] = [];
+  for (const match of html.matchAll(/<li\b[^>]*class=["'][^"']*\bc-schedule__item\b[^"']*["'][^>]*>([\s\S]*?)<\/li>/gi)) {
+    const item = match[1];
+    const datetimes = [...item.matchAll(/<time\b[^>]*datetime=["']([^"']+)["'][^>]*>/gi)].map((value) => value[1]);
+    const labelMatch = item.match(/<p\b[^>]*class=["'][^"']*\bc-schedule__label\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i);
+    if (!datetimes.length || !labelMatch) continue;
+    const label = htmlText(labelMatch[1]);
+    const tags = [...item.matchAll(/<span\b[^>]*class=["'][^"']*\btag-text\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi)].map((value) => htmlText(value[1])).filter(Boolean);
+    const title = `${label}${tags.length ? ` · ${[...new Set(tags)].join(", ")}` : ""}`;
+    if (title.length < 4 || title.length > 160 || inferCategory(title) === "Ostatní") continue;
+    const start = htmlDateTime(datetimes[0]); const endValue = datetimes[1]; const end = endValue ? htmlDateTime(endValue, true) : null;
+    if (!start || (endValue && !end)) continue;
+    const allDay = (!start.hasTime && (!end || !end.hasTime)) || (start.clock === "00:00" && (!end || end.clock === "23:59"));
+    const academicYear = context.source.academicYear || academicYearFor(new Date(start.iso));
+    if (!withinAcademicYear(start.iso, end?.iso, academicYear)) continue;
+    parsed.push(await event(context, { title, startAt: start.iso, endAt: end?.iso, allDay, academicYear, originalText: htmlText(item) }));
+  }
+  const events = [...new Map(parsed.map((item) => [item.externalId, item])).values()];
+  return { events, warnings: events.length ? [] : ["Strukturovaný časový plán VUT neobsahuje žádný jednoznačný termín aktuálního akademického roku."], sourceText: htmlText(html), documentTitle: `Časový plán ${context.source.facultyId.toUpperCase()} VUT`, normalizedHash: await sha256(JSON.stringify(events.map((item) => [item.externalId, item.sourceHash]))) };
 }
 
 function academicYearFromPeriod(period: string) {

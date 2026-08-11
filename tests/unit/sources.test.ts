@@ -51,6 +51,19 @@ describe("konektory veřejných zdrojů", () => {
     expect(result.events.map((item) => item.category)).toEqual(["Výuka", "Zkouškové období", "Registrace předmětů", "Výuka", "Zkouškové období", "Registrace předmětů"]);
     expect(result.events.every((item) => item.title !== "zimní semestr" && item.status === "approved")).toBe(true);
   });
+  it("FIT a FSI čtou strukturované schedule položky bez dlouhých názvů a duplicit", async () => {
+    const body = await readFile("tests/fixtures/vut-schedule.html");
+    const fit = contentSources.find((item) => item.id === "src-vut-fit")!; const fsi = contentSources.find((item) => item.id === "src-vut-fsi")!;
+    const [fitResult, fsiResult] = await Promise.all([
+      parseHtml({ source: { ...fit, academicYear: "2026/2027" }, body, contentType: "text/html", checkedAt: "2026-08-12T00:00:00Z" }),
+      parseHtml({ source: { ...fsi, academicYear: "2026/2027" }, body, contentType: "text/html", checkedAt: "2026-08-12T00:00:00Z" }),
+    ]);
+    expect(fitResult.events).toHaveLength(3); expect(fsiResult.events).toHaveLength(3);
+    expect(fitResult.events.every((item) => item.title.length <= 160 && !item.title.startsWith("19:00"))).toBe(true);
+    expect(new Set(fsiResult.events.map((item) => item.externalId)).size).toBe(fsiResult.events.length);
+    expect(fitResult.events.map((item) => item.category)).toEqual(["Výuka", "Zkouškové období", "Výuka"]);
+    expect(fitResult.events.some((item) => item.title.includes("Vánoční prázdniny"))).toBe(false);
+  });
   it("veřejný IS JAMU oddělí HF a DIFA", async () => {
     const body = await readFile("tests/fixtures/jamu-periods.html"); const hf = contentSources.find((item) => item.id === "src-jamu-hf")!; const df = contentSources.find((item) => item.id === "src-jamu-df")!;
     const [hfResult, dfResult] = await Promise.all([parseHtml({ source: hf, body, contentType: "text/html", checkedAt: "2026-08-02T10:00:00Z" }), parseHtml({ source: df, body, contentType: "text/html", checkedAt: "2026-08-02T10:00:00Z" })]);
