@@ -86,6 +86,12 @@ export async function parsePdfExtractedText(
 }
 
 type PositionedText = { text: string; x: number; y: number; width: number; hasEol: boolean };
+export function deduplicatePdfEvents(events: NormalizedEvent[]) {
+  const unique = new Map<string, NormalizedEvent>();
+  for (const event of events) if (!unique.has(event.externalId)) unique.set(event.externalId, event);
+  return [...unique.values()];
+}
+
 function rowsFromItems(items: PositionedText[]) {
   const rows: PositionedText[][] = [];
   for (const item of [...items].sort((a, b) => Math.abs(b.y - a.y) > 2 ? b.y - a.y : a.x - b.x)) {
@@ -173,7 +179,7 @@ export async function parsePdf(context: ConnectorContext): Promise<ConnectorResu
   const documentAcademicYear = context.source.academicYear || academicYearFromText(`${documentTitle}\n${pages.map((page) => page.text).join("\n")}`);
   const effectiveContext: ConnectorContext = { ...context, source: { ...context.source, academicYear: documentAcademicYear } };
   const results = await Promise.all(pages.map((page) => parsePdfExtractedText(page.text, effectiveContext, documentTitle, page.pageNumber, { usedOcr, documentAcademicYear, suppressWarnings: true })));
-  const events = results.flatMap((result) => result.events);
+  const events = deduplicatePdfEvents(results.flatMap((result) => result.events));
   const sourceText = pages.map((page) => `[strana ${page.pageNumber}]\n${page.text}`).join("\n\n");
   const warnings: string[] = [];
   if (usedOcr) warnings.push("Dokument byl zpracován OCR; nalezené termíny vyžadují ruční schválení.");

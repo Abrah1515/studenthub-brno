@@ -13,6 +13,16 @@ import { decideSourceConflict, type ModificationBasis } from "@/lib/sources/conf
 import { foldSearchText } from "@/lib/search";
 
 function semesterFor(event: NormalizedEvent) { const month = new Date(event.startAt).getMonth() + 1; return month >= 8 ? "autumn" : month <= 2 ? "autumn" : "spring"; }
+function syncErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error.trim()) return error.trim();
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>;
+    const details = ["message", "details", "hint", "code"].map((key) => typeof value[key] === "string" && value[key] ? `${key}: ${value[key]}` : "").filter(Boolean);
+    if (details.length) return details.join("; ");
+  }
+  return "Neznámá chyba synchronizace.";
+}
 export const normalizedEventToRow = (event: NormalizedEvent, approved = event.status === "approved") => ({ external_id: event.externalId, title: event.title, description: event.description, starts_at: event.startAt, ends_at: event.endAt || null, all_day: event.allDay, timezone: event.timezone, category: categoryCode(event.category), academic_year: event.academicYear, semester: semesterFor(event), university_id: event.universityId, faculty_id: event.facultyId, programme_id: event.programmeId || null, scope_type: event.programmeId ? "programme" : "faculty", school: event.universityId.toUpperCase(), faculty: event.facultyId, source_id: event.sourceId, source_name: "Oficiální veřejný zdroj", source_url: event.sourceUrl, source_document_title: event.sourceDocumentTitle || null, source_page: event.sourcePage || null, source_updated_at: event.sourceUpdatedAt || null, source_modified_at: event.sourceUpdatedAt || null, source_modified_basis: event.sourceModifiedBasis || (event.sourceUpdatedAt ? "explicit_school_update" : "first_detected"), source_hash: event.sourceHash, confidence: event.confidence, status: approved ? "approved" : "pending", verification_status: approved ? "verified" : "needs_review", last_verified_at: event.lastVerifiedAt, is_demo: false, is_cancelled: false, change_state: "unchanged" });
 function categoryCode(category: NormalizedEvent["category"]) { const map: Record<NormalizedEvent["category"], string> = { "Začátek semestru": "semester_start", "Konec semestru": "semester_end", "Výuka": "teaching", "Registrace předmětů": "course_registration", "Zápis předmětů": "course_enrollment", "Změny zápisu": "enrollment_changes", "Zveřejnění rozvrhu": "timetable_release", "Zkouškové období": "exam", "Prázdniny": "holiday", "Státní závěrečné zkoušky": "final_exam", "Odevzdání závěrečných prací": "thesis_deadline", "Imatrikulace": "matriculation", "Promoce": "graduation", "Praxe": "internship", "Fakultní akce": "faculty_event", "Ostatní": "other" }; return map[category]; }
 async function eventFingerprint(event: NormalizedEvent) { return sha256([event.universityId, event.facultyId, event.academicYear, semesterFor(event), event.category, foldSearchText(event.title)].join("|")); }
@@ -84,7 +94,7 @@ export async function syncSource(sourceId: string, cityId?: string, options: { c
     await client.from("source_sync_runs").update({ status: needsReview ? "review" : "success", finished_at: finishedAt, http_status: fetched.status, content_hash: contentHash, discovered_count: result.events.length, published_count: certain.length, review_count: uncertain.length, error_message: connectorIssue?.message || null }).eq("id", run.id);
     return { sourceId, status: needsReview ? "review" as const : "success" as const, published: certain.length, review: uncertain.length };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Neznámá chyba synchronizace."; const finishedAt = new Date().toISOString();
+    const message = syncErrorMessage(error); const finishedAt = new Date().toISOString();
     if (error instanceof SourceBlockedError) {
       await client.from("source_review_queue").insert({ source_id: source.id, sync_run_id: run.id, proposed_payload: { events: [], warnings: [message], issue: error.issue.code }, source_text: null, confidence: 0, source_document_title: source.sourceDocumentTitle || null, reason: error.issue.code, status: "pending" });
       await client.from("source_sync_runs").update({ status: "review", finished_at: finishedAt, error_message: message }).eq("id", run.id);
@@ -93,7 +103,7 @@ export async function syncSource(sourceId: string, cityId?: string, options: { c
     }
     await client.from("source_sync_runs").update({ status: "failed", finished_at: finishedAt, error_message: message }).eq("id", run.id);
     const { data: current } = await client.from("content_sources").select("consecutive_failures").eq("id", source.id).single(); const failures = Number(current?.consecutive_failures || 0) + 1;
-    await client.from("content_sources").update({ last_checked_at: finishedAt, consecutive_failures: failures, sync_status: failures >= 3 ? "stale" : "failed", next_check_at: nextCheckAt(finishedAt), next_retry_at: retryAt(finishedAt, failures), last_error_at: finishedAt, last_error_message: message }).eq("id", source.id); throw error;
+    await client.from("content_sources").update({ last_checked_at: finishedAt, consecutive_failures: failures, sync_status: failures >= 3 ? "stale" : "failed", next_check_at: nextCheckAt(finishedAt), next_retry_at: retryAt(finishedAt, failures), last_error_at: finishedAt, last_error_message: message }).eq("id", source.id); throw error instanceof Error ? error : new Error(message, { cause: error });
   }
 }
 

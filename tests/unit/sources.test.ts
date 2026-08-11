@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("node:dns/promises", () => ({ lookup: vi.fn(async () => [{ address: "203.0.113.10", family: 4 }]) }));
 import { parseHtml } from "@/lib/sources/connectors/html";
 import { parseIcs } from "@/lib/sources/connectors/ics";
-import { parsePdf, parsePdfExtractedText } from "@/lib/sources/connectors/pdf";
+import { deduplicatePdfEvents, parsePdf, parsePdfExtractedText } from "@/lib/sources/connectors/pdf";
 import { runConnector } from "@/lib/sources/connectors";
 import { contentSources } from "@/lib/sources/registry";
 import { parseCzechDateRange, sha256, zonedDateTimeToIso } from "@/lib/sources/normalize";
@@ -30,6 +30,7 @@ describe("konektory veřejných zdrojů", () => {
   it("extrahuje textové PDF a zachová původní řádek", async () => { const result = await parsePdf(pdfContext(await readFile("tests/fixtures/calendar-text.pdf"))); expect(result.events).toHaveLength(2); expect(result.events.every((item) => item.originalText && item.sourceDocumentTitle)).toBe(true); expect(result.normalizedHash).toMatch(/^[a-f0-9]{64}$/); });
   it("doplní serverové PDF globály i bez prohlížečového prostředí", async () => { const globals = globalThis as unknown as Record<string, unknown>; const original = { DOMMatrix: globals.DOMMatrix, Path2D: globals.Path2D, ImageData: globals.ImageData, pdfjsWorker: globals.pdfjsWorker }; for (const key of Object.keys(original)) Reflect.deleteProperty(globals, key); try { const result = await parsePdf(pdfContext(await readFile("tests/fixtures/calendar-text.pdf"))); expect(result.events).toHaveLength(2); expect(typeof globals.DOMMatrix).toBe("function"); expect(typeof globals.Path2D).toBe("function"); expect(typeof globals.ImageData).toBe("function"); expect(globals.pdfjsWorker).toBeTruthy(); } finally { for (const [key, value] of Object.entries(original)) { if (value) globals[key] = value; else Reflect.deleteProperty(globals, key); } } });
   it("spojí buňky tabulkového PDF do čitelného řádku", async () => { const result = await parsePdf(pdfContext(await readFile("tests/fixtures/calendar-table.pdf"))); expect(result.events.map((item) => item.category)).toEqual(["Výuka", "Zkouškové období"]); });
+  it("před databázovým zápisem sloučí opakované termíny z více PDF tabulek", () => { const event = { externalId: "same", title: "Výuka", description: "", startAt: "2026-09-14T00:00:00Z", allDay: true, timezone: "Europe/Prague" as const, category: "Výuka" as const, academicYear: "2026/2027", universityId: "vut", facultyId: "vut-fekt", sourceId: "src-vut-fekt", sourceUrl: "https://www.vut.cz/", sourceHash: "a", confidence: 1, status: "approved" as const, lastVerifiedAt: "2026-08-11T00:00:00Z" }; expect(deduplicatePdfEvents([event, { ...event, sourcePage: 2 }])).toEqual([event]); });
   it("skenované PDF bez textové vrstvy nepublikuje", async () => { const result = await parsePdf(pdfContext(await readFile("tests/fixtures/calendar-scanned.pdf"))); expect(result.events).toHaveLength(0); expect(result.warnings[0]).toContain("OCR"); });
   it("MUNI mapuje všech deset fakult podle stabilního kódu sloupce", async () => {
     const body = await readFile("tests/fixtures/muni-periods.html");
