@@ -42,8 +42,10 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(11);
-      for (const file of files) {
+      expect(files).toHaveLength(12);
+      // PGlite nemá provozní rozšíření pg_cron/pg_net; obsah této jediné
+      // infrastrukturní migrace ověřuje samostatný unit test a produkční smoke SQL.
+      for (const file of files.filter((file) => !file.endsWith("_supabase_hourly_scheduler.sql"))) {
         const statements = sqlStatements(await readFile(`supabase/migrations/${file}`, "utf8"));
         for (let index = 0; index < statements.length; index += 1) {
           try { await db.exec(`${statements[index]};`); }

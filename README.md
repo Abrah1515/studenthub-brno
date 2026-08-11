@@ -110,6 +110,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608040009_community_help_and_privacy.sql` – bezpečný archiv a vypnutí kampusového modelu, čísla PDF stran, veřejná pomoc, parťáci a kapacitní trigger, hlášení, superadmin RLS a analytika zapisovatelná pouze serverem po souhlasu.
 - `202608060010_content_operations.sql` – přesné plánování přes `next_check_at`, atomické claimy, retry a upozornění zdrojů, konflikty termínů, okamžité publikování parťáků, deduplikace hlášení a soukromý kontaktní inbox.
 - `202608060011_verified_brno_places.sql` – doplnění ověřeného katalogu na 30 skutečných brněnských míst s oficiálními zdroji, souřadnicemi a absolutním časem ověření.
+- `202608110012_supabase_hourly_scheduler.sql` – hodinový dispatcher zdrojů přes Supabase Cron/pg_net; autorizační tajemství čte za běhu z Vaultu a nikdy je neobsahuje v SQL ani repozitáři.
 
 ## První hlavní superadmin
 
@@ -134,7 +135,7 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 15 strukturovaných fakultních zdrojů může publikovat automaticky, 11 se automaticky stahuje s ručním schválením a FRRMS MENDELU je ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje všech jedenáct migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Plnohodnotný Supabase Auth/REST stack je před veřejným nasazením nutné navíc ověřit proti skutečnému Supabase projektu.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje jedenáct datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Dvanáctá infrastrukturní migrace pro `pg_cron`/`pg_net` má samostatný regresní test a ověřuje se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
 Automatický tok:
 
@@ -155,7 +156,7 @@ GET /api/cron/check-links
 Authorization: Bearer <CRON_SECRET>
 ```
 
-Vercel cron kontroluje splatné zdroje každou hodinu v minutě 17; databázové `next_check_at` brání zbytečnému stahování. Kontrola odkazů běží denně v 04:45 UTC. Pokud tarif Vercelu hodinový cron nepovoluje, nastavte stejný hodinový GET v Supabase Cron/Vault s `SUPABASE_SCHEDULER_SECRET`; nikdy neukládejte tajemství přímo do SQL. Vercel předává `CRON_SECRET` jako Bearer automaticky.
+Supabase Cron kontroluje splatné zdroje každou hodinu v minutě 17; databázové `next_check_at` brání zbytečnému stahování. Autorizační hodnota `SUPABASE_SCHEDULER_SECRET` musí být shodná ve Vercelu a v Supabase Vault pod názvem `studenthub_scheduler_secret`. Vercel Hobby navíc spouští povolenou denní zálohu ve 03:17 UTC a kontrolu odkazů v 04:45 UTC; Vercel předává `CRON_SECRET` jako Bearer automaticky. Tajemství nikdy nevkládejte přímo do migrace ani do příkazu v dokumentaci.
 
 ## Jak přidat nové město
 
