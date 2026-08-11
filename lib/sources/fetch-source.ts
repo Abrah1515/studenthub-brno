@@ -47,6 +47,7 @@ export async function fetchRegisteredSource(source: ContentSource, conditional: 
         const location = response.headers.get("location"); if (!location) throw new Error("Neplatné přesměrování zdroje.");
         const target = await validateSourceUrl(new URL(location, url).href, source);
         if (/\/turnstile\.php(?:$|\?)/i.test(target.href)) throw new SourceBlockedError({ code: "challenge", status: "blocked", message: "Oficiální zdroj přesměroval na ochrannou Turnstile stránku. Ochranu neobcházíme; zdroj zůstává v ručním režimu." }, { finalUrl: target.href, contentType: "text/html" });
+        if (!await robotsAllows(target, source)) throw new SourceBlockedError({ code: "robots_disallowed", status: "blocked", message: "Cílová oficiální stránka zakazuje automatické stažení v robots.txt; pravidlo respektujeme a změnu ponecháváme ke kontrole." }, { finalUrl: target.href });
         url = target; continue;
       }
       if (response.status === 304) return { status: 304, body: new Uint8Array(), contentType: "", etag: response.headers.get("etag"), lastModified: response.headers.get("last-modified"), finalUrl: url.href };

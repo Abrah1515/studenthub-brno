@@ -40,6 +40,23 @@ test("explicitní MUNI FI scope má přednost a dashboard nepropustí VUT", asyn
 
 test("uložená preference MUNI FI filtruje KPI, termíny i místa bez URL parametrů", async ({ page }) => { await page.evaluate(() => localStorage.setItem("studenthub-preference-v3", JSON.stringify({ version: 3, cityId: "brno", universityId: "muni", facultyId: "muni-fi", completed: true }))); await page.goto("/brno"); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); await expect(page.getByText(/FIT VUT|FSI VUT/)).toHaveCount(0); await expect(page.getByText("Další zkouškové období")).toHaveCount(0); await expect(page.getByRole("heading", { name: "Menza Vinařská MUNI", exact: true })).toBeVisible(); await expect(page.getByRole("heading", { name: "Ústřední knihovna VUT", exact: true })).toHaveCount(0); });
 
+test("každé otevření kalendáře obnoví Moji fakultu, dočasný filtr ji nepřepíše", async ({ page }, testInfo) => {
+  await page.evaluate(() => localStorage.setItem("studenthub-preference-v3", JSON.stringify({ version: 3, cityId: "brno", universityId: "vut", facultyId: "vut-fekt", completed: true })));
+  await page.goto("/brno/kalendar?university=muni&faculty=muni-fi");
+  await expect(page.getByLabel("Fakulta", { exact: true })).toHaveValue("muni-fi");
+  await page.getByRole("button", { name: "Moje fakulta" }).click();
+  await expect(page).toHaveURL(/university=vut.*faculty=vut-fekt/);
+  await page.getByLabel("Univerzita").selectOption("muni");
+  await page.getByLabel("Fakulta", { exact: true }).selectOption("muni-fi");
+  const calendarLink = testInfo.project.name === "desktop-1440"
+    ? page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Kalendář" })
+    : page.getByRole("navigation", { name: "Mobilní navigace" }).getByRole("link", { name: "Termíny" });
+  await calendarLink.click();
+  await expect(page).toHaveURL(/university=vut.*faculty=vut-fekt/);
+  await expect(page.getByLabel("Fakulta", { exact: true })).toHaveValue("vut-fekt");
+  expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v3"))).toContain('"facultyId":"vut-fekt"');
+});
+
 test("filtr míst respektuje MUNI bez kampusového parametru", async ({ page }) => { await page.goto("/brno/mista?university=muni"); await expect(page.getByText("Knihovna univerzitního kampusu MUNI")).toBeVisible(); await expect(page.getByText("Ústřední knihovna VUT")).toHaveCount(0); await expect(page.getByLabel("Univerzita")).toHaveValue("muni"); await expect(page.getByText("Můj kampus")).toHaveCount(0); });
 
 test("exportuje český celodenní rozsah bez posunu data", async ({ page, request }) => {

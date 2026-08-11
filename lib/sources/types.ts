@@ -23,6 +23,8 @@ export type ContentSource = {
   requiresReview: boolean;
   notes: string;
   sourceDocumentTitle?: string;
+  discoveryPageLimit?: number;
+  discoveryDepth?: number;
 };
 
 export type NormalizedEvent = {

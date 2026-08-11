@@ -1,7 +1,7 @@
 import type { ConnectorResult, ContentSource } from "@/lib/sources/types";
 import { academicYearFromText } from "@/lib/sources/discovery";
 
-export type SourceIssueCode = "challenge" | "login_page" | "unexpected_mime" | "invalid_document" | "stale_academic_year" | "incomplete_result";
+export type SourceIssueCode = "challenge" | "robots_disallowed" | "login_page" | "unexpected_mime" | "invalid_document" | "stale_academic_year" | "incomplete_result";
 export type SourceIssue = { code: SourceIssueCode; status: "blocked" | "needs_review"; message: string };
 
 export class SourceBlockedError extends Error {

@@ -13,7 +13,7 @@ export async function parseHtml(context: ConnectorContext): Promise<ConnectorRes
   const html = new TextDecoder().decode(context.body); const warnings: string[] = []; const events: NormalizedEvent[] = [];
   if (["muni-is-periods", "jamu-is-periods"].includes(context.source.parserKey)) return parseIsAcademicPeriods(context);
   if (context.source.parserKey === "mendelu-pef-html") return parseMendeluPef(context);
-  if (["linked-document-review", "not-found-monitor"].includes(context.source.parserKey)) return { events, warnings: [context.source.monitoringMode === "not_found_monitored" ? "Veřejný harmonogram zatím nebyl nalezen; stránka zůstává monitorovaná." : "Zdroj vyžaduje ruční redakční kontrolu."] };
+  if (["linked-document-review", "linked-document-auto", "not-found-monitor"].includes(context.source.parserKey)) return { events, warnings: [context.source.monitoringMode === "not_found_monitored" ? "Veřejný harmonogram zatím nebyl nalezen; stránka zůstává monitorovaná." : "Na stránce nebyl nalezen jednoznačný aktuální dokument harmonogramu."] };
   for (const text of candidates(html)) {
     const parsed = parseCzechDateRange(text); if (!parsed) continue;
     const title = text.replace(/^(?:\d{1,2}\.\s*(?:\d{1,2}\.|[\p{L}]+)(?:\s*\d{4})?\s*(?:[-–—]\s*\d{1,2}\.\s*(?:\d{1,2}\.|[\p{L}]+)\s*\d{4})?\s*)/iu, "").replace(/^[-–—|:\s]+/, "").trim();

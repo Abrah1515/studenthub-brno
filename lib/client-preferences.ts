@@ -9,6 +9,7 @@ import { fallbackAcademicCatalog, resolveStudySelection } from "@/lib/universiti
 export const preferenceKey = "studenthub-preference-v3";
 export const previousPreferenceKey = "studenthub-preference-v2";
 export const legacyPreferenceKey = "studenthub-preference-v1";
+export const calendarPreferenceRequestedEvent = "studenthub-calendar-preference-requested";
 export const defaultPreference: StudentPreference = { version: 3, cityId: defaultCitySlug, universityId: null, facultyId: null, completed: false };
 
 export function normalizePreference(value: Partial<StudentPreference>, catalog: AcademicCatalog = fallbackAcademicCatalog): StudentPreference {

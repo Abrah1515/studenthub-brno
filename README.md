@@ -111,6 +111,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608060010_content_operations.sql` – přesné plánování přes `next_check_at`, atomické claimy, retry a upozornění zdrojů, konflikty termínů, okamžité publikování parťáků, deduplikace hlášení a soukromý kontaktní inbox.
 - `202608060011_verified_brno_places.sql` – doplnění ověřeného katalogu na 30 skutečných brněnských míst s oficiálními zdroji, souřadnicemi a absolutním časem ověření.
 - `202608110012_supabase_hourly_scheduler.sql` – hodinový dispatcher zdrojů přes Supabase Cron/pg_net; autorizační tajemství čte za běhu z Vaultu a nikdy je neobsahuje v SQL ani repozitáři.
+- `202608110013_autonomous_faculty_calendars.sql` – autonomní dohledání aktuálních plánů FEKT/FCH/FP přes úřední desku VUT, devítihodinový interval všech kalendářů, aktuální FRRMS zdroj a bezpečný reset hashů změněných konektorů.
 
 ## První hlavní superadmin
 
@@ -133,18 +134,18 @@ Administrace je na `/admin`. Bez platné serverově ověřené session přesměr
 
 Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-sources.md](docs/data-sources.md).
 
-V současném registru se 15 strukturovaných fakultních zdrojů může publikovat automaticky, 11 se automaticky stahuje s ručním schválením a FRRMS MENDELU je ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
+V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje jedenáct datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Dvanáctá infrastrukturní migrace pro `pg_cron`/`pg_net` má samostatný regresní test a ověřuje se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje dvanáct datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Infrastrukturní migrace `202608110012` pro `pg_cron`/`pg_net` má samostatný regresní test a ověřuje se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
 Automatický tok:
 
 1. hodinový plánovač ověří `Authorization: Bearer $CRON_SECRET` (nebo serverové tajemství Supabase Scheduleru) a atomicky si vyzvedne jen zdroje, jejichž `next_check_at` už nastal; každý úspěšný běh naplánuje další kontrolu za 9 hodin, takže i s hodinovým plánovačem zůstává horní mez 10 hodin;
 2. zdroj se atomicky zamkne, načte s timeoutem, limitem 5 MB, maximálně třemi redirecty a podmíněnými hlavičkami ETag/Last-Modified;
-3. URL projde HTTPS allowlistem, DNS kontrolou a blokací privátních/metadata adres; crawler respektuje `robots.txt`;
+3. URL i každý redirect projdou HTTPS allowlistem, DNS kontrolou a blokací privátních/metadata adres; crawler respektuje `robots.txt`;
 4. odpověď se hashne a nezměněný obsah se znovu neparsuje;
-5. uloží se bezpečný snapshot; HTML/ICS/JSON nebo PDF.js parser normalizuje `Europe/Prague`, celodenní/časované termíny, školu, fakultu, program, akademický rok a číslo PDF stránky; volitelné OCR přijímá jen HTTPS JSON rozhraní;
-6. jistota ≥ 0,90 může být publikována pouze u bezpečného strukturovaného zdroje; PDF, OCR a nejisté změny vždy čekají v administraci;
+5. uloží se bezpečný snapshot; u ročních rozcestníků se omezeně projde stránkování a nejvýše dvě úrovně `seznam → detail → příloha`; HTML/ICS/JSON nebo PDF.js parser normalizuje `Europe/Prague`, celodenní/časované termíny, školu, fakultu, program, akademický rok a číslo PDF stránky;
+6. jistota ≥ 0,90 může být publikována pouze u zdroje v `automatic_publish`; aktuální oficiální PDF s textovou vrstvou a jednoznačným akademickým rokem může projít samo, zatímco OCR, starý rok, konflikt, nejasný dokument a zdroj blokovaný `robots.txt` vždy čekají v administraci;
 7. chybějící budoucí záznam se archivuje pouze po úspěšném kompletním načtení; ruční override se nepřepisuje;
 8. po třech chybách je zdroj označen `stale`, nikoli automaticky smazán.
 

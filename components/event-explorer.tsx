@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CalendarPlus, ChevronDown, ExternalLink, FileDown, RotateCcw, Search, Settings2, Share2, ShieldCheck } from "lucide-react";
+import { CalendarPlus, ChevronDown, ExternalLink, FileDown, RotateCcw, School, Search, Settings2, Share2, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AcademicEvent } from "@/lib/types";
 import { formatDate, formatDayNumber, formatPragueTimestamp, formatShortMonth } from "@/lib/format";
 import { useAcademicCatalog } from "@/components/academic-catalog-provider";
-import { useStudentPreference } from "@/lib/client-preferences";
+import { calendarPreferenceRequestedEvent, useStudentPreference } from "@/lib/client-preferences";
 import { googleCalendarUrl } from "@/lib/calendar-export";
 import { includesFolded } from "@/lib/search";
 
@@ -23,7 +23,19 @@ export function EventExplorer({ events, initialUniversityId = "", initialFaculty
   const [query, setQuery] = useState(searchParams.get("q") || ""); const [category, setCategory] = useState(searchParams.get("category") || "Všechny"); const [universityId, setUniversityId] = useState(initialUniversityId); const [facultyId, setFacultyId] = useState(initialFacultyId); const [shareNotice, setShareNotice] = useState(""); const initialized = useRef(false);
   const availableUniversities = useMemo(() => catalog.universities.filter((item) => item.active), [catalog]);
   const availableFaculties = useMemo(() => catalog.faculties.filter((item) => item.active && item.universityId === universityId), [catalog, universityId]);
+  const hasPreferredScope = preference.cityId === cityId && Boolean(preference.universityId);
   useEffect(() => { setUniversityId(initialUniversityId); setFacultyId(initialFacultyId); }, [initialFacultyId, initialUniversityId]);
+  useEffect(() => {
+    const applyNavigationPreference = (rawEvent: Event) => {
+      const detail = (rawEvent as CustomEvent<{ universityId?: string; facultyId?: string }>).detail;
+      const nextUniversity = detail?.universityId || "";
+      const validFaculty = catalog.faculties.some((item) => item.active && item.id === detail?.facultyId && item.universityId === nextUniversity) ? detail.facultyId || "" : "";
+      setUniversityId(nextUniversity);
+      setFacultyId(validFaculty);
+    };
+    window.addEventListener(calendarPreferenceRequestedEvent, applyNavigationPreference);
+    return () => window.removeEventListener(calendarPreferenceRequestedEvent, applyNavigationPreference);
+  }, [catalog]);
   useEffect(() => {
     if (initialized.current) return; initialized.current = true;
     const hasSelection = searchParams.has("university") || searchParams.has("faculty");
@@ -40,6 +52,7 @@ export function EventExplorer({ events, initialUniversityId = "", initialFaculty
     if (validFaculty) next.set("faculty", validFaculty); else next.delete("faculty");
     router.replace(`${pathname}${next.size ? `?${next}` : ""}`, { scroll: false });
   }
+  function applyPreferredScope() { if (preference.universityId) changeScope(preference.universityId, preference.facultyId || ""); }
   function resetFilters() { setQuery(""); setCategory("Všechny"); changeScope("", ""); }
   async function shareEvent(event: AcademicEvent) {
     const url = `${window.location.origin}${pathname}?${new URLSearchParams({ ...(universityId && { university: universityId }), ...(facultyId && { faculty: facultyId }) })}#${event.id}`;
@@ -55,7 +68,7 @@ export function EventExplorer({ events, initialUniversityId = "", initialFaculty
       <label><span>Kategorie</span><div className="select-wrap"><select aria-label="Kategorie" value={category} onChange={(e) => setCategory(e.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={16} /></div></label>
       <label><span>Univerzita</span><div className="select-wrap"><select aria-label="Univerzita" value={universityId} onChange={(e) => changeScope(e.target.value, "")}><option value="">Všechny školy</option>{availableUniversities.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><ChevronDown size={16} /></div></label>
       <label><span>Fakulta</span><div className="select-wrap"><select aria-label="Fakulta" value={facultyId} onChange={(e) => changeScope(universityId, e.target.value)} disabled={!universityId}><option value="">Všechny fakulty</option>{availableFaculties.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><ChevronDown size={16} /></div></label>
-      <div className="filter-actions"><button className="button button-secondary" type="button" onClick={resetFilters}><RotateCcw size={16} />Resetovat filtry</button><Link className="button button-secondary" href="/nastaveni"><Settings2 size={16} />Změnit fakultu</Link><a className="button button-secondary" href={`/api/calendar/all.ics?${exportQuery}`}><FileDown size={16} />Exportovat výběr</a></div>
+      <div className="filter-actions"><button className="button button-secondary" type="button" onClick={resetFilters}><RotateCcw size={16} />Resetovat filtry</button>{hasPreferredScope && <button className="button button-secondary" type="button" onClick={applyPreferredScope}><School size={16} />Moje fakulta</button>}<Link className="button button-secondary" href="/nastaveni"><Settings2 size={16} />Změnit fakultu</Link><a className="button button-secondary" href={`/api/calendar/all.ics?${exportQuery}`}><FileDown size={16} />Exportovat výběr</a></div>
     </section>
     <div className="trust-note"><ShieldCheck size={18} /><p>Automaticky načtené změny s nízkou jistotou čekají na ruční kontrolu a veřejně se nezobrazí.</p></div>
     {shareNotice && <div className="success-message" role="status">{shareNotice}</div>}

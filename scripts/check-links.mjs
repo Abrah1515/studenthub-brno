@@ -56,7 +56,7 @@ function discoverDocument(source, response) {
   }
   return candidates.sort((a, b) => b.score - a.score)[0] || null;
 }
-function validateContent(source, response) {
+function validateContent(source, response, skipAcademicYear = false) {
   if (!response.body) return response;
   const folded = String(response.text || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   if (/\/turnstile\.php(?:\?|$)/i.test(response.url) || /cf-turnstile|challenges\.cloudflare\.com|verify you are human|overte, ze nejste robot/i.test(folded)) return { ...response, result: "BLOCKED", error: "ochranná challenge; ruční aktualizace" };
@@ -68,17 +68,18 @@ function validateContent(source, response) {
       : source.parserKey === "vut-fit-html" ? response.url.includes(`/calendar/${currentStartYear}/`) && /(v[yý]uka|zkou[sš]kov[eé])/i.test(response.text || "")
         : source.parserKey === "vut-fsi-html" ? /(v[yý]uka|zkou[sš]kov[eé]|akademick)/i.test(response.text || "") : true;
   if (!structured && source.monitoringMode === "automatic_publish") return { ...response, result: "NEEDS_REVIEW", error: "chybí očekávaná struktura akademického kalendáře", detected };
-  if (detected && Number(detected.slice(0, 4)) < currentStartYear) return { ...response, result: "NEEDS_REVIEW", error: `starý akademický rok ${detected}`, detected };
+  if (!skipAcademicYear && detected && Number(detected.slice(0, 4)) < currentStartYear) return { ...response, result: "NEEDS_REVIEW", error: `starý akademický rok ${detected}`, detected };
   return { ...response, detected };
 }
 async function check(source) {
   const started = Date.now(); const start = source.parserKey === "vut-fit-html" ? fitUrl(source) : source.parserKey === "vut-fsi-html" ? fsiUrl(source) : new URL(source.sourceUrl);
   const fetched = await fetchWithRetry(start, source);
-  const directPdf = source.parserKey === "linked-document-review" && ["application/pdf", "application/octet-stream"].includes(mime(fetched.contentType));
-  let response = validateContent(directPdf ? { ...source, format: "pdf" } : source, fetched);
-  if (directPdf && ["OK", "REDIRECTED"].includes(response.result)) {
+  const linked = ["linked-document-review", "linked-document-auto"].includes(source.parserKey);
+  const directPdf = linked && ["application/pdf", "application/octet-stream"].includes(mime(fetched.contentType));
+  let response = validateContent(directPdf ? { ...source, format: "pdf" } : source, fetched, linked && !directPdf);
+  if (directPdf && source.monitoringMode !== "automatic_publish" && ["OK", "REDIRECTED"].includes(response.result)) {
     response.result = "NEEDS_REVIEW"; response.error = "PDF je platné, změna čeká na ruční schválení";
-  } else if (source.parserKey === "linked-document-review" && ["OK", "REDIRECTED"].includes(response.result)) {
+  } else if (linked && ["OK", "REDIRECTED"].includes(response.result)) {
     const document = discoverDocument(source, response);
     if (document) {
       const documentResponse = await fetchWithRetry(document.url, source);
@@ -86,7 +87,7 @@ async function check(source) {
       const documentSource = { ...source, format: documentIsPdf ? "pdf" : "html" };
       response = validateContent(documentSource, documentResponse);
       response.detected ||= document.year;
-      if (documentSource.format === "pdf" && ["OK", "REDIRECTED"].includes(response.result)) { response.result = "NEEDS_REVIEW"; response.error = "PDF je platné, změna čeká na ruční schválení"; }
+      if (documentSource.format === "pdf" && source.monitoringMode !== "automatic_publish" && ["OK", "REDIRECTED"].includes(response.result)) { response.result = "NEEDS_REVIEW"; response.error = "PDF je platné, změna čeká na ruční schválení"; }
     } else {
       response.result = "NEEDS_REVIEW"; response.error = "aktuální akademický dokument nebyl jednoznačně nalezen";
     }

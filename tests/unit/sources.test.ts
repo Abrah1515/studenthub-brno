@@ -1,15 +1,21 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("server-only", () => ({}));
+vi.mock("node:dns/promises", () => ({ lookup: vi.fn(async () => [{ address: "203.0.113.10", family: 4 }]) }));
 import { parseHtml } from "@/lib/sources/connectors/html";
 import { parseIcs } from "@/lib/sources/connectors/ics";
 import { parsePdf, parsePdfExtractedText } from "@/lib/sources/connectors/pdf";
+import { runConnector } from "@/lib/sources/connectors";
 import { contentSources } from "@/lib/sources/registry";
 import { parseCzechDateRange, sha256, zonedDateTimeToIso } from "@/lib/sources/normalize";
 import { reconcileEvents } from "@/lib/sources/reconcile";
-import { discoverAcademicDocument } from "@/lib/sources/discovery";
+import { discoverAcademicDocument, discoverPaginationUrls } from "@/lib/sources/discovery";
 import type { ConnectorContext, NormalizedEvent } from "@/lib/sources/types";
 import { fitCalendarSourceForYear, fsiCalendarSourceForYear, inspectConnectorResult, inspectSourcePayload } from "@/lib/sources/validation";
 import { sourceRunMayArchive } from "@/lib/sources/publish-policy";
+import { fetchSourcePayload } from "@/lib/sources/payload";
+
+afterEach(() => vi.unstubAllGlobals());
 
 const source = { ...contentSources.find((item) => item.id === "src-vut-fit")!, enabled: true };
 const context = (body: Uint8Array): ConnectorContext => ({ source, body, contentType: "text/plain", checkedAt: "2026-08-01T10:00:00Z" });
@@ -18,7 +24,8 @@ const pdfContext = (body: Uint8Array): ConnectorContext => ({ source: { ...sourc
 describe("konektory veřejných zdrojů", () => {
   it("normalizuje ICS včetně exkluzivního celodenního konce", async () => { const body = await readFile("tests/fixtures/calendar.ics"); const result = await parseIcs(context(body)); expect(result.events).toHaveLength(1); expect(result.events[0]).toMatchObject({ externalId: "fit-teaching-2026", allDay: true, category: "Výuka", status: "approved" }); expect(result.events[0].startAt).toBe("2026-09-13T22:00:00.000Z"); expect(result.events[0].endAt).toBe("2026-12-11T22:59:00.000Z"); });
   it("z konzervativního HTML přijme jen známé akademické kategorie", async () => { const body = await readFile("tests/fixtures/calendar.html"); const result = await parseHtml(context(body)); expect(result.events.map((item) => item.category)).toEqual(["Výuka", "Zkouškové období"]); expect(result.events.every((item) => item.confidence >= .9)).toBe(true); });
-  it("PDF ponechá vždy ve frontě ruční kontroly", async () => { const text = await readFile("tests/fixtures/calendar-pdf.txt", "utf8"); const result = await parsePdfExtractedText(text, context(new Uint8Array())); expect(result.events).toHaveLength(2); expect(result.events.every((item) => item.status === "pending" && item.confidence < .9)).toBe(true); expect(result.warnings).toHaveLength(1); });
+  it("aktuální textové PDF z automatického zdroje publikuje bez zásahu editora", async () => { const text = await readFile("tests/fixtures/calendar-pdf.txt", "utf8"); const result = await parsePdfExtractedText(text, context(new Uint8Array())); expect(result.events).toHaveLength(2); expect(result.events.every((item) => item.status === "approved" && item.confidence >= .95 && item.academicYear === "2026/2027")).toBe(true); expect(result.warnings).toHaveLength(0); });
+  it("OCR a zdroj v kontrolním režimu nikdy automaticky nepublikuje", async () => { const text = await readFile("tests/fixtures/calendar-pdf.txt", "utf8"); const reviewContext = { ...context(new Uint8Array()), source: { ...source, monitoringMode: "automatic_review" as const } }; const [ocr, review] = await Promise.all([parsePdfExtractedText(text, context(new Uint8Array()), "Harmonogram 2026/2027", 1, { usedOcr: true }), parsePdfExtractedText(text, reviewContext)]); expect(ocr.events.every((item) => item.status === "pending")).toBe(true); expect(review.events.every((item) => item.status === "pending")).toBe(true); expect(ocr.warnings).toHaveLength(1); expect(review.warnings).toHaveLength(1); });
   it("PDF zachová skutečné číslo stránky v události i hashi", async () => { const text = await readFile("tests/fixtures/calendar-pdf.txt", "utf8"); const first = await parsePdfExtractedText(text, context(new Uint8Array()), "Harmonogram", 3); const second = await parsePdfExtractedText(text, context(new Uint8Array()), "Harmonogram", 4); expect(first.events.every((item) => item.sourcePage === 3)).toBe(true); expect(first.events[0].sourceHash).not.toBe(second.events[0].sourceHash); });
   it("extrahuje textové PDF a zachová původní řádek", async () => { const result = await parsePdf(pdfContext(await readFile("tests/fixtures/calendar-text.pdf"))); expect(result.events).toHaveLength(2); expect(result.events.every((item) => item.originalText && item.sourceDocumentTitle)).toBe(true); expect(result.normalizedHash).toMatch(/^[a-f0-9]{64}$/); });
   it("spojí buňky tabulkového PDF do čitelného řádku", async () => { const result = await parsePdf(pdfContext(await readFile("tests/fixtures/calendar-table.pdf"))); expect(result.events.map((item) => item.category)).toEqual(["Výuka", "Zkouškové období"]); });
@@ -53,6 +60,37 @@ describe("konektory veřejných zdrojů", () => {
     const rollover = discoverAcademicDocument(html, "https://www.vetuni.cz/Rozpis_vyuky_pro_akademicky_rok", vetuni, new Date("2027-08-02T00:00:00Z"));
     expect(rollover).toMatchObject({ url: "https://www.vetuni.cz/files/harmonogram-2027-28.pdf", academicYear: "2027/2028" });
   });
+  it("projde stránkování úřední desky a pozná PDF i bez přípony v URL", () => {
+    const fekt = contentSources.find((item) => item.id === "src-vut-fekt")!;
+    const pages = discoverPaginationUrls('<a href="?str=2">2</a><a href="?str=3">3</a><a href="/jina-cesta?str=4">4</a>', fekt.sourceUrl, fekt, 3);
+    expect(pages).toEqual([`${fekt.sourceUrl}?str=2`, `${fekt.sourceUrl}?str=3`]);
+    const detail = '<a href="/uredni-deska/vnitrni-legislativa-fekt/-d301884/rd-40-casovy-plan-akademickeho-roku-2026-27-p311826">pdf RD 40 - Časový plán akademického roku 2026/27</a>';
+    expect(discoverAcademicDocument(detail, "https://www.vut.cz/uredni-deska/vnitrni-legislativa-fekt/d301884", fekt, new Date("2026-08-02T00:00:00Z"))).toMatchObject({ academicYear: "2026/2027", isPdfHint: true });
+    const fch = contentSources.find((item) => item.id === "src-vut-fch")!;
+    const attachments = '<h1>Časový plán akademického roku 2026/2027</h1><a href="/uredni-deska/vnitrni-legislativa-fch/-d344770/rd-10-2026-casovy-plan-p357346">pdfRD_10_2026_Casovy_plan</a><a href="/uredni-deska/vnitrni-legislativa-fch/-d344770/rd-10-2026-priloha-p357347">pdfRD_10_2026_priloha</a>';
+    expect(discoverAcademicDocument(attachments, "https://www.vut.cz/uredni-deska/vnitrni-legislativa-fch/d344770", fch, new Date("2026-08-02T00:00:00Z"))?.url).toContain("priloha-p357347");
+  });
+  it("projde seznam, druhou stránku, detail a neprůhlednou PDF přílohu až k událostem", async () => {
+    const fekt = contentSources.find((item) => item.id === "src-vut-fekt")!;
+    const pageTwo = `${fekt.sourceUrl}?str=2`;
+    const detail = "https://www.vut.cz/uredni-deska/vnitrni-legislativa-fekt/rozhodnuti-c-40-2025-casovy-plan-akademickeho-roku-2026-27-d301884";
+    const attachment = "https://www.vut.cz/uredni-deska/vnitrni-legislativa-fekt/-d301884/rd-40-casovy-plan-akademickeho-roku-2026-27-p311826";
+    const pdf = await readFile("tests/fixtures/calendar-text.pdf");
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (url.pathname === "/robots.txt") return new Response("User-agent: *\nAllow: /", { status: 200, headers: { "content-type": "text/plain" } });
+      if (url.href === fekt.sourceUrl) return new Response(`<a href="?str=2">2</a>`, { status: 200, headers: { "content-type": "text/html" } });
+      if (url.href === pageTwo) return new Response(`<a href="${detail}">Rozhodnutí č. 40/2025 - Časový plán akademického roku 2026/2027</a>`, { status: 200, headers: { "content-type": "text/html" } });
+      if (url.href === detail) return new Response(`<h1>Časový plán akademického roku 2026/2027</h1><a href="${attachment}">pdf RD 40 časový plán</a>`, { status: 200, headers: { "content-type": "text/html" } });
+      if (url.href === attachment) return new Response(Uint8Array.from(pdf), { status: 200, headers: { "content-type": "application/pdf" } });
+      return new Response("nenalezeno", { status: 404 });
+    }));
+    const payload = await fetchSourcePayload(fekt, {}, new Date("2026-08-02T00:00:00Z"));
+    expect(payload.effectiveSource).toMatchObject({ format: "pdf", parserKey: "pdf-auto", academicYear: "2026/2027", sourceUrl: attachment });
+    const result = await runConnector({ source: payload.effectiveSource, body: payload.fetched.body, contentType: payload.fetched.contentType, checkedAt: "2026-08-02T10:00:00Z" });
+    expect(result.events).toHaveLength(2);
+    expect(result.events.every((event) => event.status === "approved" && event.confidence >= .95)).toBe(true);
+  });
 });
 
 describe("časová normalizace Europe/Prague", () => {
@@ -73,8 +111,8 @@ describe("idempotentní reconciliace", () => {
 });
 
 it("registr pokrývá a monitoruje všech 27 fakult", () => { expect(contentSources).toHaveLength(27); expect(new Set(contentSources.map((item) => item.facultyId)).size).toBe(27); expect(contentSources.every((item) => item.enabled)).toBe(true); });
-it("odděluje publikační, review a nenalezený monitorovaný režim", () => { expect(contentSources.filter((item) => item.monitoringMode === "automatic_publish")).toHaveLength(15); expect(contentSources.filter((item) => item.monitoringMode === "automatic_review")).toHaveLength(11); expect(contentSources.filter((item) => item.monitoringMode === "not_found_monitored")).toHaveLength(1); });
-it("zdroj bez harmonogramu nic nevymýšlí, ale zůstává monitorovaný", () => { const missing = contentSources.find((item) => item.monitoringMode === "not_found_monitored"); expect(missing).toMatchObject({ enabled: true, confidence: 0, requiresReview: true, parserKey: "not-found-monitor" }); });
+it("odděluje bezpečně automatické a kontrolované zdroje", () => { expect(contentSources.filter((item) => item.monitoringMode === "automatic_publish")).toHaveLength(18); expect(contentSources.filter((item) => item.monitoringMode === "automatic_review")).toHaveLength(9); expect(contentSources.filter((item) => item.monitoringMode === "not_found_monitored")).toHaveLength(0); });
+it("každá fakulta má dohledaný aktivní oficiální zdroj", () => { expect(contentSources.every((item) => item.enabled && item.parserKey !== "not-found-monitor" && item.sourceUrl.startsWith("https://"))).toBe(true); });
 it("FIT odvodí URL z aktuálního akademického roku bez hardcodování", () => { const fit = fitCalendarSourceForYear(source, new Date("2026-08-02T00:00:00Z")); expect(fit.sourceUrl).toBe("https://www.fit.vut.cz/study/calendar/2026/.cs"); expect(fit.academicYear).toBe("2026/2027"); expect(fitCalendarSourceForYear(source, new Date("2027-02-02T00:00:00Z")).sourceUrl).toContain("/2026/.cs"); });
 it("FSI předá aktuální akademický rok explicitně a nebere starý výchozí plán", () => { const fsi = contentSources.find((item) => item.id === "src-vut-fsi")!; expect(fsiCalendarSourceForYear(fsi, new Date("2026-08-02T00:00:00Z"))).toMatchObject({ sourceUrl: "https://www.fme.vutbr.cz/studenti/plan?degree=0&mode=0&year=2026", academicYear: "2026/2027" }); });
 it("rozpozná VETUNI Turnstile a HTML vydávané za PDF", () => { const vetuni = contentSources.find((item) => item.id === "src-vetuni-fvl")!; expect(inspectSourcePayload(vetuni, { finalUrl: "https://www.vetuni.cz/turnstile.php?from=x", contentType: "text/html", body: new TextEncoder().encode('<div class="cf-turnstile">Verify you are human</div>') })).toMatchObject({ code: "challenge", status: "blocked" }); const pdf = { ...vetuni, format: "pdf" as const }; expect(inspectSourcePayload(pdf, { finalUrl: "https://www.vetuni.cz/file.pdf", contentType: "text/html", body: new TextEncoder().encode("<html>not pdf</html>") })).toMatchObject({ code: "unexpected_mime" }); });
