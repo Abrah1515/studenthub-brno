@@ -31,7 +31,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
-  serverExternalPackages: ["@napi-rs/canvas"],
+  serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist"],
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
