@@ -100,7 +100,17 @@ function rowsFromItems(items: PositionedText[]) {
   }).join("").replace(/\s+/g, " ").trim()).filter(Boolean);
 }
 
+async function ensurePdfNodeGlobals() {
+  const globals = globalThis as unknown as Record<string, unknown>;
+  if (globals.DOMMatrix && globals.Path2D && globals.ImageData) return;
+  const canvas = await import("@napi-rs/canvas");
+  globals.DOMMatrix ||= canvas.DOMMatrix;
+  globals.Path2D ||= canvas.Path2D;
+  globals.ImageData ||= canvas.ImageData;
+}
+
 export async function extractPdfText(body: Uint8Array) {
+  await ensurePdfNodeGlobals();
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const loading = pdfjs.getDocument({ data: Uint8Array.from(body), useWorkerFetch: false, useSystemFonts: true, useWasm: false, disableFontFace: true, stopAtErrors: true });
   const document = await loading.promise;
