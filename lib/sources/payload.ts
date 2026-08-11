@@ -14,6 +14,7 @@ async function retry<T>(task: () => Promise<T>, attempts = 3) {
     try { return await task(); }
     catch (caught) {
       error = caught;
+      if (caught instanceof SourceBlockedError) throw caught;
       if (attempt + 1 < attempts) await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
     }
   }

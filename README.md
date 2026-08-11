@@ -138,14 +138,14 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje dvanáct datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Infrastrukturní migrace `202608110012` pro `pg_cron`/`pg_net` má samostatný regresní test a ověřuje se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje třináct datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
 Automatický tok:
 
 1. plánovač každých 20 minut ověří `Authorization: Bearer $CRON_SECRET` (nebo serverové tajemství Supabase Scheduleru) a atomicky si vyzvedne jen malou dávku zdrojů, jejichž `next_check_at` už nastal; každý úspěšný běh naplánuje další kontrolu daného zdroje za 9 hodin;
 2. zdroj se atomicky zamkne, načte s timeoutem, limitem 5 MB, maximálně třemi redirecty a podmíněnými hlavičkami ETag/Last-Modified;
-3. URL i každý redirect projdou HTTPS allowlistem, DNS kontrolou a blokací privátních/metadata adres; crawler respektuje `robots.txt`;
-4. odpověď se hashne a nezměněný obsah se znovu neparsuje;
+3. URL i každý redirect projdou HTTPS allowlistem, DNS kontrolou a blokací privátních/metadata adres; crawler respektuje `robots.txt` a při jeho dočasné nedostupnosti cílový dokument preventivně nestahuje;
+4. odpověď se hashne a nezměněný obsah se znovu neparsuje, ale u již publikovaných událostí se bezpečně obnoví čas posledního ověření;
 5. uloží se bezpečný snapshot; u ročních rozcestníků se omezeně projde stránkování a nejvýše dvě úrovně `seznam → detail → příloha`; HTML/ICS/JSON nebo PDF.js parser normalizuje `Europe/Prague`, celodenní/časované termíny, školu, fakultu, program, akademický rok a číslo PDF stránky;
 6. jistota ≥ 0,90 může být publikována pouze u zdroje v `automatic_publish`; aktuální oficiální PDF s textovou vrstvou a jednoznačným akademickým rokem může projít samo, zatímco OCR, starý rok, konflikt, nejasný dokument a zdroj blokovaný `robots.txt` vždy čekají v administraci;
 7. chybějící budoucí záznam se archivuje pouze po úspěšném kompletním načtení; ruční override se nepřepisuje;
@@ -202,7 +202,7 @@ Regresní sada dále ověřuje číslo stránky PDF, honeypot, bezpečné vlastn
 pnpm check:pwa https://studenthub-brno.vercel.app
 ```
 
-`pnpm check:links` používá bezpečný GET s limitem velikosti, kontroluje finální URL, MIME, akademický rok, PDF hlavičku a očekávanou strukturu obsahu. Sdílené IS stránky načítá jednou s omezeným backoff retry a při dočasné nedostupnosti nic nemění. Produkční cron uchovává historii a za definitivně rozbitý označí odkaz až po třech selháních.
+`pnpm check:links` používá bezpečný GET s limitem velikosti, respektuje `robots.txt` a u ročních rozcestníků prochází stránkování i cestu seznam → detail → finální PDF. Kontroluje finální URL, skutečný MIME typ, akademický rok, PDF hlavičku a očekávanou strukturu obsahu. Sdílené IS stránky načítá jednou s omezeným backoff retry a při dočasné nedostupnosti nic nemění. Produkční cron uchovává historii a za definitivně rozbitý označí odkaz až po třech selháních.
 
 ## Nasazení na Vercel
 

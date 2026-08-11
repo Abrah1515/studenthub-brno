@@ -14,6 +14,8 @@ import type { ConnectorContext, NormalizedEvent } from "@/lib/sources/types";
 import { fitCalendarSourceForYear, fsiCalendarSourceForYear, inspectConnectorResult, inspectSourcePayload } from "@/lib/sources/validation";
 import { sourceRunMayArchive } from "@/lib/sources/publish-policy";
 import { fetchSourcePayload } from "@/lib/sources/payload";
+import { fetchRegisteredSource } from "@/lib/sources/fetch-source";
+import { robotsAllowsPath } from "@/lib/sources/robots";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -92,6 +94,37 @@ describe("konektory veřejných zdrojů", () => {
     const result = await runConnector({ source: payload.effectiveSource, body: payload.fetched.body, contentType: payload.fetched.contentType, checkedAt: "2026-08-02T10:00:00Z" });
     expect(result.events).toHaveLength(2);
     expect(result.events.every((event) => event.status === "approved" && event.confidence >= .95)).toBe(true);
+  });
+});
+
+describe("robots.txt", () => {
+  it("respektuje nejkonkrétnější pravidlo a Allow při stejné nebo delší cestě", () => {
+    const rules = "User-agent: *\nDisallow: /private\nAllow: /private/public\n\nUser-agent: studenthub\nDisallow: /staff\nAllow: /staff/public";
+    expect(robotsAllowsPath("/private/document.pdf", rules)).toBe(true);
+    expect(robotsAllowsPath("/staff/calendar.pdf", rules)).toBe(false);
+    expect(robotsAllowsPath("/staff/public/calendar.pdf", rules)).toBe(true);
+    expect(robotsAllowsPath("/anything", rules)).toBe(true);
+  });
+
+  it("zakázanou cestu ani při živém běhu nestáhne", async () => {
+    const requested: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input); requested.push(url);
+      if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nDisallow: /study/calendar/", { status: 200 });
+      return new Response("nemělo se stáhnout", { status: 200, headers: { "content-type": "text/html" } });
+    }));
+    await expect(fetchRegisteredSource(source)).rejects.toMatchObject({ issue: { code: "robots_disallowed", status: "blocked" } });
+    expect(requested).toEqual(["https://www.fit.vut.cz/robots.txt"]);
+  });
+
+  it("při nedostupném robots.txt postupuje konzervativně", async () => {
+    const requested: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input); requested.push(url);
+      return new Response("dočasná chyba", { status: 503 });
+    }));
+    await expect(fetchRegisteredSource(source)).rejects.toMatchObject({ issue: { code: "robots_unavailable", status: "needs_review" } });
+    expect(requested).toEqual(["https://www.fit.vut.cz/robots.txt"]);
   });
 });
 

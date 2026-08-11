@@ -54,6 +54,12 @@ async function screenCrossSourceConflicts(client: ReturnType<typeof createServic
 const nextCheckAt = (finishedAt: string, hours = 9) => new Date(new Date(finishedAt).getTime() + hours * 60 * 60 * 1000).toISOString();
 const retryAt = (finishedAt: string, failures: number) => new Date(new Date(finishedAt).getTime() + Math.min(6 * 60, 15 * 2 ** Math.min(failures - 1, 5)) * 60 * 1000).toISOString();
 
+async function markPublishedEventsVerified(client: ReturnType<typeof createServiceClient>, sourceId: string, verifiedAt: string) {
+  const { error } = await client.from("academic_events").update({ last_verified_at: verifiedAt })
+    .eq("source_id", sourceId).eq("status", "approved").eq("is_cancelled", false);
+  if (error) throw error;
+}
+
 export async function syncSource(sourceId: string, cityId?: string, options: { claimed?: boolean } = {}) {
   if (!isSupabaseConfigured()) throw new Error("Synchronizace vyžaduje nakonfigurovaný Supabase projekt.");
   const source = sourceById(sourceId); if (!source) throw new Error("Neznámý datový zdroj."); if (!source.enabled) throw new Error("Monitoring zdroje je administrátorem vypnutý.");
@@ -65,8 +71,8 @@ export async function syncSource(sourceId: string, cityId?: string, options: { c
   try {
     const { data: storedSource } = await client.from("content_sources").select("etag,last_modified,content_hash,normalized_hash,last_document_url").eq("id", source.id).single();
     const { fetched, effectiveSource, discovered } = await fetchSourcePayload(source, { etag: storedSource?.etag, lastModified: storedSource?.last_modified });
-    if (fetched.status === 304) { const finishedAt = new Date().toISOString(); await client.from("content_sources").update({ last_checked_at: finishedAt, last_success_at: finishedAt, last_http_status: 304, consecutive_failures: 0, sync_status: "not_modified", next_check_at: nextCheckAt(finishedAt), next_retry_at: null, last_error_message: null }).eq("id", source.id); await client.from("source_sync_runs").update({ status: "not_modified", finished_at: finishedAt, http_status: 304 }).eq("id", run.id); return { sourceId, status: "not_modified" as const }; }
-    const contentHash = await sha256(fetched.body); if (contentHash === storedSource?.content_hash) { const finishedAt = new Date().toISOString(); await client.from("content_sources").update({ last_checked_at: finishedAt, last_success_at: finishedAt, last_http_status: fetched.status, etag: fetched.etag, last_modified: fetched.lastModified, consecutive_failures: 0, sync_status: "not_modified", next_check_at: nextCheckAt(finishedAt), next_retry_at: null, last_error_message: null }).eq("id", source.id); await client.from("source_sync_runs").update({ status: "not_modified", finished_at: finishedAt, http_status: fetched.status, content_hash: contentHash }).eq("id", run.id); return { sourceId, status: "not_modified" as const }; }
+    if (fetched.status === 304) { const finishedAt = new Date().toISOString(); await markPublishedEventsVerified(client, source.id, finishedAt); await client.from("content_sources").update({ last_checked_at: finishedAt, last_success_at: finishedAt, last_http_status: 304, consecutive_failures: 0, sync_status: "not_modified", next_check_at: nextCheckAt(finishedAt), next_retry_at: null, last_error_message: null }).eq("id", source.id); await client.from("source_sync_runs").update({ status: "not_modified", finished_at: finishedAt, http_status: 304 }).eq("id", run.id); return { sourceId, status: "not_modified" as const }; }
+    const contentHash = await sha256(fetched.body); if (contentHash === storedSource?.content_hash) { const finishedAt = new Date().toISOString(); await markPublishedEventsVerified(client, source.id, finishedAt); await client.from("content_sources").update({ last_checked_at: finishedAt, last_success_at: finishedAt, last_http_status: fetched.status, etag: fetched.etag, last_modified: fetched.lastModified, consecutive_failures: 0, sync_status: "not_modified", next_check_at: nextCheckAt(finishedAt), next_retry_at: null, last_error_message: null }).eq("id", source.id); await client.from("source_sync_runs").update({ status: "not_modified", finished_at: finishedAt, http_status: fetched.status, content_hash: contentHash }).eq("id", run.id); return { sourceId, status: "not_modified" as const }; }
     const result = await runConnector({ source: effectiveSource, body: fetched.body, contentType: fetched.contentType, checkedAt: new Date().toISOString() });
     const connectorIssue = inspectConnectorResult(effectiveSource, result);
     const normalizedHash = result.normalizedHash || await sha256(JSON.stringify(result.events.map((event) => ({ externalId: event.externalId, sourceHash: event.sourceHash }))));

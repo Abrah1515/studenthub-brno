@@ -3,6 +3,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import type { ContentSource } from "@/lib/sources/types";
 import { SourceBlockedError } from "@/lib/sources/validation";
+import { robotsAllowsPath } from "@/lib/sources/robots";
 
 const maxBytes = 5 * 1024 * 1024;
 const timeoutMs = 15_000;
@@ -24,18 +25,22 @@ export async function validateSourceUrl(value: string, source: ContentSource) {
   return url;
 }
 
-async function robotsAllows(url: URL, source: ContentSource) {
+async function assertRobotsAllowed(url: URL, source: ContentSource) {
   const robotsUrl = new URL("/robots.txt", url.origin); const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 5_000);
   try {
     await validateSourceUrl(robotsUrl.href, source); const response = await fetch(robotsUrl, { headers: { "user-agent": userAgent }, signal: controller.signal, cache: "no-store" });
-    if (!response.ok) return true; const text = await response.text(); let applies = false;
-    for (const raw of text.split(/\r?\n/)) { const line = raw.replace(/#.*/, "").trim(); if (!line) continue; const [key, ...rest] = line.split(":"); const value = rest.join(":").trim(); if (key.toLowerCase() === "user-agent") applies = value === "*" || value.toLowerCase().includes("studenthub"); if (applies && key.toLowerCase() === "disallow" && value && url.pathname.startsWith(value)) return false; }
-    return true;
-  } catch { return true; } finally { clearTimeout(timer); }
+    if ([404, 410].includes(response.status)) return;
+    if (!response.ok) throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: `Pravidla robots.txt nejsou dočasně dostupná (HTTP ${response.status}); zdroj jsme preventivně nestáhli.` }, { finalUrl: robotsUrl.href, contentType: response.headers.get("content-type") || undefined });
+    const text = await response.text();
+    if (!robotsAllowsPath(`${url.pathname}${url.search}`, text)) throw new SourceBlockedError({ code: "robots_disallowed", status: "blocked", message: "Stahování této oficiální cesty zakazuje robots.txt; pravidlo respektujeme a zdroj zůstává v ručním režimu." }, { finalUrl: url.href, contentType: "text/plain" });
+  } catch (error) {
+    if (error instanceof SourceBlockedError) throw error;
+    throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: "Pravidla robots.txt se nepodařilo bezpečně ověřit; zdroj jsme preventivně nestáhli a zkusíme jej později." }, { finalUrl: robotsUrl.href });
+  } finally { clearTimeout(timer); }
 }
 
 export async function fetchRegisteredSource(source: ContentSource, conditional: { etag?: string | null; lastModified?: string | null } = {}) {
-  let url = await validateSourceUrl(source.sourceUrl, source); if (!await robotsAllows(url, source)) throw new Error("Stahování této cesty zakazuje robots.txt.");
+  let url = await validateSourceUrl(source.sourceUrl, source); await assertRobotsAllowed(url, source);
   const headers = new Headers({ "user-agent": userAgent, accept: "text/calendar, application/json, application/xml, text/html, application/pdf;q=0.9, */*;q=0.1" });
   if (conditional.etag) headers.set("if-none-match", conditional.etag); if (conditional.lastModified) headers.set("if-modified-since", conditional.lastModified);
   let metaRefreshes = 0;
@@ -47,7 +52,7 @@ export async function fetchRegisteredSource(source: ContentSource, conditional: 
         const location = response.headers.get("location"); if (!location) throw new Error("Neplatné přesměrování zdroje.");
         const target = await validateSourceUrl(new URL(location, url).href, source);
         if (/\/turnstile\.php(?:$|\?)/i.test(target.href)) throw new SourceBlockedError({ code: "challenge", status: "blocked", message: "Oficiální zdroj přesměroval na ochrannou Turnstile stránku. Ochranu neobcházíme; zdroj zůstává v ručním režimu." }, { finalUrl: target.href, contentType: "text/html" });
-        if (!await robotsAllows(target, source)) throw new SourceBlockedError({ code: "robots_disallowed", status: "blocked", message: "Cílová oficiální stránka zakazuje automatické stažení v robots.txt; pravidlo respektujeme a změnu ponecháváme ke kontrole." }, { finalUrl: target.href });
+        await assertRobotsAllowed(target, source);
         url = target; continue;
       }
       if (response.status === 304) return { status: 304, body: new Uint8Array(), contentType: "", etag: response.headers.get("etag"), lastModified: response.headers.get("last-modified"), finalUrl: url.href };
