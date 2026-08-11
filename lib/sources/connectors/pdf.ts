@@ -102,11 +102,14 @@ function rowsFromItems(items: PositionedText[]) {
 
 async function ensurePdfNodeGlobals() {
   const globals = globalThis as unknown as Record<string, unknown>;
-  if (globals.DOMMatrix && globals.Path2D && globals.ImageData) return;
-  const canvas = await import("@napi-rs/canvas");
-  globals.DOMMatrix ||= canvas.DOMMatrix;
-  globals.Path2D ||= canvas.Path2D;
-  globals.ImageData ||= canvas.ImageData;
+  if (!globals.DOMMatrix || !globals.Path2D || !globals.ImageData) {
+    const canvas = await import("@napi-rs/canvas");
+    globals.DOMMatrix ||= canvas.DOMMatrix;
+    globals.Path2D ||= canvas.Path2D;
+    globals.ImageData ||= canvas.ImageData;
+  }
+  const worker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  globals.pdfjsWorker ||= { WorkerMessageHandler: worker.WorkerMessageHandler };
 }
 
 export async function extractPdfText(body: Uint8Array) {
