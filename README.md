@@ -6,7 +6,7 @@ Nezávislá PWA pro studenty všech brněnských vysokých škol, připravená k
 
 - personalizovaný dashboard bez registrace pro MUNI, VUT, MENDELU, VETUNI a JAMU;
 - 27 fakult a městské routy `/brno`, `/brno/kalendar`, `/brno/mista`, `/brno/nabidky`, `/brno/brigady` a `/brno/skoly/<škola>`; původní URL bezpečně přesměrovávají;
-- fakultní kalendář s validovanými URL parametry (`?university=muni&faculty=muni-fi`), sjednocením univerzitních a fakultních termínů, odkazem na zdroj, sdílením, Google Calendar a korektním `.ics` exportem;
+- fakultní kalendář s validovanými URL parametry (`?university=muni&faculty=muni-fi&year=2`), volitelným ročníkem 1–6, sjednocením univerzitních a fakultních termínů, odkazem na zdroj, sdílením, Google Calendar a korektním `.ics` exportem;
 - povinný sekvenční onboarding města/školy/fakulty bez registrace, vědomé pokračování pro celé město a aktuální studijní kontext pod značkou v desktopové i mobilní navigaci;
 - Leaflet/OpenStreetMap mapu i plně použitelný seznam ověřených míst;
 - nabídky a brigády s moderací, expirací a označením sponzorství/affiliate;
@@ -68,9 +68,11 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `NEXT_PUBLIC_PARTNER_EMAIL` | build | doporučeno | kontakt pro partnery |
 | `CONTACT_TO_EMAIL` / `CONTACT_FROM_EMAIL` | pouze server | ano pro formulář | pevný příjemce a ověřená odesílací identita; e-mail návštěvníka se používá jen jako Reply-To |
 | `RESEND_API_KEY` | pouze server | ano pro formulář | serverové doručení kontaktní zprávy; nikdy ne do klienta |
-| `FAJN_BRIGADY_FEED_ENABLED` | server | ne | rezervovaný, výchozí `false`; bez smluvního feedu se nepoužije |
+| `FAJN_BRIGADY_FEED_ENABLED` | server | ne | výchozí `false`; autorizovaný import se spustí jen spolu s potvrzením oprávnění a platnou URL |
 | `FAJN_BRIGADY_PERMISSION_CONFIRMED` | server | ne | musí být `true` až po písemném oprávnění; samotný feed flag nestačí |
-| `FAJN_BRIGADY_FEED_URL` | server | ne | pouze smluvní XML/JSON endpoint, nikdy stránka ke scrapování |
+| `FAJN_BRIGADY_FEED_URL` | pouze server | ne | tajná HTTPS URL smluvního XML feedu na povolené doméně; veřejná ukázka je výslovně odmítnuta |
+| `FAJN_BRIGADY_SYNC_INTERVAL_HOURS` | server | ne | interval 1–10 hodin, výchozí `9` |
+| `FAJN_BRIGADY_FEED_MODE` | server | ne | bezpečné `incremental`; `full_snapshot` až po písemném potvrzení úplnosti feedu |
 | `ISIC_FEED_ENABLED` / `ISIC_FEED_PERMISSION_CONFIRMED` / `ISIC_FEED_URL` | server | ne | rezervovaný autorizovaný feed; bez písemného oprávnění zůstává vynuceně vypnutý |
 | `OCR_ENDPOINT_URL` / `OCR_API_KEY` | pouze server | ne | volitelné HTTPS OCR API pro skenované PDF; výsledek vždy čeká na schválení |
 | `DEMO_MODE` | server | ne | výhradně lokální testovací přihlášení |
@@ -115,6 +117,8 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608110014_twenty_minute_calendar_dispatcher.sql` – malá dávka splatných zdrojů každých 20 minut; jednotlivé zdroje nadále respektují devítihodinový interval a nové VUT konektory dostanou prioritu v prvním běhu.
 - `202608120015_academic_event_schedule_uniqueness.sql` – rozlišuje legitimní opakované termíny stejného typu podle skutečného začátku a konce, při zachování sémantického otisku pro porovnání změn mezi zdroji.
 - `202608120016_reprocess_vut_html_schedules.sql` – bezpečně vynutí jednorázové znovunačtení FIT/FSI po opravě strukturovaného parseru; stávající události před úspěšným během nemaže.
+- `202608140017_academic_event_study_years.sql` – přidává ověřený rozsah ročníků 1–6 k akademickým událostem; `NULL` znamená společný termín pro všechny ročníky.
+- `202608140018_fajn_job_feed.sql` – připravuje idempotentní import smluvních brigád, strukturovanou odměnu, bezpečné externí ID a soukromé provozní statistiky bez zpřístupnění feed URL.
 
 ## První hlavní superadmin
 
@@ -139,7 +143,11 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: aplikuje čtrnáct datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 18 migrací, aplikuje 16 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+
+Preference ročníku je anonymní a zůstává pouze v prohlížeči. Akademický cyklus se v časové zóně Praha překlápí 1. července; uložený ročník se zvýší nejvýše jednou za každý uplynulý cyklus a nikdy nad šest. Ruční změna založí nový referenční cyklus. Událost se na ročník váže jen při jednoznačném údaji v oficiálním zdrojovém textu; společné nebo nejisté termíny zůstávají bez omezení.
+
+Konektor Fajn‑brigády je v čisté instalaci i produkčním vzoru vypnutý. Neprovádí scraping webu a neukládá kontakty z popisu. Po získání písemného oprávnění nastavte všech pět `FAJN_BRIGADY_*` proměnných pouze na serveru. Parser přijímá omezené XML bez DTD/entit, detailní odkazy pouze na ověřených doménách a mapuje odměnu podle oficiálních číselníků. Import je idempotentní podle `(provider_key, external_id)`; výchozí inkrementální režim při chybějící položce nic nemaže. URL feedu se nezobrazuje ve veřejném ani administrátorském API a testovací XML se konfigurací nedá aktivovat.
 
 Automatický tok:
 
@@ -193,7 +201,7 @@ pnpm check:links
 pnpm check:pwa
 ```
 
-Unit testy navíc pokrývají validaci vazby školy a fakulty, migraci a perzistenci preferencí, sjednocení univerzitních/fakultních termínů bez průniku jiné fakulty, textové/tabulkové/skenované PDF, změnu hashe na stejné URL, přesun a zrušení termínu, databázové scope/RLS, více měst, shodu brand assetů a outbox bez PII. Playwright prochází jednu fakultu každé z pěti škol na desktopu 1440×900, tabletu 768×1024 a mobilu 390×844, URL filtry, světlý/tmavý motiv, navigaci a horizontální overflow.
+Unit testy navíc pokrývají validaci vazby školy a fakulty, migraci a perzistenci preferencí včetně přechodu ročníku 30. června / 1. července, sjednocení univerzitních/fakultních termínů bez průniku jiné fakulty, přesné filtrování ročníku, bezpečný XML parser a idempotenci brigád, textové/tabulkové/skenované PDF, změnu hashe na stejné URL, přesun a zrušení termínu, databázové scope/RLS, více měst, shodu brand assetů a outbox bez PII. Playwright prochází jednu fakultu každé z pěti škol na desktopu 1440×900, tabletu 768×1024 a mobilu 390×844, URL filtry, světlý/tmavý motiv, navigaci a horizontální overflow.
 
 Regresní sada dále ověřuje číslo stránky PDF, honeypot, bezpečné vlastní úpravy veřejné pomoci, budoucí termín a kapacitní limit parťáků, zákaz přímého zápisu analytiky přes anon klíč, odstranění query/full-referrer dat a sekvenční modalitu cookies/onboardingu. PWA scénáře kontrolují manifest, všechny čtyři ikony, `beforeinstallprompt`, iOS návod, již nainstalovaný režim, jediný přístupný dialog, mapu bez overflow, service-worker cache bez dynamického HTML a skutečnou offline navigaci.
 
@@ -219,6 +227,9 @@ ALLOW_VERIFIED_FALLBACK=false
 NEXT_PUBLIC_ADS_ENABLED=false
 FAJN_BRIGADY_FEED_ENABLED=false
 FAJN_BRIGADY_PERMISSION_CONFIRMED=false
+FAJN_BRIGADY_FEED_URL=
+FAJN_BRIGADY_SYNC_INTERVAL_HOURS=9
+FAJN_BRIGADY_FEED_MODE=incremental
 ISIC_FEED_ENABLED=false
 ISIC_FEED_PERMISSION_CONFIRMED=false
 DEFAULT_CITY_SLUG=brno
@@ -281,7 +292,7 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 - `components/` – dashboard, filtry, mapa, formuláře, onboarding, consent, PWA instalace a administrace;
 - `lib/brand.ts`, `lib/cities.ts`, `lib/city-data.ts`, `lib/academic-catalog.ts` – centrální značka, fallback Brna, databázový katalog škol/fakult a serverový seznam pouze publikovaných edic;
 - `lib/publication-feed.ts` – interní read-only výstup ověřeného veřejného obsahu bez PII;
-- `lib/sources/` – registr, SSRF-safe fetch, parsery, normalizace, reconciliace a sync;
+- `lib/sources/` a `lib/job-feed/` – registr, SSRF-safe fetch, akademické parsery a oddělený bezpečný smluvní import brigád;
 - `lib/external-content-providers.ts` – ve výchozím stavu vypnutá rozhraní budoucích smluvních feedů bez scrapování;
 - `lib/anonymous-owner.ts`, `lib/user-auth.ts`, `lib/buddy.ts` – vlastnický token žádostí, ověřené Supabase účty a expirace parťáků;
 - `scripts/invite-superadmin.mjs` – jednorázová bezpečná pozvánka a obnova hlavního správce bez hesla v kódu;

@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     if (sessionStorage.getItem("studenthub-e2e-overlays") === "manual") return;
     localStorage.setItem("studenthub-consent", JSON.stringify({ analytics: false, marketing: false }));
-    if (!localStorage.getItem("studenthub-preference-v3")) localStorage.setItem("studenthub-preference-v3", JSON.stringify({ version: 3, cityId: "brno", universityId: null, facultyId: null, completed: true }));
+    if (!localStorage.getItem("studenthub-preference-v4")) localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: null, facultyId: null, studyYear: null, studyYearCycleStart: null, completed: true }));
   });
   await page.goto("/", { waitUntil: "domcontentloaded" }); await dismissOverlays(page);
 });
@@ -19,7 +19,7 @@ test("filtruje ověřené akademické události", async ({ page }) => { await pa
 
 test("filtruje místa a nabídky mají poctivý prázdný stav", async ({ page }) => { await page.goto("/brno/mista"); await page.getByRole("region", { name: "Filtry míst" }).getByLabel("Kategorie").selectOption("Knihovna"); await expect(page.getByText("Ústřední knihovna VUT")).toBeVisible(); await expect(page.getByText("DEMO")).toHaveCount(0); await page.goto("/brno/nabidky?q=neexistujici-nabidka"); await expect(page.getByRole("heading", { name: "Žádná nabídka neodpovídá filtrům" })).toBeVisible(); await expect(page.getByText(/ISIC feed zůstává bez písemného souhlasu vypnutý/)).toBeVisible(); await page.getByRole("button", { name: "Resetovat filtry" }).first().click(); await expect(page.getByLabel("Hledat nabídku")).toHaveValue(""); });
 
-test("migruje starou preferenci a resetuje ji na Brno", async ({ page }) => { await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.removeItem("studenthub-preference-v3"); localStorage.setItem("studenthub-preference-v1", JSON.stringify({ universityId: "muni", facultyId: "muni-fi", completed: true })); }); await page.reload(); await dismissOverlays(page); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); const migrated = await page.evaluate(() => localStorage.getItem("studenthub-preference-v3")); expect(migrated).toContain('"version":3'); expect(migrated).toContain('"cityId":"brno"'); await page.goto("/nastaveni"); await page.getByRole("button", { name: "Resetovat město a školu" }).click(); await expect(page.getByRole("button", { name: "Výběr byl resetován" })).toBeVisible(); expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v3"))).toContain('"completed":false'); });
+test("migruje starou preferenci a resetuje ji na Brno", async ({ page }) => { await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.removeItem("studenthub-preference-v4"); localStorage.setItem("studenthub-preference-v1", JSON.stringify({ universityId: "muni", facultyId: "muni-fi", completed: true })); }); await page.reload(); await dismissOverlays(page); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); const migrated = await page.evaluate(() => localStorage.getItem("studenthub-preference-v4")); expect(migrated).toContain('"version":4'); expect(migrated).toContain('"cityId":"brno"'); await page.goto("/nastaveni"); await page.getByRole("button", { name: "Resetovat město, školu a ročník" }).click(); await expect(page.getByRole("button", { name: "Výběr byl resetován" })).toBeVisible(); expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v4"))).toContain('"completed":false'); });
 
 test("výběr fakulty funguje pro všech pět univerzit a kontext se mění bez reloadu", async ({ page }, testInfo) => {
   const samples = [["muni", "muni-fi", "MUNI · FI"], ["vut", "vut-fit", "VUT · FIT"], ["mendelu", "mendelu-pef", "MENDELU · PEF"], ["vetuni", "vetuni-fvl", "VETUNI · FVL"], ["jamu", "jamu-hf", "JAMU · HF"]] as const;
@@ -28,7 +28,7 @@ test("výběr fakulty funguje pro všech pět univerzit a kontext se mění bez 
     if (testInfo.project.name !== "desktop-1440") await page.getByRole("button", { name: "Otevřít nabídku" }).click();
     await expect(page.getByTestId("selected-study-context")).toContainText(context);
     if (testInfo.project.name !== "desktop-1440") await page.getByRole("dialog", { name: "Mobilní nabídka" }).getByRole("button", { name: "Zavřít nabídku" }).click();
-    await page.reload(); await dismissOverlays(page); expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v3"))).toContain(`"facultyId":"${faculty}"`);
+    await page.reload(); await dismissOverlays(page); expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v4"))).toContain(`"facultyId":"${faculty}"`);
     await page.goto(`/brno/kalendar?university=${university}&faculty=${faculty}`); await expect(page).toHaveURL(new RegExp(`university=${university}.*faculty=${faculty}`)); await expect(page.getByLabel("Fakulta", { exact: true })).toHaveValue(faculty);
   }
   await page.getByRole("group", { name: "Barevný režim" }).getByRole("button", { name: "Tmavý režim" }).click(); await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -36,28 +36,37 @@ test("výběr fakulty funguje pro všech pět univerzit a kontext se mění bez 
 
 test("kalendář opraví neplatnou kombinaci URL a neukáže jinou fakultu", async ({ page }) => { await page.goto("/brno/kalendar?university=muni&faculty=vut-fit"); await expect(page).toHaveURL(/university=muni/); await expect(page).not.toHaveURL(/faculty=vut-fit/); await expect(page.getByRole("heading", { name: /FIT VUT/ })).toHaveCount(0); await page.getByRole("button", { name: "Resetovat filtry" }).click(); await expect(page).toHaveURL(/\/brno\/kalendar$/); });
 
-test("explicitní MUNI FI scope má přednost a dashboard nepropustí VUT", async ({ page }) => { await page.evaluate(() => localStorage.setItem("studenthub-preference-v3", JSON.stringify({ version: 3, cityId: "brno", universityId: "vut", facultyId: "vut-fit", completed: true }))); await page.goto("/brno?university=muni&faculty=muni-fi"); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); await expect(page.getByText(/FIT VUT|FSI VUT/)).toHaveCount(0); await expect(page.getByRole("heading", { name: "Začátek podzimního semestru 2026", exact: true }).first()).toBeVisible(); });
+test("explicitní MUNI FI scope má přednost a dashboard nepropustí VUT", async ({ page }) => { await page.evaluate(() => localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "vut", facultyId: "vut-fit", studyYear: 1, studyYearCycleStart: 2026, completed: true }))); await page.goto("/brno?university=muni&faculty=muni-fi"); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); await expect(page.getByText(/FIT VUT|FSI VUT/)).toHaveCount(0); await expect(page.getByRole("heading", { name: "Začátek podzimního semestru 2026", exact: true }).first()).toBeVisible(); });
 
-test("uložená preference MUNI FI filtruje KPI, termíny i místa bez URL parametrů", async ({ page }) => { await page.evaluate(() => localStorage.setItem("studenthub-preference-v3", JSON.stringify({ version: 3, cityId: "brno", universityId: "muni", facultyId: "muni-fi", completed: true }))); await page.goto("/brno"); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); await expect(page.getByText(/FIT VUT|FSI VUT/)).toHaveCount(0); await expect(page.getByText("Další zkouškové období")).toHaveCount(0); await expect(page.getByRole("heading", { name: "Menza Vinařská MUNI", exact: true })).toBeVisible(); await expect(page.getByRole("heading", { name: "Ústřední knihovna VUT", exact: true })).toHaveCount(0); });
+test("uložená preference MUNI FI filtruje KPI, termíny i místa bez URL parametrů", async ({ page }) => { await page.evaluate(() => localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "muni", facultyId: "muni-fi", studyYear: null, studyYearCycleStart: null, completed: true }))); await page.goto("/brno"); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); await expect(page.getByText(/FIT VUT|FSI VUT/)).toHaveCount(0); await expect(page.getByText("Další zkouškové období")).toHaveCount(0); await expect(page.getByRole("heading", { name: "Menza Vinařská MUNI", exact: true })).toBeVisible(); await expect(page.getByRole("heading", { name: "Ústřední knihovna VUT", exact: true })).toHaveCount(0); });
 
 test("každé otevření kalendáře obnoví Moji fakultu, dočasný filtr ji nepřepíše", async ({ page }, testInfo) => {
-  await page.evaluate(() => localStorage.setItem("studenthub-preference-v3", JSON.stringify({ version: 3, cityId: "brno", universityId: "vut", facultyId: "vut-fekt", completed: true })));
+  await page.evaluate(() => localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "vut", facultyId: "vut-fekt", studyYear: 2, studyYearCycleStart: 2026, completed: true })));
   await page.goto("/brno/kalendar?university=muni&faculty=muni-fi");
   await expect(page.getByLabel("Fakulta", { exact: true })).toHaveValue("muni-fi");
-  await page.getByRole("button", { name: "Moje fakulta" }).click();
+  await expect(page.getByLabel("Ročník", { exact: true })).toHaveValue("");
+  await page.getByRole("button", { name: "Moje nastavení" }).click();
   await expect(page).toHaveURL(/university=vut.*faculty=vut-fekt/);
+  await expect(page).toHaveURL(/year=2/);
+  await expect(page.getByLabel("Ročník", { exact: true })).toHaveValue("2");
   await page.getByLabel("Univerzita").selectOption("muni");
   await page.getByLabel("Fakulta", { exact: true }).selectOption("muni-fi");
+  await page.getByLabel("Ročník", { exact: true }).selectOption("3");
   const calendarLink = testInfo.project.name === "desktop-1440"
     ? page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Kalendář" })
     : page.getByRole("navigation", { name: "Mobilní navigace" }).getByRole("link", { name: "Termíny" });
   await calendarLink.click();
   await expect(page).toHaveURL(/university=vut.*faculty=vut-fekt/);
+  await expect(page).toHaveURL(/year=2/);
   await expect(page.getByLabel("Fakulta", { exact: true })).toHaveValue("vut-fekt");
-  expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v3"))).toContain('"facultyId":"vut-fekt"');
+  await expect(page.getByLabel("Ročník", { exact: true })).toHaveValue("2");
+  expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v4"))).toContain('"facultyId":"vut-fekt"');
+  expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v4"))).toContain('"studyYear":2');
 });
 
 test("filtr míst respektuje MUNI bez kampusového parametru", async ({ page }) => { await page.goto("/brno/mista?university=muni"); await expect(page.getByText("Knihovna univerzitního kampusu MUNI")).toBeVisible(); await expect(page.getByText("Ústřední knihovna VUT")).toHaveCount(0); await expect(page.getByLabel("Univerzita")).toHaveValue("muni"); await expect(page.getByText("Můj kampus")).toHaveCount(0); });
+
+test("brigády mají bezpečný prázdný stav a nepřetékají", async ({ page }) => { await page.goto("/brno/brigady"); await expect(page.getByRole("heading", { name: "Brigády · Brno" })).toBeVisible(); await expect(page.getByRole("heading", { name: "Zatím nemáme ověřené brigády" })).toBeVisible(); await expect(page.getByRole("button", { name: "Navrhnout brigádu" })).toBeVisible(); expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1); });
 
 test("exportuje český celodenní rozsah bez posunu data", async ({ page, request }) => {
   await page.goto("/brno/kalendar?university=vut&faculty=vut-fit");
@@ -120,7 +129,7 @@ test("motiv podporuje systém, světlo a tmu s perzistencí", async ({ page }) =
 
 test("navigace a layout nepřetékají na všech breakpointech", async ({ page }, testInfo) => { const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth); expect(overflow).toBeLessThanOrEqual(1); if (testInfo.project.name === "desktop-1440") await expect(page.getByRole("navigation", { name: "Hlavní navigace" })).toBeVisible(); else { const navigation = page.getByRole("navigation", { name: "Mobilní navigace" }); await expect(navigation).toBeVisible(); await navigation.getByRole("link", { name: "Místa", exact: true }).click(); await expect(page).toHaveURL(/\/brno\/mista/); } });
 
-test("přihlášená administrace používá stejná data, nepřetéká a lze se odhlásit", async ({ page }, testInfo) => { await page.goto("/admin/prihlaseni"); await page.getByLabel("E-mail").fill("audit@example.cz"); await page.getByLabel("Heslo").fill("local-test-password-2026"); await page.getByRole("button", { name: "Přihlásit se" }).click(); await page.waitForURL("**/admin"); await expect(page.getByText("Lokální ověřený fallback.")).toBeVisible(); await expect(page.getByText("27 zdrojů")).toBeVisible(); expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1); await page.screenshot({ path: `artifacts/admin-${testInfo.project.name}.png`, fullPage: true }); await page.getByRole("button", { name: "Odhlásit" }).click(); await expect(page).toHaveURL(/\/admin\/prihlaseni/); });
+test("přihlášená administrace používá stejná data, nepřetéká a lze se odhlásit", async ({ page }, testInfo) => { await page.goto("/admin/prihlaseni"); await page.getByLabel("E-mail").fill("audit@example.cz"); await page.getByLabel("Heslo").fill("local-test-password-2026"); await page.getByRole("button", { name: "Přihlásit se" }).click(); await page.waitForURL("**/admin"); await expect(page.getByText("Lokální ověřený fallback.")).toBeVisible(); await expect(page.getByText("28 zdrojů")).toBeVisible(); expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1); await page.screenshot({ path: `artifacts/admin-${testInfo.project.name}.png`, fullPage: true }); await page.getByRole("button", { name: "Odhlásit" }).click(); await expect(page).toHaveURL(/\/admin\/prihlaseni/); });
 
 test("veřejný dashboard nemá interní síťové ani konzolové chyby a uloží auditní screenshot", async ({ page }, testInfo) => { const consoleErrors: string[] = []; const failedInternal: string[] = []; page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); }); page.on("requestfailed", (request) => { const reason = request.failure()?.errorText || "neznámá chyba"; if (request.url().startsWith(page.url().split("/brno")[0]) && reason !== "net::ERR_ABORTED") failedInternal.push(`${request.method()} ${request.url()} · ${reason}`); }); await page.goto("/brno"); await page.getByRole("heading", { name: /StudentHub Brno|Přehled pro/ }).waitFor(); expect(consoleErrors).toEqual([]); expect(failedInternal).toEqual([]); await page.screenshot({ path: `artifacts/audit-${testInfo.project.name}.png`, fullPage: true }); });
 
@@ -137,7 +146,7 @@ test("PWA manifest, ikony a service worker jsou dostupné a necachují dynamick�
   await page.reload();
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   const cacheAudit = await page.evaluate(async () => ({ keys: await caches.keys(), dynamic: Boolean(await caches.match("/brno")), admin: Boolean(await caches.match("/admin")), api: Boolean(await caches.match("/api/service-requests")) }));
-  expect(cacheAudit.keys).toEqual(["studenthub-static-v2"]); expect(cacheAudit.dynamic).toBe(false); expect(cacheAudit.admin).toBe(false); expect(cacheAudit.api).toBe(false);
+  expect(cacheAudit.keys).toEqual(["studenthub-static-v3"]); expect(cacheAudit.dynamic).toBe(false); expect(cacheAudit.admin).toBe(false); expect(cacheAudit.api).toBe(false);
 });
 
 test("instalační nabídka zavře mobilní menu, drží focus a je nad mapou", async ({ page }, testInfo) => {

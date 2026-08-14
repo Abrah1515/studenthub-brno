@@ -50,15 +50,17 @@ function PreferenceAwareNavLink({ item, pathname, cityRoot, close, compact = fal
   const preference = useStudentPreference(catalog);
   const active = isActive(pathname, item.href, cityRoot);
   let href = item.href;
-  if (item.href === `${cityRoot}/kalendar` && preference.cityId === cityRoot.slice(1) && preference.universityId) {
-    const query = new URLSearchParams({ university: preference.universityId });
+  if (item.href === `${cityRoot}/kalendar` && preference.cityId === cityRoot.slice(1) && (preference.universityId || preference.studyYear)) {
+    const query = new URLSearchParams();
+    if (preference.universityId) query.set("university", preference.universityId);
     if (preference.facultyId) query.set("faculty", preference.facultyId);
+    if (preference.studyYear) query.set("year", String(preference.studyYear));
     href = `${item.href}?${query}`;
   }
   function navigate() {
     close?.();
-    if (item.href === `${cityRoot}/kalendar` && preference.cityId === cityRoot.slice(1) && preference.universityId) {
-      window.dispatchEvent(new CustomEvent(calendarPreferenceRequestedEvent, { detail: { universityId: preference.universityId, facultyId: preference.facultyId || "" } }));
+    if (item.href === `${cityRoot}/kalendar` && preference.cityId === cityRoot.slice(1) && (preference.universityId || preference.studyYear)) {
+      window.dispatchEvent(new CustomEvent(calendarPreferenceRequestedEvent, { detail: { universityId: preference.universityId || "", facultyId: preference.facultyId || "", studyYear: preference.studyYear || undefined } }));
     }
   }
   const Icon = item.icon;

@@ -11,6 +11,9 @@ import { fetchSourcePayload } from "@/lib/sources/payload";
 import { inspectConnectorResult, SourceBlockedError } from "@/lib/sources/validation";
 import { decideSourceConflict, type ModificationBasis } from "@/lib/sources/conflict-resolution";
 import { foldSearchText } from "@/lib/search";
+import { inferStudyYears } from "@/lib/study-years";
+import { fajnFeedConfig } from "@/lib/job-feed/config";
+import { releaseDisabledFajnSource, syncFajnJobFeed } from "@/lib/job-feed/sync";
 
 function semesterFor(event: NormalizedEvent) { const month = new Date(event.startAt).getMonth() + 1; return month >= 8 ? "autumn" : month <= 2 ? "autumn" : "spring"; }
 function syncErrorMessage(error: unknown) {
@@ -23,7 +26,7 @@ function syncErrorMessage(error: unknown) {
   }
   return "Neznámá chyba synchronizace.";
 }
-export const normalizedEventToRow = (event: NormalizedEvent, approved = event.status === "approved") => ({ external_id: event.externalId, title: event.title, description: event.description, starts_at: event.startAt, ends_at: event.endAt || null, all_day: event.allDay, timezone: event.timezone, category: categoryCode(event.category), academic_year: event.academicYear, semester: semesterFor(event), university_id: event.universityId, faculty_id: event.facultyId, programme_id: event.programmeId || null, scope_type: event.programmeId ? "programme" : "faculty", school: event.universityId.toUpperCase(), faculty: event.facultyId, source_id: event.sourceId, source_name: "Oficiální veřejný zdroj", source_url: event.sourceUrl, source_document_title: event.sourceDocumentTitle || null, source_page: event.sourcePage || null, source_updated_at: event.sourceUpdatedAt || null, source_modified_at: event.sourceUpdatedAt || null, source_modified_basis: event.sourceModifiedBasis || (event.sourceUpdatedAt ? "explicit_school_update" : "first_detected"), source_hash: event.sourceHash, confidence: event.confidence, status: approved ? "approved" : "pending", verification_status: approved ? "verified" : "needs_review", last_verified_at: event.lastVerifiedAt, is_demo: false, is_cancelled: false, change_state: "unchanged" });
+export const normalizedEventToRow = (event: NormalizedEvent, approved = event.status === "approved") => ({ external_id: event.externalId, title: event.title, description: event.description, starts_at: event.startAt, ends_at: event.endAt || null, all_day: event.allDay, timezone: event.timezone, category: categoryCode(event.category), academic_year: event.academicYear, study_years: event.studyYears || inferStudyYears(event.originalText) || null, semester: semesterFor(event), university_id: event.universityId, faculty_id: event.facultyId, programme_id: event.programmeId || null, scope_type: event.programmeId ? "programme" : "faculty", school: event.universityId.toUpperCase(), faculty: event.facultyId, source_id: event.sourceId, source_name: "Oficiální veřejný zdroj", source_url: event.sourceUrl, source_document_title: event.sourceDocumentTitle || null, source_page: event.sourcePage || null, source_updated_at: event.sourceUpdatedAt || null, source_modified_at: event.sourceUpdatedAt || null, source_modified_basis: event.sourceModifiedBasis || (event.sourceUpdatedAt ? "explicit_school_update" : "first_detected"), source_hash: event.sourceHash, confidence: event.confidence, status: approved ? "approved" : "pending", verification_status: approved ? "verified" : "needs_review", last_verified_at: event.lastVerifiedAt, is_demo: false, is_cancelled: false, change_state: "unchanged" });
 function categoryCode(category: NormalizedEvent["category"]) { const map: Record<NormalizedEvent["category"], string> = { "Začátek semestru": "semester_start", "Konec semestru": "semester_end", "Výuka": "teaching", "Registrace předmětů": "course_registration", "Zápis předmětů": "course_enrollment", "Změny zápisu": "enrollment_changes", "Zveřejnění rozvrhu": "timetable_release", "Zkouškové období": "exam", "Prázdniny": "holiday", "Státní závěrečné zkoušky": "final_exam", "Odevzdání závěrečných prací": "thesis_deadline", "Imatrikulace": "matriculation", "Promoce": "graduation", "Praxe": "internship", "Fakultní akce": "faculty_event", "Ostatní": "other" }; return map[category]; }
 async function eventFingerprint(event: NormalizedEvent) { return sha256([event.universityId, event.facultyId, event.academicYear, semesterFor(event), event.category, foldSearchText(event.title)].join("|")); }
 async function screenCrossSourceConflicts(client: ReturnType<typeof createServiceClient>, events: NormalizedEvent[], httpModifiedAt: string | null) {
@@ -67,8 +70,10 @@ export async function syncSource(sourceId: string, cityId?: string, options: { c
   if (cityId && source.cityId && source.cityId !== cityId) throw new Error("Zdroj nepatří do vybraného města.");
   const client = createServiceClient();
   if (!options.claimed) { const { data: claimed, error: claimError } = await client.rpc("claim_content_source", { source_key: source.id }); if (claimError) throw claimError; if (!claimed) return { sourceId, status: "busy" as const }; }
+  if (source.sourceType === "job_feed" && !fajnFeedConfig().enabled) return releaseDisabledFajnSource(client, source);
   const startedAt = new Date().toISOString(); const { data: run, error: runError } = await client.from("source_sync_runs").insert({ source_id: source.id, city_id: source.cityId || cityId || null, status: "running", started_at: startedAt }).select("id").single(); if (runError) throw runError;
   try {
+    if (source.sourceType === "job_feed") return await syncFajnJobFeed(client, source, run.id);
     const { data: storedSource } = await client.from("content_sources").select("etag,last_modified,content_hash,normalized_hash,last_document_url").eq("id", source.id).single();
     const { fetched, effectiveSource, discovered } = await fetchSourcePayload(source, { etag: storedSource?.etag, lastModified: storedSource?.last_modified });
     if (fetched.status === 304) { const finishedAt = new Date().toISOString(); await markPublishedEventsVerified(client, source.id, finishedAt); await client.from("content_sources").update({ last_checked_at: finishedAt, last_success_at: finishedAt, last_http_status: 304, consecutive_failures: 0, sync_status: "not_modified", next_check_at: nextCheckAt(finishedAt), next_retry_at: null, last_error_message: null }).eq("id", source.id); await client.from("source_sync_runs").update({ status: "not_modified", finished_at: finishedAt, http_status: 304 }).eq("id", run.id); return { sourceId, status: "not_modified" as const }; }
@@ -117,7 +122,7 @@ export async function syncSource(sourceId: string, cityId?: string, options: { c
 
 export async function syncEnabledSources(filters: { cityId?: string; universityId?: string } = {}) {
   const cityUniversities = filters.cityId ? await getUniversityIdsForPublishedCity(filters.cityId) : [];
-  const selected = contentSources.filter((source) => source.enabled && (!filters.universityId || source.universityId === filters.universityId) && (!filters.cityId || source.cityId === filters.cityId || (!source.cityId && cityUniversities.includes(source.universityId)))); const results: PromiseSettledResult<Awaited<ReturnType<typeof syncSource>>>[] = [];
+  const selected = contentSources.filter((source) => source.enabled && (!filters.universityId || source.universityId === filters.universityId) && (!filters.cityId || source.cityId === filters.cityId || (!source.cityId && Boolean(source.universityId) && cityUniversities.includes(source.universityId!)))); const results: PromiseSettledResult<Awaited<ReturnType<typeof syncSource>>>[] = [];
   for (let index = 0; index < selected.length; index += 3) results.push(...await Promise.allSettled(selected.slice(index, index + 3).map((source) => syncSource(source.id, filters.cityId))));
   return results;
 }
@@ -128,6 +133,6 @@ export async function syncDueSources(filters: { cityId?: string; universityId?: 
   const { data, error } = await client.rpc("claim_due_content_sources", { batch_size: filters.batchSize || 3 });
   if (error) throw error;
   const allowedUniversities = filters.cityId ? await getUniversityIdsForPublishedCity(filters.cityId) : null;
-  const ids = ((data || []) as { source_id: string }[]).map((row) => row.source_id).filter((id) => { const source = sourceById(id); return Boolean(source && (!filters.universityId || source.universityId === filters.universityId) && (!allowedUniversities || source.cityId === filters.cityId || allowedUniversities.includes(source.universityId))); });
+  const ids = ((data || []) as { source_id: string }[]).map((row) => row.source_id).filter((id) => { const source = sourceById(id); return Boolean(source && (!filters.universityId || source.universityId === filters.universityId) && (!allowedUniversities || source.cityId === filters.cityId || (Boolean(source.universityId) && allowedUniversities.includes(source.universityId!)))); });
   return Promise.allSettled(ids.map((id) => syncSource(id, filters.cityId, { claimed: true })));
 }

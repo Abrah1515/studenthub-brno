@@ -1,4 +1,5 @@
-import type { ContentSource } from "@/lib/sources/types";
+import type { ContentSource } from "./types.ts";
+import { fajnFeedConfig } from "../job-feed/config.ts";
 
 const muniSource = "https://is.muni.cz/predmety/obdobi";
 
@@ -27,12 +28,13 @@ const registeredSources: RegisteredSource[] = [
   { id: "src-vetuni-fvhe", universityId: "vetuni", facultyId: "vetuni-fvhe", sourceType: "academic_calendar", sourceUrl: "https://www.vetuni.cz/Rozpis_vyuky_pro_akademicky_rok", officialDomain: "vetuni.cz", format: "html", parserKey: "linked-document-review", enabled: true, refreshIntervalHours: 24, monitoringMode: "automatic_review", termsNote: "Stabilní oficiální rozcestník každoročně odkazuje na společný PDF rozpis výuky VETUNI." },
   { id: "src-jamu-hf", universityId: "jamu", facultyId: "jamu-hf", sourceType: "academic_calendar", sourceUrl: "https://is.jamu.cz/predmety/obdobi", officialDomain: "is.jamu.cz", format: "html", parserKey: "jamu-is-periods", enabled: true, refreshIntervalHours: 24, monitoringMode: "automatic_publish", termsNote: "Veřejný strukturovaný přehled harmonogramů IS JAMU, sloupec Hudební fakulty." },
   { id: "src-jamu-df", universityId: "jamu", facultyId: "jamu-df", sourceType: "academic_calendar", sourceUrl: "https://is.jamu.cz/predmety/obdobi", officialDomain: "is.jamu.cz", format: "html", parserKey: "jamu-is-periods", enabled: true, refreshIntervalHours: 24, monitoringMode: "automatic_publish", termsNote: "Veřejný strukturovaný přehled harmonogramů IS JAMU, sloupec Divadelní fakulty." },
+  { id: "src-fajn-brigady", cityId: "brno", universityId: "", facultyId: "", sourceType: "job_feed", sourceUrl: "https://www.fajn-brigady.cz/brigady/brno/", officialDomain: "media.fajnsprava.cz", allowedDomains: ["media.fajnsprava.cz", "fajn-brigady.cz"], format: "xml", parserKey: "fajn-v2-xml", enabled: true, refreshIntervalHours: fajnFeedConfig().intervalHours, monitoringMode: "automatic_publish", termsNote: "Smluvní XML feed Fajn brigády. Skutečná adresa feedu je pouze v serverovém prostředí a testovací inzeráty se nepublikují." },
 ];
 
 export const contentSources: ContentSource[] = registeredSources.map((source) => ({
   ...source,
   refreshIntervalHours: Math.min(source.refreshIntervalHours, 9),
-  allowedDomains: source.universityId === "muni" ? ["muni.cz"] : source.universityId === "vut" ? ["vut.cz", "vutbr.cz"] : source.universityId === "mendelu" ? ["mendelu.cz"] : source.universityId === "vetuni" ? ["vetuni.cz"] : ["jamu.cz"],
+  allowedDomains: source.allowedDomains || (source.universityId === "muni" ? ["muni.cz"] : source.universityId === "vut" ? ["vut.cz", "vutbr.cz"] : source.universityId === "mendelu" ? ["mendelu.cz"] : source.universityId === "vetuni" ? ["vetuni.cz"] : ["jamu.cz"]),
   academicYear: source.sourceUrl.match(/20\d{2}[-_/](?:20)?\d{2}/)?.[0]?.replace(/[-_]/g, "/").replace(/\/(\d{2})$/, (_match, year: string) => `/${String(Number(year.slice(0, 2)) + 2000)}`) || null,
   confidence: source.monitoringMode === "automatic_publish" ? 0.96 : source.monitoringMode === "not_found_monitored" ? 0 : 0.6,
   requiresReview: source.monitoringMode !== "automatic_publish",

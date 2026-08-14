@@ -1,4 +1,5 @@
 import type { EventCategory } from "@/lib/types";
+import type { StudyYear } from "@/lib/types";
 
 export type SourceFormat = "api" | "json" | "ics" | "xml" | "html" | "pdf";
 export type SourceMonitoringMode = "automatic_publish" | "automatic_review" | "not_found_monitored";
@@ -8,7 +9,7 @@ export type ContentSource = {
   cityId?: string;
   universityId: string;
   facultyId: string;
-  sourceType: "academic_calendar";
+  sourceType: "academic_calendar" | "job_feed";
   sourceUrl: string;
   officialDomain: string;
   allowedDomains?: string[];
@@ -37,6 +38,7 @@ export type NormalizedEvent = {
   timezone: "Europe/Prague";
   category: EventCategory;
   academicYear: string;
+  studyYears?: StudyYear[];
   universityId: string;
   facultyId: string;
   sourceId: string;

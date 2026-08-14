@@ -1,4 +1,4 @@
-const STATIC_CACHE = "studenthub-static-v2";
+const STATIC_CACHE = "studenthub-static-v3";
 const OFFLINE_PAGE = "/offline.html";
 const PRECACHE = [
   OFFLINE_PAGE,
@@ -42,12 +42,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (!isVersionedStaticAsset(request, url)) return;
-  event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-      if (!response.ok || response.type !== "basic" || response.headers.get("Cache-Control")?.includes("no-store")) return response;
-      const copy = response.clone();
-      event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy)));
-      return response;
-    })),
-  );
+  event.respondWith(fetch(request).then((response) => {
+    if (!response.ok || response.type !== "basic" || response.headers.get("Cache-Control")?.includes("no-store")) return response;
+    const copy = response.clone();
+    event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy)));
+    return response;
+  }).catch(() => caches.match(request)));
 });

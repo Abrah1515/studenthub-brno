@@ -1,4 +1,5 @@
 import "server-only";
+import { fajnFeedConfig } from "@/lib/job-feed/config";
 
 export type ProviderKind = "jobs" | "offers";
 export type ProviderItem = { externalId: string; title: string; sourceUrl: string; updatedAt: string; expiresAt: string; payload: Record<string, unknown> };
@@ -16,8 +17,9 @@ function configuredProvider(id: string, kind: ProviderKind, format: ContentProvi
 
 /** Žádný provider nepoužívá scraping. Ve výchozím stavu jsou oba smluvní feedy vypnuté. */
 export function externalContentProviders(): ContentProvider[] {
+  const fajn = fajnFeedConfig();
   return [
-    configuredProvider("fajn-brigady", "jobs", "xml", process.env.FAJN_BRIGADY_FEED_ENABLED, process.env.FAJN_BRIGADY_PERMISSION_CONFIRMED, process.env.FAJN_BRIGADY_FEED_URL),
+    { id: "fajn-brigady", kind: "jobs", format: "xml", enabled: fajn.enabled, permissionConfirmed: fajn.permissionConfirmed, maxCheckIntervalHours: 9, statusReason: fajn.statusReason, async fetchItems() { return []; } },
     configuredProvider("isic", "offers", "json", process.env.ISIC_FEED_ENABLED, process.env.ISIC_FEED_PERMISSION_CONFIRMED, process.env.ISIC_FEED_URL),
   ];
 }

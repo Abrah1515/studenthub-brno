@@ -11,7 +11,7 @@ const event = (scope: AcademicEvent["scope"], universityId?: string, facultyId?:
 
 describe("stabilní katalog fakult", () => {
   it("obsahuje 27 aktivních a oficiálně odkazovaných fakult", () => { expect(universities).toHaveLength(5); expect(faculties).toHaveLength(27); expect(faculties.every((faculty) => faculty.active && faculty.slug === faculty.id && faculty.officialUrl.startsWith("https://"))).toBe(true); });
-  it("má právě jeden registrovaný zdroj pro každou fakultu", () => { expect(new Set(contentSources.map((source) => source.facultyId))).toEqual(new Set(faculties.map((faculty) => faculty.id))); expect(contentSources.every((source) => source.notes && source.officialDomain)).toBe(true); });
+  it("má právě jeden registrovaný akademický zdroj pro každou fakultu", () => { const academicSources = contentSources.filter((source) => source.sourceType === "academic_calendar"); expect(new Set(academicSources.map((source) => source.facultyId))).toEqual(new Set(faculties.map((faculty) => faculty.id))); expect(contentSources.every((source) => source.notes && source.officialDomain)).toBe(true); });
 });
 
 describe("validace výběru", () => {

@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
+import { rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -12,7 +13,7 @@ function run(command, args, options = {}) {
   const { env: extraEnv, ...spawnOptions } = options;
   return spawn(command, args, {
     cwd: root,
-    env: { ...process.env, CI: process.env.CI ?? "true", DEMO_MODE: "true", ALLOW_LOCAL_FILE_STORE: "true", ALLOW_VERIFIED_FALLBACK: "true", ADMIN_DEMO_PASSWORD: process.env.ADMIN_DEMO_PASSWORD || "local-test-password-2026", ADMIN_COOKIE_SECRET: process.env.ADMIN_COOKIE_SECRET || "local-test-cookie-secret-at-least-32-characters", NEXT_PUBLIC_ADS_ENABLED: "false", ...extraEnv },
+    env: { ...process.env, CI: process.env.CI ?? "true", DEMO_MODE: "true", ALLOW_LOCAL_FILE_STORE: "true", ALLOW_VERIFIED_FALLBACK: "true", NEXT_PUBLIC_SUPABASE_URL: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "", ADMIN_DEMO_PASSWORD: process.env.ADMIN_DEMO_PASSWORD || "local-test-password-2026", ADMIN_COOKIE_SECRET: process.env.ADMIN_COOKIE_SECRET || "local-test-cookie-secret-at-least-32-characters", NEXT_PUBLIC_ADS_ENABLED: "false", ...extraEnv },
     stdio: "inherit",
     ...spawnOptions,
   });
@@ -91,6 +92,7 @@ let server;
 
 try {
   await assertPortFree();
+  rmSync(resolve(root, ".next"), { recursive: true, force: true });
   console.log("\n[E2E] Vytvářím produkční build…\n");
   await waitForExit(run(process.execPath, [nextCli, "build"]));
 

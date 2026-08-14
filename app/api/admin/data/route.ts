@@ -28,7 +28,12 @@ export async function GET() {
     return rowCity === user.cityId || (row.id === user.cityId && row.slug === user.cityId) || (user.cityId === "brno" && !rowCity && (row.university_id || row.universityId));
   });
   const storedSources = new Map(values.content_sources.map((source) => [String(source.id), source]));
-  const sources = contentSources.map((source) => ({ ...source, ...(storedSources.get(source.id) || {}) }));
+  const fajnStatus = externalContentProviders().find((provider) => provider.id === "fajn-brigady");
+  const sources = contentSources.map((source) => {
+    const merged = { ...source, ...(storedSources.get(source.id) || {}) } as Record<string, unknown>;
+    if (source.sourceType !== "job_feed") return merged;
+    return { ...merged, last_final_url: undefined, last_document_url: undefined, connector_enabled: Boolean(fajnStatus?.enabled), connector_status_reason: fajnStatus?.statusReason, active_count: values.jobs.filter((job) => job.provider_key === "fajn-brigady" && job.status === "approved" && !job.is_demo).length };
+  });
   const privileged = user.role === "super_admin" ? (items: Record<string, unknown>[]) => items : scoped;
   const externalProviders = externalContentProviders().map(({ id, kind, format, enabled, permissionConfirmed, maxCheckIntervalHours, statusReason }) => ({ id, kind, format, enabled, permissionConfirmed, maxCheckIntervalHours, statusReason }));
   return NextResponse.json({ _meta: { dataSource: isSupabaseConfigured() ? "supabase" : verifiedFallback ? "verified_fallback" : "unconfigured", verifiedFallback, externalProviders }, cities: scoped(values.cities), academic_events: scoped(values.academic_events), places: scoped(values.places), offers: scoped(values.offers), jobs: scoped(values.jobs), service_requests: user.role === "faculty_editor" ? [] : scoped(values.service_requests), submissions: scoped(values.submissions), outbound_clicks: user.role === "faculty_editor" ? [] : scoped(values.outbound_clicks), page_views: user.role === "faculty_editor" ? [] : scoped(values.page_views), content_sources: scoped(sources), source_sync_runs: scoped(values.source_sync_runs), source_review_queue: scoped(values.source_review_queue), link_checks: privileged(values.link_checks), content_publication_events: user.role === "faculty_editor" ? [] : scoped(values.content_publication_events), buddy_posts: scoped(values.buddy_posts), buddy_join_requests: user.role === "faculty_editor" ? [] : privileged(values.buddy_join_requests), content_reports: user.role === "faculty_editor" ? [] : scoped(values.content_reports), contact_messages: user.role === "faculty_editor" ? [] : scoped(values.contact_messages), academic_event_conflicts: scoped(values.academic_event_conflicts) });

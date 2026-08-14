@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<inzeraty>
+  <pridani>
+    <id_sekce>1</id_sekce>
+    <id_inzeratu>900001</id_inzeratu>
+    <titulek_cs>Podpora studentské laboratoře</titulek_cs>
+    <popis_cs>&lt;strong&gt;Pomoc s technikou&lt;/strong&gt; Pište na test@example.invalid nebo volejte +420 777 111 222.</popis_cs>
+    <pozadujeme_cs>Pečlivost a chuť učit se.</pozadujeme_cs>
+    <id_statu>1</id_statu><id_mesta>100</id_mesta><adresa_pracoviste_adresa>Brno-střed</adresa_pracoviste_adresa>
+    <id_pozice>145</id_pozice><mzda_od>180</mzda_od><mzda_do>220</mzda_do><mzda_typ>1</mzda_typ><mzda_mena>1</mzda_mena>
+    <pocet_mist>2</pocet_mist><pocet_dni>14</pocet_dni><uvazek><h>2</h></uvazek><benefity><h>3</h><h>8</h></benefity>
+    <url_detail>https://www.fajn-brigady.cz/brigady/brno/900001-synteticka-nabidka/</url_detail>
+  </pridani>
+  <pridani>
+    <id_sekce>1</id_sekce><id_inzeratu>900002</id_inzeratu><titulek_sk>Pomoc pri podujatí</titulek_sk>
+    <popis_sk>Bezpečný slovenský fallback.</popis_sk><id_pozice>497</id_pozice><mzda_typ>29</mzda_typ><mzda_mena>1</mzda_mena>
+    <pocet_dni>3</pocet_dni><url_detail>https://www.fajn-brigady.sk/brigady/900002-synteticka-ponuka/</url_detail>
+  </pridani>
+</inzeraty>
