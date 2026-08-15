@@ -51,6 +51,8 @@ yarn-error.log*
 /dev.pid
 /dev-server.log
 /dev-server.err.log
+/admin-dev.log
+/admin-dev.err.log
 /server-*.log
 /.studenthub-server.log
 /.studenthub-server.err.log

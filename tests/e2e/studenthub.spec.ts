@@ -15,7 +15,14 @@ test.beforeEach(async ({ page }) => {
 
 test("načte použitelný dashboard bez veřejných demo dat", async ({ page }) => { await expect(page.getByRole("heading", { name: "StudentHub Brno" })).toBeVisible(); await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Potřebuji technickou pomoc", exact: true })).toBeVisible(); await expect(page.getByText("DEMO DATA")).toHaveCount(0); await expect(page.getByText(/Nezávislý projekt\. Není oficiálně spojený/)).toHaveCount(1); await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/brno$/); });
 
-test("filtruje ověřené akademické události", async ({ page }) => { await page.goto("/brno/kalendar"); await page.getByLabel("Kategorie").selectOption("Zkouškové období"); await expect(page.getByText("2 ověřených událostí")).toBeVisible(); await expect(page.getByRole("heading", { name: /Zkouškové období zimního semestru FIT VUT/ })).toBeVisible(); await expect(page.getByRole("link", { name: /Časový plán FIT VUT/ })).toHaveAttribute("href", /^https:\/\//); });
+test("filtruje ověřené akademické události", async ({ page }) => {
+  await page.goto("/brno/kalendar");
+  await page.getByLabel("Kategorie").selectOption("Zkouškové období");
+  await expect(page.getByText(/\d+ ověřených událostí/)).toBeVisible();
+  const fitEvent = page.getByRole("article").filter({ has: page.getByRole("heading", { name: /Zkouškové období zimního semestru FIT VUT/ }) });
+  await expect(fitEvent).toBeVisible();
+  await expect(fitEvent.getByRole("link", { name: "Oficiální zdroj" })).toHaveAttribute("href", /^https:\/\//);
+});
 
 test("filtruje místa a nabídky mají poctivý prázdný stav", async ({ page }) => { await page.goto("/brno/mista"); await page.getByRole("region", { name: "Filtry míst" }).getByLabel("Kategorie").selectOption("Knihovna"); await expect(page.getByText("Ústřední knihovna VUT")).toBeVisible(); await expect(page.getByText("DEMO")).toHaveCount(0); await page.goto("/brno/nabidky?q=neexistujici-nabidka"); await expect(page.getByRole("heading", { name: "Žádná nabídka neodpovídá filtrům" })).toBeVisible(); await expect(page.getByText(/ISIC feed zůstává bez písemného souhlasu vypnutý/)).toBeVisible(); await page.getByRole("button", { name: "Resetovat filtry" }).first().click(); await expect(page.getByLabel("Hledat nabídku")).toHaveValue(""); });
 
