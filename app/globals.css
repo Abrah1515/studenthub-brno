@@ -422,6 +422,9 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
   .job-filters .search-field { grid-column: 1 / -1; }
 }
 @media (max-width: 860px) {
+  .page-heading { align-items: stretch; flex-direction: column; gap: 14px; }
+  .page-heading .heading-actions { width: 100%; flex-wrap: wrap; }
+  .page-heading .heading-actions .button { max-width: 100%; }
   .calendar-layout, .places-layout { grid-template-columns: 1fr; }
   .month-card, .map-shell, .help-aside { position: static; }
   .map-shell { grid-row: 1; }
