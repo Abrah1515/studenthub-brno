@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(18);
+      expect(files).toHaveLength(19);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -88,8 +88,18 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
           ('92111111-1111-4111-8111-111111111111','91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111112','První žádost','pending'),
           ('92111111-1111-4111-8111-111111111112','91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111113','Druhá žádost','pending');
         update public.buddy_join_requests set status='accepted' where id='92111111-1111-4111-8111-111111111111';
+        insert into public.community_events(id,city_id,title,category,starts_at,venue,description,is_free,author_email,management_token_hash,duplicate_fingerprint,status)
+        values
+          ('93111111-1111-4111-8111-111111111111','brno','Veřejná studentská akce','Studium','2030-09-20 18:00:00+02','Veřejná knihovna','Bezpečný veřejný popis komunitní studentské akce.',true,'private@example.cz',repeat('a',64),repeat('b',64),'published'),
+          ('93111111-1111-4111-8111-111111111112','brno','Ukončená studentská akce','Kultura','2020-09-20 18:00:00+02','Centrum Brna','Bezpečný popis již ukončené komunitní akce.',true,'archive@example.cz',repeat('c',64),repeat('d',64),'published');
+        insert into public.content_reports(target_type,target_id,reporter_session_hash,reason,city_id) values
+          ('community_event','93111111-1111-4111-8111-111111111111',repeat('1',64),'spam','brno'),
+          ('community_event','93111111-1111-4111-8111-111111111111',repeat('2',64),'spam','brno'),
+          ('community_event','93111111-1111-4111-8111-111111111111',repeat('3',64),'spam','brno');
       `);
       await expect(db.exec("update public.buddy_join_requests set status='accepted' where id='92111111-1111-4111-8111-111111111112'")).rejects.toThrow(/capacity/i);
+      expect((await db.query<{ status: string; report_count: number }>("select status,report_count from public.community_events where id='93111111-1111-4111-8111-111111111111'")).rows[0]).toEqual({ status: "hidden", report_count: 3 });
+      expect((await db.query<{ archive_expired_community_events: number }>("select public.archive_expired_community_events()")).rows[0].archive_expired_community_events).toBe(1);
 
       const vetuni = contentSources.find((item) => item.id === "src-vetuni-fvl")!;
       const pdfResult = await parsePdf({ source: { ...vetuni, format: "pdf", parserKey: "pdf-review", sourceUrl: "https://www.vetuni.cz/files/fixture.pdf" }, body: await readFile("tests/fixtures/calendar-text.pdf"), contentType: "application/pdf", checkedAt: "2026-08-02T10:00:00Z" });
@@ -104,6 +114,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect(publicEvents.rows.map((row) => row.title)).toEqual([expect.stringMatching(/^Integration approved/)]);
       await expect(db.query("select * from public.service_requests")).rejects.toThrow();
       await expect(db.query("select * from public.content_sources")).rejects.toThrow();
+      await expect(db.query("select * from public.community_events")).rejects.toThrow();
       expect((await db.query<{ approximate_location: string }>("select approximate_location from public.buddy_posts")).rows).toEqual([{ approximate_location: "Veřejná knihovna" }]);
       await expect(db.query("insert into public.page_views(path,city_id) values ('/obchazeni-souhlasu','brno')")).rejects.toThrow();
       await db.exec("reset role");
@@ -113,12 +124,12 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query("update public.academic_events set description='Upraveno FEKT' where title='RLS FEKT' returning id")).rows).toHaveLength(1);
       expect((await db.query("update public.academic_events set description='Zakázáno' where title='RLS FIT' returning id")).rows).toHaveLength(0);
       await expect(db.query("insert into public.buddy_posts(owner_id,city_id,activity_type,approximate_location,starts_at,description,max_participants,expires_at) values ('71111111-1111-4111-8111-111111111111','brno','study','Obejití API','2031-01-01 18:00:00+01','Přímý zápis musí odmítnout databázová oprávnění.',3,'2031-01-02 06:00:00+01')")).rejects.toThrow();
-      expect((await db.query("select * from public.service_requests")).rows).toHaveLength(0); await db.exec("reset role");
+      expect((await db.query("select * from public.service_requests")).rows).toHaveLength(0); expect((await db.query("select * from public.community_events")).rows).toHaveLength(0); await db.exec("reset role");
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111112"]); await db.exec("set role authenticated");
       expect((await db.query<{ title: string }>("select title from public.academic_events where title like 'RLS %' order by title")).rows.map((row) => row.title)).toEqual(["RLS FEKT", "RLS FIT"]);
       expect((await db.query("update public.academic_events set description='Upraveno městem' where title='RLS FIT' returning id")).rows).toHaveLength(1);
-      expect((await db.query("select id from public.service_requests where id='81111111-1111-4111-8111-111111111111'")).rows).toHaveLength(1); await db.exec("reset role");
+      expect((await db.query("select id from public.service_requests where id='81111111-1111-4111-8111-111111111111'")).rows).toHaveLength(1); expect((await db.query("select author_email from public.community_events")).rows).toHaveLength(2); await db.exec("reset role");
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111113"]); await db.exec("set role authenticated");
       expect((await db.query<{ title: string }>("select title from public.academic_events where title like 'RLS %' order by title")).rows.map((row) => row.title)).toEqual(["RLS FEKT", "RLS FIT"]); await db.exec("reset role");

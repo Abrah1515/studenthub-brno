@@ -30,12 +30,15 @@ async function robotsDecision(url, source) {
     robotsCache.set(cacheKey, (async () => {
       const robotsUrl = new URL("/robots.txt", url.origin);
       if (!allowed(robotsUrl, source)) return { result: "BLOCKED", error: "robots.txt leží mimo povolenou oficiální doménu" };
-      const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 5_000);
+      const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 12_000);
       try {
-        const response = await fetch(robotsUrl, { signal: controller.signal, redirect: "manual", headers: { "user-agent": userAgent, accept: "text/plain" } });
+        let response = await fetch(robotsUrl, { signal: controller.signal, redirect: "manual", headers: { "user-agent": userAgent, accept: "text/plain", connection: "close" } });
         if ([404, 410].includes(response.status)) return { result: "OK", text: "" };
         if (!response.ok) return { result: "TEMPORARY", error: `robots.txt odpověděl HTTP ${response.status}` };
-        return { result: "OK", text: await response.text() };
+        let body = await response.text();
+        if (/meta\s+http-equiv=["']?refresh/i.test(body) && response.headers.get("set-cookie")) { const cookie = response.headers.get("set-cookie").split(";", 1)[0]; await new Promise((resolve) => setTimeout(resolve, 100)); response = await fetch(robotsUrl, { signal: controller.signal, redirect: "manual", headers: { "user-agent": userAgent, accept: "text/plain", connection: "close", cookie } }); if (!response.ok) return { result: "TEMPORARY", error: `robots.txt po session výzvě odpověděl HTTP ${response.status}` }; body = await response.text(); }
+        if (!mime(response.headers.get("content-type")).startsWith("text/plain")) return { result: "TEMPORARY", error: "robots.txt má neočekávaný MIME typ" };
+        return { result: "OK", text: body };
       } catch (error) { return { result: "TEMPORARY", error: `robots.txt nelze ověřit: ${error instanceof Error ? error.message : String(error)}` }; }
       finally { clearTimeout(timer); }
     })());
@@ -52,11 +55,11 @@ async function fetchFollowing(start, source) {
     if (robots.result !== "OK") return { result: robots.result, status: null, url: url.href, redirected, error: robots.error };
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 15_000);
     try {
-      const response = await fetch(url, { redirect: "manual", signal: controller.signal, headers: { "user-agent": userAgent, accept: "text/html,application/pdf,application/json,text/calendar;q=0.9,*/*;q=0.1", ...(cookie ? { cookie } : {}) } });
+      const response = await fetch(url, { redirect: "manual", signal: controller.signal, headers: { "user-agent": userAgent, accept: "text/html,application/pdf,application/json,text/calendar;q=0.9,*/*;q=0.1", connection: "close", ...(cookie ? { cookie } : {}) } });
       if (response.status >= 300 && response.status < 400) { const location = response.headers.get("location"); if (!location) return { result: "BROKEN", status: response.status, url: url.href, redirected, error: "redirect bez cíle" }; url = new URL(location, url); redirected = true; continue; }
       if (!response.ok) return { result: [404, 410].includes(response.status) ? "BROKEN" : [401, 403].includes(response.status) ? "BLOCKED" : "TEMPORARY", status: response.status, url: url.href, redirected, error: `HTTP ${response.status}` };
       const buffer = new Uint8Array(await response.arrayBuffer()); const contentType = response.headers.get("content-type") || "application/octet-stream"; const text = mime(contentType).includes("html") || mime(contentType).startsWith("text/") ? new TextDecoder().decode(buffer.slice(0, 512_000)) : "";
-      if (metaRetries < 1 && /<meta\s+http-equiv=["']?refresh/i.test(text) && response.headers.get("set-cookie")) { cookie = response.headers.get("set-cookie").split(";", 1)[0]; metaRetries += 1; count -= 1; continue; }
+      if (metaRetries < 1 && /<meta\s+http-equiv=["']?refresh/i.test(text) && response.headers.get("set-cookie")) { cookie = response.headers.get("set-cookie").split(";", 1)[0]; metaRetries += 1; count -= 1; await new Promise((resolve) => setTimeout(resolve, 100)); continue; }
       return { result: redirected ? "REDIRECTED" : "OK", status: response.status, url: url.href, redirected, contentType, body: buffer, text };
     } catch (error) { return { result: "TEMPORARY", status: null, url: url.href, redirected, error: error instanceof Error ? error.message : String(error) }; }
     finally { clearTimeout(timer); }

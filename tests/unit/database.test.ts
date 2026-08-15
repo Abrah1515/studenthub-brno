@@ -12,6 +12,7 @@ const scheduler = readFileSync(resolve("supabase/migrations/202608110012_supabas
 const frequentScheduler = readFileSync(resolve("supabase/migrations/202608110014_twenty_minute_calendar_dispatcher.sql"), "utf8");
 const eventScheduleUniqueness = readFileSync(resolve("supabase/migrations/202608120015_academic_event_schedule_uniqueness.sql"), "utf8");
 const reprocessVutSchedules = readFileSync(resolve("supabase/migrations/202608120016_reprocess_vut_html_schedules.sql"), "utf8");
+const communityEvents = readFileSync(resolve("supabase/migrations/202608160019_community_events.sql"), "utf8");
 describe("databázová bezpečnost", () => {
   it("zapíná RLS na neveřejných tabulkách", () => { expect(migration).toContain("alter table public.service_requests enable row level security"); expect(migration).toContain("alter table public.submissions enable row level security"); });
   it("nedává anonymům čtení poptávek", () => { expect(migration).toContain("revoke all on public.service_requests from anon"); expect(migration).toContain("grant insert on public.service_requests to anon"); expect(migration).not.toContain("grant select on public.service_requests to anon"); });
@@ -32,4 +33,5 @@ describe("databázová bezpečnost", () => {
   it("umožňuje více legitimních termínů stejného typu, ale odmítá přesnou duplicitu", () => { expect(eventScheduleUniqueness).toContain("duplicate_fingerprint"); expect(eventScheduleUniqueness).toContain("starts_at"); expect(eventScheduleUniqueness).toContain("coalesce(ends_at, starts_at)"); });
   it("vynutí jednorázový přepočet opravených FIT/FSI parserů bez mazání událostí", () => { expect(reprocessVutSchedules).toContain("'src-vut-fit', 'src-vut-fsi'"); expect(reprocessVutSchedules).toContain("content_hash = null"); expect(reprocessVutSchedules).toContain("etag = null"); expect(reprocessVutSchedules).not.toMatch(/delete\s+from\s+public\.academic_events/i); });
   it("chrání kontaktní inbox a odmítá duplicitní hlášení", () => { expect(operations).toContain("alter table public.contact_messages enable row level security"); expect(operations).toContain("content_reports_session_target_unique"); expect(operations).toContain("content_reports_user_target_unique"); });
+  it("chrání soukromý kontakt pořadatele a automaticky skrývá opakovaně hlášenou akci", () => { expect(communityEvents).toContain("revoke all on public.community_events from anon,authenticated"); expect(communityEvents).not.toContain("grant select on public.community_events to anon"); expect(communityEvents).toContain("report_total >= 3"); expect(communityEvents).toContain("archive_expired_community_events"); });
 });

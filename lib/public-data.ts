@@ -1,12 +1,13 @@
 import "server-only";
 import { unstable_noStore as noStore } from "next/cache";
-import type { AcademicEvent, Job, Offer, Place } from "@/lib/types";
+import type { AcademicEvent, CommunityEvent, Job, Offer, Place } from "@/lib/types";
 import { facultyById, universityById } from "@/lib/universities";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 import { verifiedFallbackData } from "@/lib/verified-data";
 import { defaultCitySlug } from "@/lib/cities";
 import { academicEventMatchesSelection, type StudySelection } from "@/lib/academic-events";
-import { isStudyYear } from "@/lib/study-years";
+import { currentAcademicYear, isStudyYear } from "@/lib/study-years";
+import { listRecords, updateRecord } from "@/lib/data-store";
 
 function fallbackAllowed() { return process.env.NODE_ENV !== "production" || process.env.ALLOW_VERIFIED_FALLBACK === "true"; }
 const eventCategories: Record<string, AcademicEvent["category"]> = { semester_start: "Začátek semestru", semester_end: "Konec semestru", teaching: "Výuka", course_registration: "Registrace předmětů", course_enrollment: "Zápis předmětů", enrollment_changes: "Změny zápisu", timetable_release: "Zveřejnění rozvrhu", exam: "Zkouškové období", holiday: "Prázdniny", final_exam: "Státní závěrečné zkoušky", thesis_deadline: "Odevzdání závěrečných prací", matriculation: "Imatrikulace", graduation: "Promoce", internship: "Praxe", faculty_event: "Fakultní akce", registration: "Registrace předmětů", other: "Ostatní" };
@@ -59,7 +60,19 @@ async function publicRows(table: "academic_events" | "places" | "offers" | "jobs
   if (error) throw error; return data as Record<string, unknown>[];
 }
 
-export async function getAcademicEvents(cityId = defaultCitySlug, selection: StudySelection = {}) { noStore(); const rows = await publicRows("academic_events", cityId); const events = rows ? rows.map(eventFromRow) : fallbackAllowed() && cityId === "brno" ? verifiedFallbackData.academic_events : []; return events.filter((event) => academicEventMatchesSelection(event, selection)); }
+export async function getAcademicEvents(cityId = defaultCitySlug, selection: StudySelection = {}) { noStore(); const rows = await publicRows("academic_events", cityId); const events = rows ? rows.map(eventFromRow) : fallbackAllowed() && cityId === "brno" ? verifiedFallbackData.academic_events : []; const academicYear = currentAcademicYear(); return events.filter((event) => event.academicYear === academicYear && academicEventMatchesSelection(event, selection)); }
+export async function archiveExpiredCommunityEvents() {
+  const now = Date.now();
+  const rows = await listRecords("community_events");
+  const expired = rows.filter((row) => row.status === "published" && new Date(String(row.ends_at || row.starts_at)).getTime() < now);
+  await Promise.all(expired.map((row) => updateRecord("community_events", String(row.id), { status: "archived", archived_at: new Date().toISOString() })));
+  return expired.length;
+}
+export async function getCommunityEvents(cityId = defaultCitySlug): Promise<CommunityEvent[]> {
+  noStore();
+  await archiveExpiredCommunityEvents(); const now = Date.now(); const rows = await listRecords("community_events");
+  return rows.filter((row) => row.city_id === cityId && row.status === "published" && new Date(String(row.ends_at || row.starts_at)).getTime() >= now).sort((a, b) => String(a.starts_at).localeCompare(String(b.starts_at))).map((row) => ({ id: String(row.id), cityId: String(row.city_id), title: String(row.title), category: String(row.category) as CommunityEvent["category"], startsAt: String(row.starts_at), endsAt: row.ends_at ? String(row.ends_at) : undefined, venue: String(row.venue), description: String(row.description), isFree: Boolean(row.is_free), priceAmount: row.price_amount == null ? undefined : Number(row.price_amount), currency: "CZK", eventUrl: row.event_url ? String(row.event_url) : undefined, imageUrl: row.image_url ? String(row.image_url) : undefined, createdAt: String(row.created_at) }));
+}
 export async function getPlaces(cityId = defaultCitySlug) { noStore(); const rows = await publicRows("places", cityId); return rows ? rows.map(placeFromRow) : fallbackAllowed() && cityId === "brno" ? verifiedFallbackData.places : []; }
 export async function getOffers(cityId = defaultCitySlug) { noStore(); const rows = await publicRows("offers", cityId); return rows ? rows.map(offerFromRow) : fallbackAllowed() && cityId === "brno" ? verifiedFallbackData.offers.filter((item) => !item.cityIds?.length || item.cityIds.includes(cityId)) : []; }
 export async function getJobs(cityId = defaultCitySlug) { noStore(); const rows = await publicRows("jobs", cityId); return rows ? rows.map(jobFromRow) : fallbackAllowed() && cityId === "brno" ? verifiedFallbackData.jobs.filter((item) => item.locationMode === "remote" || item.cityId === cityId) : []; }

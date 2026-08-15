@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const reservedTopLevelRoutes = new Set([
   "admin",
+  "akce",
   "api",
   "auth",
   "brand",

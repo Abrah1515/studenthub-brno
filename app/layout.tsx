@@ -5,6 +5,7 @@ import { PwaInstallProvider } from "@/components/pwa-install";
 import { FirstRunPicker } from "@/components/preference-picker";
 import { PrivacyAnalytics } from "@/components/privacy-analytics";
 import { Suspense } from "react";
+import { FeatureTutorial } from "@/components/feature-tutorial";
 import { SiteShell } from "@/components/site-shell";
 import { brand } from "@/lib/brand";
 import { getPublishedCities } from "@/lib/city-data";
@@ -58,6 +59,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <SiteShell cities={cities} catalog={catalog}>{children}</SiteShell>
           <CookieConsent />
           <FirstRunPicker cities={cities} catalog={catalog} />
+          <FeatureTutorial />
           <Suspense fallback={null}><PrivacyAnalytics /></Suspense>
           <PwaRegister />
         </PwaInstallProvider>

@@ -19,6 +19,8 @@ export function fajnFeedConfig(env: NodeJS.ProcessEnv = process.env) {
   const intervalHours = Number.isFinite(parsedInterval) ? Math.max(1, Math.min(10, Math.floor(parsedInterval))) : 9;
   const mode: FajnFeedMode = env.FAJN_BRIGADY_FEED_MODE === "full_snapshot" ? "full_snapshot" : "incremental";
   const enabled = requested && permissionConfirmed && Boolean(feedUrl);
-  const statusReason = !permissionConfirmed ? "Vypnuto: chybí potvrzení písemného oprávnění." : !feedUrl ? "Vypnuto: není nastavena platná ostrá HTTPS adresa feedu." : !requested ? "Vypnuto feature flagem." : "Zapnuto pro smluvní XML feed.";
+  const statusReason = !requested || !permissionConfirmed || !feedUrl
+    ? "Čeká se na ostrý XML feed a potvrzení oprávnění."
+    : "Zapnuto pro smluvní XML feed.";
   return { enabled, requested, permissionConfirmed, feedUrl, intervalHours, mode, statusReason };
 }

@@ -4,6 +4,7 @@ import { syncDueSources } from "@/lib/sources/sync";
 import { defaultCitySlug } from "@/lib/cities";
 import { getPublishedCity } from "@/lib/city-data";
 import { expireBuddyPosts } from "@/lib/buddy";
+import { archiveExpiredCommunityEvents } from "@/lib/public-data";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -22,8 +23,8 @@ async function run(request: Request) {
   const university = new URL(request.url).searchParams.get("university") || undefined;
   const citySlug = new URL(request.url).searchParams.get("city") || defaultCitySlug; const city = await getPublishedCity(citySlug);
   if (!city) return NextResponse.json({ message: "Město není aktivní; synchronizace nebyla spuštěna." }, { status: 409 });
-  const [results, expiredBuddyPosts] = await Promise.all([syncDueSources({ cityId: city.id, universityId: university, batchSize: 6 }), expireBuddyPosts()]);
-  return NextResponse.json({ ok: true, city: city.id, university: university || "all", expiredBuddyPosts, results: results.map((result) => result.status === "fulfilled" ? result.value : { status: "failed", message: result.reason instanceof Error ? result.reason.message : "Neznámá chyba" }) });
+  const [results, expiredBuddyPosts, archivedCommunityEvents] = await Promise.all([syncDueSources({ cityId: city.id, universityId: university, batchSize: 6 }), expireBuddyPosts(), archiveExpiredCommunityEvents()]);
+  return NextResponse.json({ ok: true, city: city.id, university: university || "all", expiredBuddyPosts, archivedCommunityEvents, results: results.map((result) => result.status === "fulfilled" ? result.value : { status: "failed", message: result.reason instanceof Error ? result.reason.message : "Neznámá chyba" }) });
 }
 
 export const GET = run;

@@ -22,7 +22,35 @@ export const serviceRequestSchema = serviceRequestObject.superRefine((value, ctx
 
 export const serviceRequestUpdateSchema = serviceRequestObject.pick({ publicTitle: true, serviceType: true, description: true, location: true, preferredDate: true }).partial().refine((value) => Object.keys(value).length > 0, "Není co změnit.");
 
-export const reportSchema = z.object({ targetType: z.enum(["service_request", "buddy_post"]), targetId: z.string().uuid(), reason: z.enum(["spam", "harassment", "illegal", "privacy", "outdated", "other"]), detail: z.string().trim().max(800).default(""), cityId });
+export const reportSchema = z.object({ targetType: z.enum(["service_request", "buddy_post", "community_event"]), targetId: z.string().uuid(), reason: z.enum(["spam", "harassment", "illegal", "privacy", "outdated", "other"]), detail: z.string().trim().max(800).default(""), cityId });
+
+const safeHttpsUrl = z.string().url("Zadejte platný odkaz.").refine((value) => { try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; } catch { return false; } }, "Odkaz musí používat bezpečné HTTPS.");
+
+const communityEventFields = z.object({
+  title: z.string().trim().min(4, "Doplňte název akce.").max(140),
+  category: z.enum(["Kultura", "Sport", "Studium", "Zábava", "Ostatní"]),
+  startsAt: z.string().datetime({ offset: true }),
+  endsAt: z.string().datetime({ offset: true }).optional().or(z.literal("")),
+  venue: z.string().trim().min(2, "Doplňte veřejné místo.").max(160),
+  description: z.string().trim().min(20, "Popis musí mít alespoň 20 znaků.").max(2000),
+  isFree: z.boolean(),
+  priceAmount: z.coerce.number().min(0).max(100_000).optional(),
+  eventUrl: safeHttpsUrl.optional().or(z.literal("")),
+  authorEmail: z.string().trim().email("Zadejte platný e-mail.").max(254),
+  publicVenueConsent: z.boolean().refine(Boolean, "Potvrďte, že nejde o soukromou adresu."),
+  company: honeypot,
+  cityId,
+});
+
+export const communityEventSchema = communityEventFields.superRefine((value, ctx) => {
+  const starts = new Date(value.startsAt).getTime(); const ends = value.endsAt ? new Date(value.endsAt).getTime() : starts;
+  if (starts < Date.now() + 15 * 60 * 1000) ctx.addIssue({ code: "custom", path: ["startsAt"], message: "Začátek musí být alespoň 15 minut v budoucnu." });
+  if (starts > Date.now() + 550 * 24 * 60 * 60 * 1000) ctx.addIssue({ code: "custom", path: ["startsAt"], message: "Akci lze přidat nejvýše 18 měsíců dopředu." });
+  if (ends < starts || ends > starts + 7 * 24 * 60 * 60 * 1000) ctx.addIssue({ code: "custom", path: ["endsAt"], message: "Konec musí následovat po začátku a být nejvýše za 7 dní." });
+  if (value.isFree === false && value.priceAmount == null) ctx.addIssue({ code: "custom", path: ["priceAmount"], message: "Doplňte cenu, nebo označte akci jako zdarma." });
+});
+
+export const communityEventUpdateSchema = communityEventFields.omit({ authorEmail: true, publicVenueConsent: true, company: true, cityId: true }).partial().refine((value) => Object.keys(value).length > 0, "Není co změnit.");
 
 export const buddyPostSchema = z.object({
   activityType: z.enum(["beer", "cinema", "sport", "culture", "study", "trip"]),

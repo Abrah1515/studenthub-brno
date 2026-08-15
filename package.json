@@ -19,6 +19,7 @@
     "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:e2e",
     "check:links": "node --experimental-strip-types scripts/check-links.mjs",
     "check:pwa": "node scripts/check-pwa.mjs",
+    "admin:audit": "node scripts/audit-superadmin.mjs",
     "admin:invite": "node scripts/invite-superadmin.mjs",
     "admin:recover": "node scripts/invite-superadmin.mjs --recover"
   },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { AcademicCatalog, StudentPreference, StudyYear } from "@/lib/types";
+import type { AcademicCatalog, StudentPreference } from "@/lib/types";
 
 import { defaultCitySlug } from "@/lib/cities";
 import { fallbackAcademicCatalog, resolveStudySelection } from "@/lib/universities";
@@ -21,8 +21,10 @@ export function normalizePreference(value: Partial<StudentPreference> & Record<s
   const currentCycle = academicCycleStartYear(now);
   const savedCycle = studyYear && Number.isInteger(value.studyYearCycleStart) ? Number(value.studyYearCycleStart) : null;
   const elapsedCycles = savedCycle == null ? 0 : Math.max(0, currentCycle - savedCycle);
-  const advancedYear = studyYear == null ? null : Math.min(6, studyYear + elapsedCycles) as StudyYear;
-  return { version: 4, cityId: typeof value.cityId === "string" && value.cityId ? value.cityId : defaultCitySlug, universityId: selected.universityId || null, facultyId: selected.facultyId || null, studyYear: advancedYear, studyYearCycleStart: advancedYear == null ? null : currentCycle, completed: Boolean(value.completed) };
+  const candidateYear = studyYear == null ? null : studyYear + elapsedCycles;
+  const advancedYear = isStudyYear(candidateYear) ? candidateYear : null;
+  const requiresNewSelection = studyYear != null && candidateYear != null && !isStudyYear(candidateYear);
+  return { version: 4, cityId: typeof value.cityId === "string" && value.cityId ? value.cityId : defaultCitySlug, universityId: selected.universityId || null, facultyId: selected.facultyId || null, studyYear: advancedYear, studyYearCycleStart: advancedYear == null ? null : currentCycle, completed: requiresNewSelection ? false : Boolean(value.completed) };
 }
 
 export function readPreference(catalog: AcademicCatalog = fallbackAcademicCatalog, now = new Date()): StudentPreference {

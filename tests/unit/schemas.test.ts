@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buddyPostSchema, contactMessageSchema, contentSubmissionSchema, jobSubmissionSchema, pageViewSchema, reportSchema, serviceRequestSchema, serviceRequestUpdateSchema } from "@/lib/schemas";
+import { buddyPostSchema, communityEventSchema, contactMessageSchema, contentSubmissionSchema, jobSubmissionSchema, pageViewSchema, reportSchema, serviceRequestSchema, serviceRequestUpdateSchema } from "@/lib/schemas";
 
 const validRequest = { publicTitle: "Pomoc se zálohou notebooku", name: "Jan Novák", email: "jan@example.cz", phone: "", serviceType: "backup", description: "Potřebuji bezpečně zazálohovat celý notebook.", location: "Brno-střed", preferredDate: "2026-08-10", consent: true, publishConsent: true, company: "" };
 
@@ -28,6 +28,14 @@ describe("validace komunitního obsahu", () => {
   const valid = { organizationName: "Studentský spolek", organizationType: "student_club", universityId: "vut", facultyId: "vut-fekt", contentType: "event", title: "Veřejná technická přednáška", description: "Veřejná přednáška s ověřitelným programem a odkazem na pořadatele.", sourceUrl: "https://www.fekt.vut.cz/", contactEmail: "spolek@example.cz", consent: true, company: "" };
   it("přijme VUT + FEKT a zachová obě ID", () => { const result = contentSubmissionSchema.safeParse(valid); expect(result.success).toBe(true); if (result.success) expect(result.data).toMatchObject({ universityId: "vut", facultyId: "vut-fekt" }); });
   it("odmítne fakultu cizí univerzity a honeypot", () => { expect(contentSubmissionSchema.safeParse({ ...valid, universityId: "muni" }).success).toBe(false); expect(contentSubmissionSchema.safeParse({ ...valid, company: "bot" }).success).toBe(false); });
+});
+
+describe("validace veřejné komunitní akce", () => {
+  const future = new Date(Date.now() + 2 * 86_400_000).toISOString();
+  const valid = { title: "Studentský koncert", category: "Kultura", startsAt: future, endsAt: "", venue: "Klub v centru Brna", description: "Veřejný studentský koncert s přístupným programem.", isFree: true, eventUrl: "https://example.cz/akce", authorEmail: "poradatel@example.cz", publicVenueConsent: true, company: "", cityId: "brno" };
+  it("přijme úplnou budoucí akci", () => expect(communityEventSchema.safeParse(valid).success).toBe(true));
+  it("odmítne minulost, HTTP odkaz, soukromé místo bez souhlasu a honeypot", () => { expect(communityEventSchema.safeParse({ ...valid, startsAt: "2020-01-01T18:00:00Z" }).success).toBe(false); expect(communityEventSchema.safeParse({ ...valid, eventUrl: "http://example.cz" }).success).toBe(false); expect(communityEventSchema.safeParse({ ...valid, publicVenueConsent: false }).success).toBe(false); expect(communityEventSchema.safeParse({ ...valid, company: "robot" }).success).toBe(false); });
+  it("vyžaduje cenu u placené akce a omezuje konec na sedm dní", () => { expect(communityEventSchema.safeParse({ ...valid, isFree: false }).success).toBe(false); expect(communityEventSchema.safeParse({ ...valid, endsAt: new Date(Date.now() + 10 * 86_400_000).toISOString() }).success).toBe(false); });
 });
 
 describe("validace veřejné pomoci, parťáků a soukromé analytiky", () => {

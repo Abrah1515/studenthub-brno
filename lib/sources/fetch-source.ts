@@ -26,12 +26,14 @@ export async function validateSourceUrl(value: string, source: ContentSource) {
 }
 
 async function assertRobotsAllowed(url: URL, source: ContentSource) {
-  const robotsUrl = new URL("/robots.txt", url.origin); const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 5_000);
+  const robotsUrl = new URL("/robots.txt", url.origin); const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 12_000);
   try {
-    await validateSourceUrl(robotsUrl.href, source); const response = await fetch(robotsUrl, { headers: { "user-agent": userAgent }, signal: controller.signal, cache: "no-store" });
+    await validateSourceUrl(robotsUrl.href, source); let response = await fetch(robotsUrl, { headers: { "user-agent": userAgent, accept: "text/plain", connection: "close" }, signal: controller.signal, cache: "no-store" });
     if ([404, 410].includes(response.status)) return;
     if (!response.ok) throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: `Pravidla robots.txt nejsou dočasně dostupná (HTTP ${response.status}); zdroj jsme preventivně nestáhli.` }, { finalUrl: robotsUrl.href, contentType: response.headers.get("content-type") || undefined });
-    const text = await response.text();
+    let text = await response.text();
+    if (/meta\s+http-equiv=["']?refresh/i.test(text) && response.headers.get("set-cookie")) { const cookie = response.headers.get("set-cookie")!.split(";", 1)[0]; await new Promise((resolve) => setTimeout(resolve, 100)); response = await fetch(robotsUrl, { headers: { "user-agent": userAgent, accept: "text/plain", connection: "close", cookie }, signal: controller.signal, cache: "no-store" }); if (!response.ok) throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: `Pravidla robots.txt po session výzvě odpověděla HTTP ${response.status}.` }, { finalUrl: robotsUrl.href, contentType: response.headers.get("content-type") || undefined }); text = await response.text(); }
+    if (!String(response.headers.get("content-type") || "").toLowerCase().startsWith("text/plain")) throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: "Pravidla robots.txt mají neočekávaný MIME typ; zdroj jsme preventivně nestáhli." }, { finalUrl: robotsUrl.href, contentType: response.headers.get("content-type") || undefined });
     if (!robotsAllowsPath(`${url.pathname}${url.search}`, text)) throw new SourceBlockedError({ code: "robots_disallowed", status: "blocked", message: "Stahování této oficiální cesty zakazuje robots.txt; pravidlo respektujeme a zdroj zůstává v ručním režimu." }, { finalUrl: url.href, contentType: "text/plain" });
   } catch (error) {
     if (error instanceof SourceBlockedError) throw error;
@@ -41,7 +43,7 @@ async function assertRobotsAllowed(url: URL, source: ContentSource) {
 
 export async function fetchRegisteredSource(source: ContentSource, conditional: { etag?: string | null; lastModified?: string | null } = {}) {
   let url = await validateSourceUrl(source.sourceUrl, source); await assertRobotsAllowed(url, source);
-  const headers = new Headers({ "user-agent": userAgent, accept: "text/calendar, application/json, application/xml, text/html, application/pdf;q=0.9, */*;q=0.1" });
+  const headers = new Headers({ "user-agent": userAgent, accept: "text/calendar, application/json, application/xml, text/html, application/pdf;q=0.9, */*;q=0.1", connection: "close" });
   if (conditional.etag) headers.set("if-none-match", conditional.etag); if (conditional.lastModified) headers.set("if-modified-since", conditional.lastModified);
   let metaRefreshes = 0;
   for (let redirects = 0; redirects <= 3; redirects += 1) {
@@ -65,7 +67,7 @@ export async function fetchRegisteredSource(source: ContentSource, conditional: 
       const contentType = response.headers.get("content-type") || "application/octet-stream";
       if (contentType.toLowerCase().includes("text/html") && metaRefreshes < 1 && /<meta\s+http-equiv=["']?refresh/i.test(new TextDecoder().decode(body))) {
         const cookie = response.headers.get("set-cookie")?.split(";", 1)[0];
-        if (cookie) { headers.set("cookie", cookie); metaRefreshes += 1; redirects -= 1; continue; }
+        if (cookie) { headers.set("cookie", cookie); metaRefreshes += 1; redirects -= 1; await new Promise((resolve) => setTimeout(resolve, 100)); continue; }
       }
       return { status: response.status, body, contentType, etag: response.headers.get("etag"), lastModified: response.headers.get("last-modified"), finalUrl: url.href };
     } finally { clearTimeout(timer); }

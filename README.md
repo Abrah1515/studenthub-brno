@@ -119,6 +119,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608120016_reprocess_vut_html_schedules.sql` – bezpečně vynutí jednorázové znovunačtení FIT/FSI po opravě strukturovaného parseru; stávající události před úspěšným během nemaže.
 - `202608140017_academic_event_study_years.sql` – přidává ověřený rozsah ročníků 1–6 k akademickým událostem; `NULL` znamená společný termín pro všechny ročníky.
 - `202608140018_fajn_job_feed.sql` – připravuje idempotentní import smluvních brigád, strukturovanou odměnu, bezpečné externí ID a soukromé provozní statistiky bez zpřístupnění feed URL.
+- `202608160019_community_events.sql` – veřejné komunitní akce, neveřejný hash správcovského odkazu a kontakt pořadatele, RLS, automatické skrytí po třech nezávislých hlášeních a archivace ukončených akcí.
 
 ## První hlavní superadmin
 
@@ -133,6 +134,8 @@ pnpm admin:invite
 
 Skript odmítne vytvořit dalšího hlavního superadmina, nastaví shodnou roli `super_admin` v profilu i App metadata a odešle oficiální Supabase pozvánku. Heslo nevytváří ani nezobrazuje. Po dokončení se aktualizuje ignorovaný lokální soubor `ADMIN-PRISTUP-LOKALNE.txt`; `git check-ignore ADMIN-PRISTUP-LOKALNE.txt` musí soubor najít. Obnova přístupu používá stejné lokální proměnné a `pnpm admin:recover`.
 
+Audit již existujícího hlavního účtu spustíte příkazem `pnpm admin:audit`. Kontroluje právě jeden potvrzený účet `super_admin` a shodu Auth App metadata s tabulkou `profiles`; nevypisuje e-mail ani žádný klíč.
+
 Další role (`admin`, `city_editor`, `faculty_editor`) spravuje přihlášený superadmin v Administrace → Správci. Server kontroluje App metadata při přihlášení a RLS profil v databázi; obě vrstvy musí souhlasit.
 
 Administrace je na `/admin`. Bez platné serverově ověřené session přesměruje na `/admin/prihlaseni`.
@@ -143,11 +146,17 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 18 migrací, aplikuje 16 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox a přesně 30 ověřených míst. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 19 migrací, aplikuje 17 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, automatické skrytí komunitní akce a přesně 30 ověřených míst. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
-Preference ročníku je anonymní a zůstává pouze v prohlížeči. Akademický cyklus se v časové zóně Praha překlápí 1. července; uložený ročník se zvýší nejvýše jednou za každý uplynulý cyklus a nikdy nad šest. Ruční změna založí nový referenční cyklus. Událost se na ročník váže jen při jednoznačném údaji v oficiálním zdrojovém textu; společné nebo nejisté termíny zůstávají bez omezení.
+Preference ročníku je anonymní a zůstává pouze v prohlížeči. Akademický cyklus se v časové zóně Praha překlápí 1. července; uložený ročník se zvýší nejvýše jednou za každý uplynulý cyklus. Po překročení šestého ročníku se volba bezpečně zruší a aplikace požádá o nový výběr. Ruční změna založí nový referenční cyklus. Událost se na ročník váže jen při jednoznačném údaji v oficiálním zdrojovém textu; společné nebo nejisté termíny zůstávají bez omezení.
 
 Konektor Fajn‑brigády je v čisté instalaci i produkčním vzoru vypnutý. Neprovádí scraping webu a neukládá kontakty z popisu. Po získání písemného oprávnění nastavte všech pět `FAJN_BRIGADY_*` proměnných pouze na serveru. Parser přijímá omezené XML bez DTD/entit, detailní odkazy pouze na ověřených doménách a mapuje odměnu podle oficiálních číselníků. Import je idempotentní podle `(provider_key, external_id)`; výchozí inkrementální režim při chybějící položce nic nemaže. URL feedu se nezobrazuje ve veřejném ani administrátorském API a testovací XML se konfigurací nedá aktivovat.
+
+## Komunitní kalendář „Co se děje“
+
+Veřejný přepínač na `/{mesto}/kalendar?view=community` odděluje neověřené komunitní akce od oficiálně zdrojovaných školních termínů. Akce se přidává bez účtu a publikuje ihned; server kontroluje budoucí termín, maximální délku, HTTPS odkazy, duplicity, honeypot a denní limit. Obrázek je volitelný, dekóduje se a znovu ukládá jako WebP v bucketu `community-event-images`. E-mail pořadatele a hash správcovského tokenu nejsou veřejné. Pokud je nastavený `RESEND_API_KEY`, autor dostane neveřejný odkaz e-mailem; jinak jej musí uložit z potvrzovací obrazovky. Tři nezávislá hlášení akci automaticky skryjí a cron ukončené akce archivuje.
+
+Novým uživatelům se po cookies a úvodním výběru zobrazí plný návod. Existujícím uživatelům se pro verzi `community-calendar-v1` zobrazí jednorázové stručné vysvětlení; z menu lze návod kdykoli otevřít znovu.
 
 Automatický tok:
 

@@ -18,6 +18,11 @@ export function academicCycleStartYear(date = new Date()) {
   return month >= 7 ? year : year - 1;
 }
 
+export function currentAcademicYear(date = new Date()) {
+  const start = academicCycleStartYear(date);
+  return `${start}/${start + 1}`;
+}
+
 export function inferStudyYears(originalText?: string | null): StudyYear[] | undefined {
   if (!originalText) return undefined;
   const text = originalText.normalize("NFKC").toLowerCase();

@@ -11,6 +11,7 @@ export async function POST(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (url && anon) {
+    try {
     const response = NextResponse.json({ ok: true });
     const supabase = createServerClient(url, anon, { cookies: { getAll: () => [], setAll: (values) => values.forEach(({ name, value, options }) => response.cookies.set(name, value, options)) } });
     const { data, error } = await supabase.auth.signInWithPassword({ email: body.email, password: body.password });
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
     const { data: profile, error: profileError } = await supabase.from("profiles").select("role,city_id,faculty_id").eq("id", data.user.id).single();
     if (profileError || !profile || profile.role !== claimedRole || (profile.city_id || null) !== claimedCityId || (profile.faculty_id || null) !== claimedFacultyId) return NextResponse.json({ message: "Role účtu není synchronizovaná. Kontaktujte hlavního správce." }, { status: 403 });
     return response;
+    } catch { return NextResponse.json({ message: "Přihlašovací služba je dočasně nedostupná. Zkuste to znovu." }, { status: 503 }); }
   }
   const localAllowed = process.env.DEMO_MODE === "true" && process.env.ALLOW_LOCAL_FILE_STORE === "true";
   const expectedPassword = process.env.ADMIN_DEMO_PASSWORD;
