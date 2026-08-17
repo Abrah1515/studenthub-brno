@@ -9,6 +9,7 @@ import { useStudentPreference } from "@/lib/client-preferences";
 import { formatShortDate } from "@/lib/format";
 import { useAcademicCatalog } from "@/components/academic-catalog-provider";
 import type { StudySelection } from "@/lib/academic-events";
+import { relevantAcademicEvents } from "@/lib/event-lifecycle";
 
 export function DashboardHeading({ city, selection }: { city: City; selection?: StudySelection }) {
   const catalog = useAcademicCatalog(); const preference = useStudentPreference(catalog); const selected = selection || preference;
@@ -26,7 +27,7 @@ export function PersonalizedDashboard({ events, offers, jobs, city, selection }:
     const matchesUniversity = (ids?: string[]) => !selected.universityId || !ids?.length || ids.includes(selected.universityId);
     const matchesFaculty = (ids?: string[]) => !selected.facultyId || !ids?.length || ids.includes(selected.facultyId);
     return {
-      events: events.filter((item) => item.scope === "city" || item.scope === "brno" || (!selected.universityId ? true : item.universityId === selected.universityId && (!selected.facultyId || !item.facultyId || item.facultyId === selected.facultyId))).slice(0, 2),
+      events: relevantAcademicEvents(events.filter((item) => item.scope === "city" || item.scope === "brno" || (!selected.universityId ? true : item.universityId === selected.universityId && (!selected.facultyId || !item.facultyId || item.facultyId === selected.facultyId)))).slice(0, 2),
       offers: offers.filter((item) => matchesUniversity(item.universityIds) && matchesFaculty(item.facultyIds)).slice(0, 2),
       jobs: jobs.filter((item) => matchesUniversity(item.universityIds) && matchesFaculty(item.facultyIds)).slice(0, 2),
     };

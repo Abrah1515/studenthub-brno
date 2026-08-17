@@ -5,12 +5,13 @@ import type { City } from "@/lib/cities";
 import { getAcademicEvents, getJobs, getOffers, getPlaces } from "@/lib/public-data";
 import { formatShortDate } from "@/lib/format";
 import { universityById } from "@/lib/universities";
+import { relevantAcademicEvents } from "@/lib/event-lifecycle";
 
 export async function SchoolHub({ universityId, city }: { universityId: string; city: City }) {
   const university = universityById(universityId); if (!university) return null;
   const base = `/${city.slug}`;
   const [events, places, offers, jobs] = await Promise.all([getAcademicEvents(city.id), getPlaces(city.id), getOffers(city.id), getJobs(city.id)]);
-  const schoolEvents = events.filter((item) => item.scope === "city" || item.scope === "brno" || item.universityId === universityId).slice(0, 4);
+  const schoolEvents = relevantAcademicEvents(events.filter((item) => item.scope === "city" || item.scope === "brno" || item.universityId === universityId)).slice(0, 4);
   const schoolOffers = offers.filter((item) => !item.universityIds?.length || item.universityIds.includes(universityId)).slice(0, 4);
   const schoolPlaces = places.filter((item) => !item.universityIds?.length || item.universityIds.includes(universityId));
   const schoolJobs = jobs.filter((item) => !item.universityIds?.length || item.universityIds.includes(universityId));

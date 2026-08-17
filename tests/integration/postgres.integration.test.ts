@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(19);
+      expect(files).toHaveLength(20);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -53,7 +53,8 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         }
       }
       await db.exec(await readFile("supabase/seed.sql", "utf8"));
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(30);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(29);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from (select city_id,dedupe_key from public.places where status='approved' and is_demo=false group by city_id,dedupe_key having count(*) > 1) duplicates")).rows[0].count).toBe(0);
       await db.exec(`
         insert into auth.users(id,email,email_confirmed_at) values
           ('71111111-1111-4111-8111-111111111111','faculty@example.cz',now()),
@@ -97,6 +98,10 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
           ('community_event','93111111-1111-4111-8111-111111111111',repeat('2',64),'spam','brno'),
           ('community_event','93111111-1111-4111-8111-111111111111',repeat('3',64),'spam','brno');
       `);
+      const immediatelyPublished = await db.query<{ moderation_status: string }>("insert into public.buddy_posts(id,owner_id,city_id,activity_type,approximate_location,starts_at,description,max_participants,status,expires_at) values ('91111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111111','brno','study','Testovací knihovna','2030-10-14 18:00:00+02','Příspěvek se po ověření e-mailu zveřejní bez čekání na administrátora.',3,'active','2030-10-15 06:00:00+02') returning moderation_status");
+      expect(immediatelyPublished.rows[0].moderation_status).toBe("approved");
+      await db.exec("insert into public.content_reports(target_type,target_id,reporter_session_hash,reason,city_id) values ('buddy_post','91111111-1111-4111-8111-111111111112',repeat('4',64),'spam','brno'),('buddy_post','91111111-1111-4111-8111-111111111112',repeat('5',64),'spam','brno'),('buddy_post','91111111-1111-4111-8111-111111111112',repeat('6',64),'spam','brno')");
+      expect((await db.query<{ moderation_status: string; report_count: number }>("select moderation_status,report_count from public.buddy_posts where id='91111111-1111-4111-8111-111111111112'")).rows[0]).toEqual({ moderation_status: "hidden", report_count: 3 });
       await expect(db.exec("update public.buddy_join_requests set status='accepted' where id='92111111-1111-4111-8111-111111111112'")).rejects.toThrow(/capacity/i);
       expect((await db.query<{ status: string; report_count: number }>("select status,report_count from public.community_events where id='93111111-1111-4111-8111-111111111111'")).rows[0]).toEqual({ status: "hidden", report_count: 3 });
       expect((await db.query<{ archive_expired_community_events: number }>("select public.archive_expired_community_events()")).rows[0].archive_expired_community_events).toBe(1);

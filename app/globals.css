@@ -169,7 +169,7 @@ button { color: inherit; }
 .footer p { margin: 0; }
 .footer div { display: flex; gap: 14px; flex-wrap: wrap; }
 .footer button { padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
-.bottom-nav, .floating-help, .mobile-only { display: none; }
+.bottom-nav, .floating-help, .mobile-only, .mobile-filter-toolbar { display: none; }
 .backdrop { display: none; }
 
 .consent-backdrop { position: fixed; inset: 0; z-index: 2100; display: grid; place-items: center; padding: 18px; background: rgb(3 15 11 / 68%); }
@@ -203,7 +203,7 @@ button { color: inherit; }
   .mobile-only, .mobile-brand { display: block; }
   .mobile-brand .brand > span:last-child { display: none; }
   .mobile-brand .brand-mark { width: 34px; height: 34px; }
-  .bottom-nav { display: grid; position: fixed; z-index: 32; bottom: 0; left: 0; right: 0; height: 66px; grid-template-columns: repeat(5, 1fr); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(18px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  .bottom-nav { display: grid; position: fixed; z-index: 900; bottom: 0; left: 0; right: 0; height: 66px; grid-template-columns: repeat(5, 1fr); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(18px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
   .bottom-nav a { min-width: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2px; color: var(--muted); font-size: 9px; font-weight: 750; }
   .bottom-nav a.active { color: var(--accent-2); }
   .floating-help { display: grid; position: fixed; z-index: 34; right: 16px; bottom: 79px; width: 47px; height: 47px; place-items: center; background: var(--accent); color: white; border-radius: 50%; box-shadow: 0 8px 22px rgb(7 83 60 / 30%); }
@@ -341,6 +341,16 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
 
 /* Directory pages */
 .filter-panel { padding: 14px; display: grid; grid-template-columns: minmax(220px, 1.6fr) repeat(3, minmax(145px, .7fr)); gap: 10px; align-items: end; box-shadow: none; }
+.mobile-filter-toolbar { align-items: center; gap: 8px; }
+.mobile-filter-toolbar .button { min-width: 0; }
+.filter-count { min-width: 21px; height: 21px; display: inline-grid; place-items: center; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; }
+.checkbox-row { min-height: 42px; display: flex !important; align-items: center; gap: 8px !important; padding: 0 4px; cursor: pointer; }
+.checkbox-row input { width: 18px !important; min-height: 18px !important; height: 18px; accent-color: var(--accent); }
+.event-result-group { display: grid; gap: 10px; }
+.result-group-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px 2px; }
+.result-group-heading h2 { margin: 0; font-size: 17px; }
+.result-group-heading > span { min-width: 24px; height: 24px; display: grid; place-items: center; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 10px; font-weight: 800; }
+.info-state { padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--blue) 35%, var(--line)); border-radius: 8px; background: var(--blue-soft); color: var(--ink); font-size: 12px; }
 .filter-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
 .filter-panel label, .form-grid > label { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: 11px; font-weight: 750; }
 .filter-panel input, .filter-panel select, .form-grid input, .form-grid select, .form-grid textarea, .admin-form input, .admin-form select { width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--ink); padding: 9px 11px; }
@@ -386,6 +396,10 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
 .place-icon { width: 42px; height: 42px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); border-radius: 8px; }
 .place-details { padding: 0 13px 13px 66px; }.place-details p { margin: 0 0 9px; color: var(--muted); font-size: 11px; }.place-details dl { margin: 0 0 10px; }.place-details dt { color: var(--muted); font-size: 9px; text-transform: uppercase; }.place-details dd { margin: 1px 0; font-size: 11px; font-weight: 700; }.place-details > div { display: flex; gap: 7px; }.place-details .button { min-height: 35px; font-size: 10px; }
 .map-shell { position: sticky; top: 86px; overflow: hidden; box-shadow: none; }.leaflet-host { height: min(620px, calc(100vh - 180px)); min-height: 430px; background: var(--surface-2); }.map-caption { min-height: 44px; padding: 0 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 10px; color: var(--muted); }.map-caption span { display: flex; align-items: center; gap: 5px; }
+.location-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.location-toolbar p { margin: 0; font-size: 11px; }
+.location-note, .place-distance { color: var(--accent-2) !important; }
+.location-error { color: var(--danger); }
 .offer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }.offer-card { position: relative; padding: 18px; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; display: flex; flex-direction: column; min-height: 300px; }.offer-card.featured { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); box-shadow: 0 7px 24px color-mix(in srgb, var(--accent) 10%, transparent); }.offer-card.featured::before { content: "Doporučené"; position: absolute; right: 12px; top: 0; transform: translateY(-50%); padding: 4px 7px; background: var(--accent); color: white; border-radius: 4px; font-size: 8px; font-weight: 850; text-transform: uppercase; }
 .offer-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }.offer-value { min-width: 58px; height: 42px; padding: 0 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-2); border-radius: 8px; font-size: 14px; font-weight: 900; }.offer-card .partner-name { color: var(--ink); font-weight: 750; }.offer-card .card-actions { margin-top: auto; padding-top: 10px; }.offer-card .source-note { margin-top: 9px; }
 .result-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -427,10 +441,18 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
   .page-heading .heading-actions .button { max-width: 100%; }
   .calendar-layout, .places-layout { grid-template-columns: 1fr; }
   .month-card, .map-shell, .help-aside { position: static; }
-  .map-shell { grid-row: 1; }
   .leaflet-host { height: 390px; min-height: 0; }
   .help-layout { grid-template-columns: 1fr; }
   .help-aside ol { grid-template-columns: repeat(3, 1fr); }.help-aside li { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .mobile-filter-toolbar { display: flex; }
+  .collapsible-filter-panel { display: none; }
+  .collapsible-filter-panel.is-open { display: grid; grid-template-columns: 1fr; }
+  .collapsible-filter-panel .search-field { grid-column: auto; }
+  .places-layout { display: flex; flex-direction: column; }
+  .places-list, .map-shell { width: 100%; }
+  .map-shell { order: 2; }
 }
 @media (max-width: 720px) {
   .filter-panel, .places-filters, .offers-filters, .job-filters { grid-template-columns: 1fr; }

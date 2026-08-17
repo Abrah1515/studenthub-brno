@@ -19,6 +19,7 @@ export async function POST(request: Request) {
   try { await insertRecord("content_reports", { target_type: parsed.data.targetType, target_id: parsed.data.targetId, reporter_id: user?.id || null, reporter_session_hash: user ? null : owner.hash, reason: parsed.data.reason, detail: parsed.data.detail, status: "new", city_id: String(target.city_id || "brno") }); }
   catch (error) { if (typeof error === "object" && error && "code" in error && error.code === "23505") return NextResponse.json({ message: "Tento obsah jste už nahlásili." }, { status: 409 }); throw error; }
   if (parsed.data.targetType === "community_event") { const count = existingReports.filter((report) => report.target_type === "community_event" && String(report.target_id) === parsed.data.targetId && ["new", "reviewed"].includes(String(report.status))).length + 1; if (count >= 3) await updateRecord("community_events", parsed.data.targetId, { status: "hidden", report_count: count }); }
+  if (parsed.data.targetType === "buddy_post") { const count = existingReports.filter((report) => report.target_type === "buddy_post" && String(report.target_id) === parsed.data.targetId && ["new", "reviewed"].includes(String(report.status))).length + 1; await updateRecord("buddy_posts", parsed.data.targetId, { report_count: count, ...(count >= 3 ? { moderation_status: "hidden" } : {}) }); }
   const response = NextResponse.json({ message: "Hlášení jsme přijali k posouzení." }, { status: 201 });
   if (owner.isNew) response.cookies.set(ownerCookieName, owner.token, ownerCookieOptions);
   return response;
