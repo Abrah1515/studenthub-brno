@@ -1,15 +1,15 @@
 # StudentHub Brno
 
-Nezávislá PWA pro studenty všech brněnských vysokých škol, připravená k produkčnímu nasazení po dokončení checklistu v tomto dokumentu. Spojuje ověřené veřejné akademické termíny, užitečná místa, nabídky, brigády, moderované žádosti o lokální pomoc, hledání parťáků a bezpečnou Studentskou komunitu. Není oficiální službou žádné univerzity a nepřihlašuje se do školních informačních systémů.
+Nezávislá PWA pro studenty všech brněnských vysokých škol, připravená k produkčnímu nasazení po dokončení checklistu v tomto dokumentu. Spojuje ověřené veřejné akademické termíny, užitečná místa, brigády, moderované žádosti o lokální pomoc, hledání parťáků a bezpečnou Studentskou komunitu. Není oficiální službou žádné univerzity a nepřihlašuje se do školních informačních systémů.
 
 ## Co aplikace obsahuje
 
 - personalizovaný dashboard bez registrace pro MUNI, VUT, MENDELU, VETUNI a JAMU;
-- 27 fakult a městské routy `/brno`, `/brno/kalendar`, `/brno/mista`, `/brno/nabidky`, `/brno/brigady` a `/brno/skoly/<škola>`; původní URL bezpečně přesměrovávají;
+- 27 fakult a městské routy `/brno`, `/brno/kalendar`, `/brno/mista`, `/brno/brigady` a `/brno/skoly/<škola>`; původní URL bezpečně přesměrovávají a vypnutá `/brno/nabidky` vede na přehled;
 - fakultní kalendář s validovanými URL parametry (`?university=muni&faculty=muni-fi&year=2`), volitelným ročníkem 1–6, sjednocením univerzitních a fakultních termínů, odkazem na zdroj, sdílením, Google Calendar a korektním `.ics` exportem;
 - povinný sekvenční onboarding města/školy/fakulty bez registrace, vědomé pokračování pro celé město a aktuální studijní kontext pod značkou v desktopové i mobilní navigaci;
 - Leaflet/OpenStreetMap mapu i plně použitelný seznam ověřených míst;
-- nabídky a brigády s moderací, expirací a označením sponzorství/affiliate;
+- brigády s moderací, expirací a označením zvýraznění; modul nabídek zůstává v kódu a databázi, ale ve veřejném webu je výchozím produkčním příznakem vypnutý;
 - moderované veřejné žádosti o lokální pomoc s neveřejnými kontakty, filtry, vlastnickým tokenem, úpravou/smazáním a hlášením;
 - sekci „Hledám parťáka“ pro ověřené Supabase účty s filtry, kapacitou, žádostmi o připojení, expirací, moderací a bezpečnostními doporučeními;
 - sekci `/komunita` s průběžně stránkovaným feedem, školními filtry, komentáři, reakcemi „Užitečné“, nejužitečnější odpovědí, obrázkem po bezpečné konverzi a moderací po nahlášení;
@@ -21,7 +21,7 @@ Nezávislá PWA pro studenty všech brněnských vysokých škol, připravená k
 
 Service worker používá verzovanou cache jen pro `/_next/static/`, fonty a vlastní brand obrázky. Navigace se vždy načítá ze sítě a při výpadku vrátí pouze `offline.html`; `/admin`, `/api`, `/auth`, účty a soukromé přehledy se nikdy necachují. Aktualizace workeru nevyvolává automatický reload, takže nemůže vzniknout obnovovací smyčka.
 
-Veřejné UI nikdy nepoužívá falešné partnery, brigády ani „výplňové“ akademické termíny. Nabídky a brigády jsou po čisté instalaci prázdné. Ověřený seed obsahuje jen ručně ověřené veřejné termíny a reálná místa s odkazy na zdroje.
+Veřejné UI nikdy nepoužívá falešné partnery, brigády ani „výplňové“ akademické termíny. Nabídky jsou ve veřejném webu vypnuté a brigády jsou po čisté instalaci prázdné. Ověřený seed obsahuje jen ručně ověřené veřejné termíny, skutečné veřejné akce a reálná místa s odkazy na zdroje.
 
 ## Požadavky
 
@@ -65,6 +65,7 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `RATE_LIMIT_SALT` | pouze server | ano | pseudonymizace IP pro lokální rate limit |
 | `SYNC_USER_AGENT` | server | ano | identifikace slušného crawleru s kontaktem |
 | `NEXT_PUBLIC_ADS_ENABLED` | klient/build | ne | `true` pouze po obchodním a cookie nastavení |
+| `NEXT_PUBLIC_OFFERS_ENABLED` | klient/build | ne | jediný veřejný příznak modulu nabídek; v produkci ponechat `false` |
 | `NEXT_PUBLIC_CONTACT_EMAIL` | build | doporučeno | veřejný kontakt |
 | `NEXT_PUBLIC_PARTNER_EMAIL` | build | doporučeno | kontakt pro partnery |
 | `CONTACT_TO_EMAIL` / `CONTACT_FROM_EMAIL` | pouze server | ano pro formulář | pevný příjemce a ověřená odesílací identita; e-mail návštěvníka se používá jen jako Reply-To |
@@ -121,6 +122,9 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608140017_academic_event_study_years.sql` – přidává ověřený rozsah ročníků 1–6 k akademickým událostem; `NULL` znamená společný termín pro všechny ročníky.
 - `202608140018_fajn_job_feed.sql` – připravuje idempotentní import smluvních brigád, strukturovanou odměnu, bezpečné externí ID a soukromé provozní statistiky bez zpřístupnění feed URL.
 - `202608160019_community_events.sql` – veřejné komunitní akce, neveřejný hash správcovského odkazu a kontakt pořadatele, RLS, automatické skrytí po třech nezávislých hlášeních a archivace ukončených akcí.
+- `202608170020_event_relevance_places_buddy.sql` – přesnější akademická relevance, rozšířená metadata míst a bezpečnější vazby sekce Hledám parťáka.
+- `202608170021_student_community.sql` – ověřené účty komunitního feedu, příspěvky, komentáře, reakce, hlášení, audit moderace, RLS a privátní úložiště obrázků.
+- `202608220022_content_focus_update.sql` – 16 ověřených veřejných akcí, 7 dalších oficiálních míst, původ a zdravotní stav zdrojů komunitních akcí, deduplikace a bezpečná fronta ruční kontroly.
 
 ## První hlavní superadmin
 
@@ -147,7 +151,7 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 21 migrací, aplikuje 19 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, vytvoření/úpravu/soft delete komunitního příspěvku, komentáře, unikátní reakce, nejužitečnější odpověď, automatické skrytí po třech hlášeních a přesně 29 ověřených míst. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 22 migrací, aplikuje 20 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, vytvoření/úpravu/soft delete komunitního příspěvku, komentáře, unikátní reakce, nejužitečnější odpověď, automatické skrytí po třech hlášeních, 16 ověřených veřejných akcí a přesně 36 ověřených míst. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
 Preference ročníku je anonymní a zůstává pouze v prohlížeči. Akademický cyklus se v časové zóně Praha překlápí 1. července; uložený ročník se zvýší nejvýše jednou za každý uplynulý cyklus. Po překročení šestého ročníku se volba bezpečně zruší a aplikace požádá o nový výběr. Ruční změna založí nový referenční cyklus. Událost se na ročník váže jen při jednoznačném údaji v oficiálním zdrojovém textu; společné nebo nejisté termíny zůstávají bez omezení.
 
@@ -157,7 +161,9 @@ Konektor Fajn‑brigády je v čisté instalaci i produkčním vzoru vypnutý. N
 
 Veřejný přepínač na `/{mesto}/kalendar?view=community` odděluje neověřené komunitní akce od oficiálně zdrojovaných školních termínů. Akce se přidává bez účtu a publikuje ihned; server kontroluje budoucí termín, maximální délku, HTTPS odkazy, duplicity, honeypot a denní limit. Obrázek je volitelný, dekóduje se a znovu ukládá jako WebP v bucketu `community-event-images`. E-mail pořadatele a hash správcovského tokenu nejsou veřejné. Pokud je nastavený `RESEND_API_KEY`, autor dostane neveřejný odkaz e-mailem; jinak jej musí uložit z potvrzovací obrazovky. Tři nezávislá hlášení akci automaticky skryjí a cron ukončené akce archivuje.
 
-Novým uživatelům se po cookies a úvodním výběru zobrazí plný návod. Existujícím uživatelům se pro verzi `student-community-v2` zobrazí jednorázové stručné vysvětlení rozdělení „Co se děje“, „Hledám parťáka“ a „Studentská komunita“; z menu lze návod kdykoli otevřít znovu.
+Události označené „Veřejný zdroj“ pocházejí z oficiálních veřejných kalendářů pořadatelů. Každý zdroj se kontroluje nejvýše přibližně jednou za devět hodin; selhání jednoho odkazu nezastaví ostatní. Neočekávaný MIME typ, PDF nebo změněný či nejednoznačný obsah se nikdy automaticky nepřepíše a přejde do stavu `needs_review`. Záznam může být archivován až po dvou úspěšných HTML kontrolách, které jednoznačně potvrdí jeho odstranění ze zdroje.
+
+Novým uživatelům se po cookies a úvodním výběru zobrazí plný návod. Existujícím uživatelům se pro verzi `studenthub-focus-v3` zobrazí jednorázové stručné vysvětlení rozdělení „Co se děje“, „Hledám parťáka“ a „Studentská komunita“; návod má jedinou akci „Rozumím“ a z menu jej lze kdykoli otevřít znovu.
 
 Automatický tok:
 
@@ -235,6 +241,7 @@ DEMO_MODE=false
 ALLOW_LOCAL_FILE_STORE=false
 ALLOW_VERIFIED_FALLBACK=false
 NEXT_PUBLIC_ADS_ENABLED=false
+NEXT_PUBLIC_OFFERS_ENABLED=false
 FAJN_BRIGADY_FEED_ENABLED=false
 FAJN_BRIGADY_PERMISSION_CONFIRMED=false
 FAJN_BRIGADY_FEED_URL=

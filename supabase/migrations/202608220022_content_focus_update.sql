@@ -1,0 +1,111 @@
+-- Ověřené veřejné akce a další praktická místa pro produkční brněnský katalog.
+-- Komunitní autory dál chrání neveřejné sloupce a RLS; externí záznamy autora nemají.
+
+alter table public.community_events
+  add column if not exists organizer text,
+  add column if not exists source_type text not null default 'community',
+  add column if not exists source_url text,
+  add column if not exists source_external_id text,
+  add column if not exists last_verified_at timestamptz,
+  add column if not exists source_sync_status text not null default 'community',
+  add column if not exists source_miss_count integer not null default 0,
+  add column if not exists source_content_hash text;
+
+alter table public.community_events alter column author_email drop not null;
+alter table public.community_events alter column management_token_hash drop not null;
+alter table public.community_events drop constraint if exists community_events_source_type_check;
+alter table public.community_events add constraint community_events_source_type_check
+  check (source_type in ('community','external'));
+alter table public.community_events drop constraint if exists community_events_source_url_check;
+alter table public.community_events add constraint community_events_source_url_check
+  check (source_url is null or source_url ~ '^https://');
+alter table public.community_events drop constraint if exists community_events_source_sync_status_check;
+alter table public.community_events add constraint community_events_source_sync_status_check
+  check (source_sync_status in ('community','verified','needs_review','unavailable'));
+alter table public.community_events drop constraint if exists community_events_source_miss_count_check;
+alter table public.community_events add constraint community_events_source_miss_count_check
+  check (source_miss_count >= 0);
+alter table public.community_events drop constraint if exists community_events_external_provenance_check;
+alter table public.community_events add constraint community_events_external_provenance_check check (
+  (source_type = 'community' and author_email is not null and management_token_hash is not null)
+  or
+  (source_type = 'external' and organizer is not null and source_url is not null and source_external_id is not null and last_verified_at is not null)
+);
+
+-- Veřejné výstavy mohou trvat déle než komunitní akce; komunitní limit sedmi dní zůstává.
+alter table public.community_events drop constraint if exists community_events_check;
+alter table public.community_events add constraint community_events_duration_check check (
+  ends_at is null or (
+    ends_at >= starts_at and
+    ((source_type = 'community' and ends_at <= starts_at + interval '7 days') or
+     (source_type = 'external' and ends_at <= starts_at + interval '180 days'))
+  )
+);
+alter table public.community_events drop constraint if exists community_events_check1;
+alter table public.community_events add constraint community_events_price_check check (
+  (is_free and coalesce(price_amount,0) = 0)
+  or
+  (not is_free and (source_type = 'external' or price_amount is not null))
+);
+
+create unique index if not exists community_events_external_source_unique
+  on public.community_events(city_id,source_external_id)
+  where source_type = 'external' and source_external_id is not null;
+create index if not exists community_events_source_health_idx
+  on public.community_events(source_sync_status,last_verified_at)
+  where source_type = 'external' and status = 'published';
+
+-- Izolovaný pomocný hash pouze pro seed; nevyžaduje volitelné rozšíření pgcrypto.
+create schema studenthub_content_seed;
+create function studenthub_content_seed.digest(value text, algorithm text) returns bytea
+language sql immutable set search_path = '' as $$
+  select decode(md5(value) || md5(value || algorithm), 'hex')
+$$;
+set search_path = studenthub_content_seed, public;
+
+insert into public.community_events
+  (id,city_id,title,category,starts_at,ends_at,venue,description,is_free,price_amount,currency,event_url,image_url,author_email,management_token_hash,duplicate_fingerprint,status,organizer,source_type,source_url,source_external_id,last_verified_at,source_sync_status)
+values
+('93222222-2222-4222-8222-222222222201','brno','Sochy mezi květy','Kultura','2026-07-01 09:00:00+02','2026-09-30 17:00:00+02','Botanická zahrada PřF MUNI, Kotlářská 267/2','Devátý ročník výstavy děl studentů sochařství FaVU VUT v zahradě a sklenících. Venkovní část je bezplatná, vstup do skleníků se řídí běžným ceníkem. Vlastní shrnutí StudentHubu podle veřejného zdroje.',true,null,'CZK','https://www.sci.muni.cz/bot_zahr/kalendar-akci/2026_devata-vystava-vytvarnych-del-studentu-socharstvi-favu-vut-sochy-mezi-kvety',null,null,null,encode(digest('muni-bot-sochy-2026','sha256'),'hex'),'published','Botanická zahrada PřF MUNI a FaVU VUT','external','https://www.sci.muni.cz/bot_zahr/kalendar-akci/2026_devata-vystava-vytvarnych-del-studentu-socharstvi-favu-vut-sochy-mezi-kvety','muni-bot-sochy-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222202','brno','Prvákoviny MUNI 2026','Studium','2026-08-24 09:00:00+02','2026-09-18 18:00:00+02','Brno – místa jednotlivých programů uvádí registrace MUNI','Seznamovací a informační program pro nově nastupující studující MUNI. Konkrétní termín a místo se liší podle fakulty; před návštěvou je nutná kontrola programu. Vlastní shrnutí StudentHubu.',true,null,'CZK','https://www.muni.cz/kalendar/zari-2026',null,null,null,encode(digest('muni-prvakoviny-2026','sha256'),'hex'),'published','Masarykova univerzita','external','https://www.muni.cz/kalendar/zari-2026','muni-prvakoviny-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222203','brno','Prvákoviny MUNI MED – skupina 1','Studium','2026-08-31 09:00:00+02','2026-09-01 18:00:00+02','Univerzitní kampus Bohunice – podle pokynů pořadatele','Úvodní program pro prváky všeobecného a zubního lékařství ve skupině 1. Přesný časový rozpis je na webu pořadatele. Vlastní shrnutí StudentHubu.',true,null,'CZK','https://www.muni.cz/kalendar/zari-2026',null,null,null,encode(digest('muni-med-prvakoviny-g1-2026','sha256'),'hex'),'published','Lékařská fakulta MUNI','external','https://www.muni.cz/kalendar/zari-2026','muni-med-prvakoviny-g1-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222204','brno','EARLI SIG26: Argumentation, Dialogue and Reasoning in the Age of AI','Studium','2026-09-01 09:00:00+02','2026-09-03 18:00:00+02','Filozofická fakulta MUNI, Arna Nováka 1','Mezinárodní odborná konference o argumentaci, dialogu a uvažování v době umělé inteligence. Účast a registraci je nutné ověřit u pořadatele. Vlastní shrnutí StudentHubu.',false,null,'CZK','https://www.muni.cz/kalendar/zari-2026',null,null,null,encode(digest('muni-earli-sig26-2026','sha256'),'hex'),'published','Filozofická fakulta MUNI','external','https://www.muni.cz/kalendar/zari-2026','muni-earli-sig26-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222205','brno','RELANG Workshop 2026','Studium','2026-09-01 09:00:00+02','2026-09-03 18:00:00+02','Centrum jazykového vzdělávání MUNI, Komenského náměstí 2','Národní workshop věnovaný propojování jazykových kurikul, testů a zkoušek s CEFR. Kapacitu a podmínky účasti uvádí pořadatel. Vlastní shrnutí StudentHubu.',false,null,'CZK','https://www.muni.cz/kalendar/zari-2026',null,null,null,encode(digest('muni-relang-2026','sha256'),'hex'),'published','Centrum jazykového vzdělávání MUNI','external','https://www.muni.cz/kalendar/zari-2026','muni-relang-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222206','brno','Festival vědy 2026','Studium','2026-09-04 09:00:00+02','2026-09-06 18:00:00+02','Brněnské výstaviště, pavilon A','Třídenní přehlídka vědy, techniky a historie s expozicemi a popularizačním programem v pavilonech A1 a A2. Vlastní shrnutí StudentHubu podle veřejného zdroje.',true,null,'CZK','https://www.recetox.muni.cz/o-nas/kalendar-akci?view=zari-2026',null,null,null,encode(digest('recetox-festival-vedy-2026','sha256'),'hex'),'published','Festival vědy Brno a zapojené instituce','external','https://www.recetox.muni.cz/o-nas/kalendar-akci?view=zari-2026','recetox-festival-vedy-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222207','brno','Rooted Everywhere','Kultura','2026-09-07 10:00:00+02','2026-09-19 18:00:00+02','Distillery, Pekařská 78 a Galerie FaVU','Sympozium propojující studující a absolventy FaVU prostřednictvím výstavy a doprovodného programu. Aktuální program je na webu fakulty. Vlastní shrnutí StudentHubu.',true,null,'CZK','https://www.favu.vut.cz/studenti/aktuality-vyzvy/aktuality-a-akce-f26745/sympozium-rooted-everywhere-propojeni-studujicich-a-alumni-favu-7-19-zari-2026-distillery-a-galerie-favu-d356908',null,null,null,encode(digest('favu-rooted-everywhere-2026','sha256'),'hex'),'published','Fakulta výtvarných umění VUT','external','https://www.favu.vut.cz/studenti/aktuality-vyzvy/aktuality-a-akce-f26745/sympozium-rooted-everywhere-propojeni-studujicich-a-alumni-favu-7-19-zari-2026-distillery-a-galerie-favu-d356908','favu-rooted-everywhere-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222208','brno','Noc vědy 2026','Studium','2026-09-25 17:00:00+02','2026-09-25 23:00:00+02','Areály PřF MUNI Kotlářská a Univerzitní kampus Bohunice','Večer otevřených laboratoří, experimentů, workshopů, přednášek a setkání s vědci v obou brněnských areálech PřF MUNI. Vstup je zdarma. Vlastní shrnutí StudentHubu.',true,null,'CZK','https://www.sci.muni.cz/kalendar-akci/u/noc-vedy-2026',null,null,null,encode(digest('muni-noc-vedy-2026','sha256'),'hex'),'published','Přírodovědecká fakulta MUNI','external','https://www.sci.muni.cz/kalendar-akci/u/noc-vedy-2026','muni-noc-vedy-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222209','brno','Festival Prototyp 2026','Kultura','2026-10-01 18:00:00+02','2026-10-03 23:00:00+02','Centrum Brna – finální trasu zveřejní pořadatel','Tři večery světla, projekcí a digitálních instalací. Hlavní venkovní trasa bude přístupná zdarma, vybrané interiéry mohou být placené. Vlastní shrnutí StudentHubu.',true,null,'CZK','https://cosedeje.brno.cz/w/festival-prototyp-poprve-v-ulicich-centrum-brna-se-promeni-v-galerii-svetla-a-digitalniho-umeni',null,null,null,encode(digest('brno-prototyp-2026','sha256'),'hex'),'published','Festival Prototyp','external','https://cosedeje.brno.cz/w/festival-prototyp-poprve-v-ulicich-centrum-brna-se-promeni-v-galerii-svetla-a-digitalniho-umeni','brno-prototyp-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222210','brno','ICRC DAYS 2026','Studium','2026-10-06 09:00:00+02','2026-10-07 18:00:00+02','Mezinárodní centrum klinického výzkumu, Pekařská 53','Druhý ročník odborné konference Mezinárodního centra klinického výzkumu. Registraci a přesné sály je nutné ověřit u pořadatele. Vlastní shrnutí StudentHubu.',false,null,'CZK','https://www.muni.cz/kalendar/rijen-2026',null,null,null,encode(digest('muni-icrc-days-2026','sha256'),'hex'),'published','FNUSA-ICRC','external','https://www.muni.cz/kalendar/rijen-2026','muni-icrc-days-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222211','brno','Genome Engineering To Model Diseases And Characterize Human Genes','Studium','2026-10-08 16:00:00+02',null,'MUNI / CEITEC Brno – sál uvedený pořadatelem','Anglicky vedená přednáška Mazhara Adliho ze série Life Sciences Seminar Series o editaci genomu a modelování nemocí. Vlastní shrnutí StudentHubu.',true,null,'CZK','https://seminarseries.muni.cz/cs/life-sciences/lectures/genome-engineering-to-model-diseases-and-characterize-human-genes',null,null,null,encode(digest('muni-seminar-adli-2026','sha256'),'hex'),'published','MUNI Life Sciences Seminar Series','external','https://seminarseries.muni.cz/cs/life-sciences/lectures/genome-engineering-to-model-diseases-and-characterize-human-genes','muni-seminar-adli-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222212','brno','Vokolo priglu 2026 – Akademická vlna','Sport','2026-10-10 07:00:00+02',null,'Brněnská přehrada','Univerzitní vlna běhu Vokolo priglu. Pořadatel vyčlenil omezený počet bezplatných registrací pro studenty a zaměstnance; další podmínky jsou na zdroji. Vlastní shrnutí StudentHubu.',false,null,'CZK','https://www.sci.muni.cz/kalendar-akci/37319-vokolo-priglu-2026-akademicka-vlna',null,null,null,encode(digest('muni-vokolo-priglu-2026','sha256'),'hex'),'published','Masarykova univerzita a Vokolo priglu','external','https://www.sci.muni.cz/kalendar-akci/37319-vokolo-priglu-2026-akademicka-vlna','muni-vokolo-priglu-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222213','brno','Výstava citrusů a tropických užitkových rostlin','Kultura','2026-10-14 09:00:00+02','2026-10-18 17:00:00+02','Botanická zahrada PřF MUNI, Kotlářská 267/2','Prodejní výstava citrusů, tropických užitkových rostlin a hub ve sklenících botanické zahrady. Studentské vstupné zveřejněné pořadatelem je 100 Kč. Vlastní shrnutí StudentHubu.',false,100,'CZK','https://www.sci.muni.cz/bot_zahr/kalendar-akci/2026_vystava-citrusu-a-dalsich-subtropickych-a-tropickych-uzitkovych-rostlin',null,null,null,encode(digest('muni-bot-citrusy-2026','sha256'),'hex'),'published','Botanická zahrada PřF MUNI','external','https://www.sci.muni.cz/bot_zahr/kalendar-akci/2026_vystava-citrusu-a-dalsich-subtropickych-a-tropickych-uzitkovych-rostlin','muni-bot-citrusy-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222214','brno','Induced Proximity Drug Modalities','Studium','2026-10-15 17:00:00+02',null,'Mendelův refektář, Mendelovo muzeum, Mendlovo náměstí 1a','Anglicky vedená přednáška Craiga M. Crewse o využití přirozených buněčných mechanismů pro řízení funkce proteinů. Vlastní shrnutí StudentHubu.',true,null,'CZK','https://seminarseries.muni.cz/cs/life-sciences/lectures/induced-proximity-drug-modalities-hijacking-mother-nature-to-control-protein-function',null,null,null,encode(digest('muni-seminar-crews-2026','sha256'),'hex'),'published','MUNI Life Sciences Seminar Series','external','https://seminarseries.muni.cz/cs/life-sciences/lectures/induced-proximity-drug-modalities-hijacking-mother-nature-to-control-protein-function','muni-seminar-crews-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222215','brno','Gaudeamus Brno 2026','Studium','2026-10-20 08:30:00+02','2026-10-23 16:00:00+02','Brněnské výstaviště, pavilon V','Veletrh pomaturitního a celoživotního vzdělávání s prezentací studijních oborů a informacemi k přihláškám. Vstupní podmínky ověřte u pořadatele. Vlastní shrnutí StudentHubu.',false,null,'CZK','https://www.sci.muni.cz/kalendar-akci/37993-gaudeamus-brno-2026',null,null,null,encode(digest('muni-gaudeamus-brno-2026','sha256'),'hex'),'published','Gaudeamus a zapojené vysoké školy','external','https://www.sci.muni.cz/kalendar-akci/37993-gaudeamus-brno-2026','muni-gaudeamus-brno-2026','2026-08-22 12:00:00+02','verified'),
+('93222222-2222-4222-8222-222222222216','brno','Light as Architect: How Plants Read Their Environment','Studium','2026-10-29 16:00:00+01',null,'MUNI / CEITEC Brno – sál uvedený pořadatelem','Anglicky vedená přednáška Ullase Pedmaleho o tom, jak rostliny čtou světelné podmínky a utvářejí své tělo. Vlastní shrnutí StudentHubu.',true,null,'CZK','https://seminarseries.muni.cz/cs/life-sciences/lectures/light-as-architect-how-plants-read-their-environment-to-build-their-bodies',null,null,null,encode(digest('muni-seminar-pedmale-2026','sha256'),'hex'),'published','MUNI Life Sciences Seminar Series','external','https://seminarseries.muni.cz/cs/life-sciences/lectures/light-as-architect-how-plants-read-their-environment-to-build-their-bodies','muni-seminar-pedmale-2026','2026-08-22 12:00:00+02','verified')
+on conflict (city_id,source_external_id) where source_type = 'external' and source_external_id is not null do update set
+  title=excluded.title,category=excluded.category,starts_at=excluded.starts_at,ends_at=excluded.ends_at,
+  venue=excluded.venue,description=excluded.description,is_free=excluded.is_free,price_amount=excluded.price_amount,
+  event_url=excluded.event_url,organizer=excluded.organizer,source_url=excluded.source_url,
+  last_verified_at=excluded.last_verified_at,source_sync_status='verified',source_miss_count=0,
+  status=case when public.community_events.status='archived' and coalesce(public.community_events.ends_at,public.community_events.starts_at) >= now() then 'published' else public.community_events.status end;
+
+reset search_path;
+drop schema studenthub_content_seed cascade;
+
+insert into public.places
+  (id,city_id,name,category,description,why_visit,address,latitude,longitude,opening_hours,opening_hours_verified_at,website_url,source_url,last_verified_at,verification_status,status,is_demo,university_id,faculty_id,price_level,student_discount,source_external_id)
+values
+('62222222-2222-4222-8222-222222222231','brno','Moravská zemská knihovna','library','Velká veřejná odborná knihovna s několika studovnami a dlouhou otevírací dobou.','Studovny přírodních, technických i humanitních věd, Wi-Fi a pracovní místa do večera.','Kounicova 65a, Brno',49.208550,16.594091,'Po–Pá 8:30–22:00, So 9:00–17:00; jednotlivé služby mají vlastní režim','2026-08-22 12:00:00+02','https://www.mzk.cz/o-knihovne/kontakty','https://www.mzk.cz/o-knihovne/kontakty','2026-08-22 12:00:00+02','verified','approved',false,null,null,'low','Veřejná knihovna; plné služby po registraci čtenáře','mzk-kounicova-65a'),
+('62222222-2222-4222-8222-222222222232','brno','Knihovna univerzitního kampusu MUNI','library','Knihovna pro medicínu, přírodní vědy, sport a farmacii v kampusu Bohunice.','Rozsáhlé studijní zázemí v pavilonu 09 přímo v univerzitním kampusu.','Kamenice 5, Brno, pavilon 09',49.177067,16.570126,'Aktuální provozní dobu ověřte na webu knihovny; mimořádné změny se liší podle semestru','2026-08-22 12:00:00+02','https://kuk.muni.cz/','https://knihovny.muni.cz/archivni-stranky-ver-1/knihovny/kuk','2026-08-22 12:00:00+02','verified','approved',false,'muni',null,'free','Knihovní služby podle registrace a pravidel knihoven MUNI','muni-kuk-bohunice'),
+('62222222-2222-4222-8222-222222222233','brno','Knihovna JAMU','library','Knihovna a studovna pro hudební a dramatická umění se 38 studijními místy.','Odborný fond, Wi-Fi, počítače, tisk, kopírování a skenování v centru Brna.','Novobranská 3, Brno, 1. patro',49.193005,16.614018,'Po a St 9:00–18:00, Út a Čt 9:00–17:00, Pá 9:00–15:00','2026-08-22 12:00:00+02','https://www.jamu.cz/organizacni-struktura/knihovna/','https://en.jamu.cz/about-us/organization-structure/library/','2026-08-22 12:00:00+02','verified','approved',false,'jamu',null,'free','Studenti a zaměstnanci JAMU se registrují platným průkazem; externí uživatelé podle knihovního řádu','jamu-library-astorka'),
+('62222222-2222-4222-8222-222222222234','brno','Menza Kolejní VUT','canteen','Klasická studentská menza s teplými jídly v areálu Pod Palackého vrchem.','Obědové stravování v hlavním kolejním a fakultním areálu VUT.','Kolejní 2, Brno',49.231315,16.570425,'Provozní doba se mění podle období výuky; aktuální režim a jídelníček jsou na webu','2026-08-22 12:00:00+02','https://www.skm.vut.cz/?p=nabs','https://www.skm.vut.cz/?p=nabs','2026-08-22 12:00:00+02','verified','approved',false,'vut',null,'low','Studentská cena se řídí aktivním účtem a pravidly stravování VUT','vut-menza-kolejni'),
+('62222222-2222-4222-8222-222222222235','brno','Menza Purkyňova VUT','canteen','Velká menza s obědy i večeřemi v areálu Purkyňových kolejí.','Až osm teplých jídel a doplňkový sortiment poblíž severních fakult VUT.','Purkyňova 93, Brno',49.226472,16.583970,'Provozní doba se mění podle období výuky; aktuální režim a jídelníček jsou na webu','2026-08-22 12:00:00+02','https://www.skm.vut.cz/?p=nabs','https://www.skm.vut.cz/?p=nabs','2026-08-22 12:00:00+02','verified','approved',false,'vut',null,'low','Studentská cena se řídí aktivním účtem a pravidly stravování VUT','vut-menza-purkynova'),
+('62222222-2222-4222-8222-222222222236','brno','Menza Vinařská MUNI','canteen','Menza v areálu kolejí nad výstavištěm s hotovými i minutkovými jídly.','234 míst k sezení a bezbariérový přístup s asistencí poblíž ESF.','Vinařská 499/5, Brno',49.189197,16.577598,'Po–Pá 11:00–14:00; dočasné změny jsou v aktualitách SKM','2026-08-22 12:00:00+02','https://www.skm.muni.cz/stravovani/menzy-muni/menza-vinarska','https://www.skm.muni.cz/stravovani/menzy-muni/menza-vinarska','2026-08-22 12:00:00+02','verified','approved',false,'muni','muni-esf','low','Dotované stravování se řídí statusem studenta a pravidly SKM MUNI','muni-menza-vinarska'),
+('62222222-2222-4222-8222-222222222237','brno','Knihovna a studijní místnosti VETUNI','study_room','Univerzitní knihovna s možností rezervovat studijní místnosti.','Studijní místnosti se rezervují přes veřejně popsaný katalogový postup a klíče se vyzvedávají u výpůjčního pultu.','Palackého třída 1946/1, Brno',49.218579,16.596865,'Aktuální otevírací dobu ověřte u knihovny; rezervace místností podle dostupných termínů','2026-08-22 12:00:00+02','https://www.vetuni.cz/rezervace-knih-a-studijnich-mistnosti','https://www.vetuni.cz/rezervace-knih-a-studijnich-mistnosti','2026-08-22 12:00:00+02','verified','approved',false,'vetuni',null,'free','Rezervace místností a část služeb vyžaduje čtenářský účet VETUNI','vetuni-library-study-rooms')
+on conflict (id) do update set
+  name=excluded.name,category=excluded.category,description=excluded.description,why_visit=excluded.why_visit,
+  address=excluded.address,latitude=excluded.latitude,longitude=excluded.longitude,opening_hours=excluded.opening_hours,
+  opening_hours_verified_at=excluded.opening_hours_verified_at,website_url=excluded.website_url,source_url=excluded.source_url,
+  last_verified_at=excluded.last_verified_at,verification_status='verified',status='approved',is_demo=false,
+  university_id=excluded.university_id,faculty_id=excluded.faculty_id,price_level=excluded.price_level,
+  student_discount=excluded.student_discount,source_external_id=excluded.source_external_id;

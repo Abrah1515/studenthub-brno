@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ExternalLink, LocateFixed, MapPin, Navigation, RotateCcw, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Place } from "@/lib/types";
 import type { City } from "@/lib/cities";
@@ -14,10 +14,13 @@ import { deduplicatePlaces, googleMapsDirectionsUrl, haversineDistanceKm, type C
 
 const allCategories = "Všechny";
 
-function PlacesMap({ items, city, userLocation }: { items: Place[]; city: City; userLocation: ClientLocation | null }) {
+function PlacesMap({ items, city, userLocation, selectedId, onSelect }: { items: Place[]; city: City; userLocation: ClientLocation | null; selectedId: string | null; onSelect: (id: string) => void }) {
   const element = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const layerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const markerRefs = useRef(new Map<string, import("leaflet").CircleMarker>());
+  const selectedRef = useRef(selectedId);
+  useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
   useEffect(() => {
     let mounted = true;
     import("leaflet").then((L) => {
@@ -27,15 +30,30 @@ function PlacesMap({ items, city, userLocation }: { items: Place[]; city: City; 
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(mapRef.current);
         layerRef.current = L.layerGroup().addTo(mapRef.current);
       }
-      layerRef.current?.clearLayers();
-      items.forEach((place) => L.circleMarker([place.lat, place.lng], { radius: 8, color: "#fff", weight: 2, fillColor: "#0b6b4d", fillOpacity: 1 }).bindTooltip(place.name).addTo(layerRef.current!));
+      layerRef.current?.clearLayers(); markerRefs.current.clear();
+      items.forEach((place) => {
+        const active = selectedRef.current === place.id; const marker = L.circleMarker([place.lat, place.lng], active ? { radius: 12, color: "#10231d", weight: 4, fillColor: "#f9c74f", fillOpacity: 1 } : { radius: 8, color: "#fff", weight: 2, fillColor: "#0b6b4d", fillOpacity: 1 });
+        const popup = document.createElement("strong"); popup.textContent = place.name;
+        marker.bindPopup(popup).on("click", () => onSelect(place.id)).addTo(layerRef.current!);
+        markerRefs.current.set(place.id, marker);
+        const path = marker.getElement();
+        if (path) { path.setAttribute("tabindex", "0"); path.setAttribute("role", "button"); path.setAttribute("aria-label", `Vybrat místo ${place.name}`); path.addEventListener("keydown", (event) => { if (event instanceof KeyboardEvent && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelect(place.id); } }); }
+      });
       if (userLocation) L.circleMarker([userLocation.lat, userLocation.lng], { radius: 9, color: "#fff", weight: 3, fillColor: "#2563eb", fillOpacity: 1 }).bindTooltip("Vaše poloha").addTo(layerRef.current!);
       const points = [...items.map((place) => [place.lat, place.lng] as [number, number]), ...(userLocation ? [[userLocation.lat, userLocation.lng] as [number, number]] : [])];
       if (points.length) mapRef.current.fitBounds(L.latLngBounds(points).pad(.18), { maxZoom: 14 });
       else mapRef.current.setView([city.latitude, city.longitude], city.mapZoom);
+      const pendingMarker = selectedRef.current ? markerRefs.current.get(selectedRef.current) : undefined; if (pendingMarker) { mapRef.current.flyTo(pendingMarker.getLatLng(), Math.max(mapRef.current.getZoom(), 15), { duration: .45 }); pendingMarker.openPopup(); }
     });
     return () => { mounted = false; };
-  }, [items, city.latitude, city.longitude, city.mapBounds, city.mapZoom, userLocation]);
+  }, [items, city.latitude, city.longitude, city.mapBounds, city.mapZoom, userLocation, onSelect]);
+  useEffect(() => {
+    markerRefs.current.forEach((marker, id) => marker.setStyle(id === selectedId ? { radius: 12, color: "#10231d", weight: 4, fillColor: "#f9c74f", fillOpacity: 1 } : { radius: 8, color: "#fff", weight: 2, fillColor: "#0b6b4d", fillOpacity: 1 }));
+    if (!selectedId) return;
+    const marker = markerRefs.current.get(selectedId); const map = mapRef.current;
+    if (!marker || !map) return;
+    map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), 15), { duration: .45 }); marker.openPopup();
+  }, [selectedId]);
   useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null; }, []);
   return <div className="leaflet-host" ref={element} aria-label={`Interaktivní mapa míst ve městě ${city.name}`} />;
 }
@@ -45,6 +63,7 @@ export function PlacesExplorer({ items, city }: { items: Place[]; city: City }) 
   const pathname = usePathname();
   const router = useRouter();
   const preference = useStudentPreference();
+  const campusQuery = search.get("campus") || "";
   const [query, setQuery] = useState(search.get("q") || search.get("campus") || "");
   const [category, setCategory] = useState(search.get("category") || allCategories);
   const [selected, setSelected] = useState<string | null>(null);
@@ -54,13 +73,14 @@ export function PlacesExplorer({ items, city }: { items: Place[]; city: City }) 
   const [userLocation, setUserLocation] = useState<ClientLocation | null>(null);
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [locationMessage, setLocationMessage] = useState("");
+  const cardRefs = useRef(new Map<string, HTMLElement>());
   const urlUniversity = universities.some((item) => item.id === search.get("university")) ? search.get("university")! : "";
   const showAll = search.get("filters") === "all";
   const universityId = schoolFilter ?? (showAll ? "" : search.has("university") ? urlUniversity : preference.universityId ?? "");
   const urlFaculty = facultiesFor(universityId).some((item) => item.id === search.get("faculty")) ? search.get("faculty")! : "";
   const facultyId = facultyFilter ?? (showAll ? "" : search.has("faculty") ? urlFaculty : preference.facultyId ?? "");
   const uniqueItems = useMemo(() => deduplicatePlaces(items), [items]);
-  const filtered = useMemo(() => uniqueItems.filter((place) => (category === allCategories || place.category === category) && (!universityId || !place.universityIds?.length || place.universityIds.includes(universityId)) && (!facultyId || !place.facultyIds?.length || place.facultyIds.includes(facultyId)) && includesFolded(`${place.name} ${place.address} ${place.note}`, query)), [uniqueItems, query, category, universityId, facultyId]);
+  const filtered = useMemo(() => uniqueItems.filter((place) => { const haystack = `${place.name} ${place.address} ${place.note} ${place.whyVisit || ""}`; const campusStem = campusQuery.length > 4 ? campusQuery.slice(0, -2) : campusQuery; return (category === allCategories || place.category === category) && (!universityId || !place.universityIds?.length || place.universityIds.includes(universityId)) && (!facultyId || !place.facultyIds?.length || place.facultyIds.includes(facultyId)) && (includesFolded(haystack, query) || Boolean(campusQuery && campusStem && includesFolded(haystack, campusStem))); }), [uniqueItems, query, campusQuery, category, universityId, facultyId]);
   const categories = [allCategories, ...new Set(uniqueItems.map((place) => place.category))];
   const activeFilterCount = [query.trim(), category !== allCategories, universityId, facultyId].filter(Boolean).length;
 
@@ -89,14 +109,18 @@ export function PlacesExplorer({ items, city }: { items: Place[]; city: City }) 
       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
     );
   }
+  const selectFromMap = useCallback((id: string) => {
+    setSelected(id);
+    window.requestAnimationFrame(() => cardRefs.current.get(id)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+  }, []);
 
   return <>
     <MobileFilterToolbar open={filtersOpen} activeCount={activeFilterCount} onToggle={() => setFiltersOpen((value) => !value)} onReset={resetFilters} controlsId="places-filters" />
     <section id="places-filters" className={`filter-panel places-filters collapsible-filter-panel ${filtersOpen ? "is-open" : ""}`} aria-label="Filtry míst"><label className="search-field"><span>Hledat místo nebo adresu</span><div><Search size={17} /><input value={query} onChange={(event) => { setQuery(event.target.value); replaceQuery({ q: event.target.value.trim() || undefined, campus: undefined, filters: undefined }); }} placeholder="Např. studovna…" /></div></label><label><span>Kategorie</span><div className="select-wrap"><select value={category} onChange={(event) => { setCategory(event.target.value); replaceQuery({ category: event.target.value === allCategories ? undefined : event.target.value, filters: undefined }); }}>{categories.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={16} /></div></label><label><span>Univerzita</span><select aria-label="Univerzita" value={universityId} onChange={(event) => { setSchoolFilter(event.target.value); setFacultyFilter(""); replaceQuery({ university: event.target.value || undefined, faculty: undefined, filters: undefined }); }}><option value="">Všechny školy</option>{universities.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label><label><span>Fakulta</span><select value={facultyId} onChange={(event) => { setFacultyFilter(event.target.value); replaceQuery({ faculty: event.target.value || undefined, filters: undefined }); }} disabled={!universityId}><option value="">Všechny fakulty</option>{facultiesFor(universityId).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label><div className="filter-actions"><button className="button button-secondary" type="button" onClick={resetFilters}><RotateCcw size={16} />Resetovat filtry</button></div></section>
     <div className="location-toolbar"><button type="button" className="button button-secondary" onClick={requestLocation} disabled={locationStatus === "loading"}><LocateFixed size={17} />{locationStatus === "loading" ? "Zjišťuji polohu…" : userLocation ? "Aktualizovat moji polohu" : "Použít moji polohu"}</button>{locationMessage && <p className={locationStatus === "error" ? "location-error" : "location-note"} role="status">{locationMessage}</p>}</div>
     <section className="places-layout">
-      <div className="places-list"><div className="result-count"><strong>{filtered.length}</strong> míst v seznamu</div>{filtered.length === 0 ? <div className="empty-state"><MapPin size={26} /><h2>Žádné místo neodpovídá filtrům</h2><p>Aktivní filtry: {[query, category !== allCategories ? category : "", universityId, facultyId].filter(Boolean).join(" · ") || "žádné"}.</p><button className="button button-secondary" onClick={resetFilters}>Resetovat filtry</button></div> : filtered.map((place) => { const distance = userLocation ? haversineDistanceKm(userLocation, { lat: place.lat, lng: place.lng }) : null; return <article id={place.id} key={place.id} className={`place-card ${selected === place.id ? "selected" : ""}`}><button className="place-card-main" type="button" onClick={() => setSelected(selected === place.id ? null : place.id)} aria-expanded={selected === place.id}><span className="place-icon"><MapPin size={19} /></span><span><span className="result-labels"><i className="tag">{place.category}</i></span><strong>{place.name}</strong><small>{place.address}</small>{distance !== null && <small className="place-distance">{distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`} od vás</small>}</span><LocateFixed size={17} /></button>{selected === place.id && <div className="place-details"><p>{place.whyVisit || place.note}</p><dl><div><dt>Otevírací doba</dt><dd>{place.hours || "Ověřte na webu provozovatele"}</dd></div><div><dt>Ověřeno</dt><dd>{formatPragueTimestamp(place.openingHoursVerifiedAt || place.lastVerifiedAt)}</dd></div>{place.priceLevel && <div><dt>Cenová úroveň</dt><dd>{place.priceLevel === "free" ? "zdarma" : place.priceLevel === "low" ? "nízká" : "liší se"}</dd></div>}{place.studentDiscount && <div><dt>Studentská podmínka</dt><dd>{place.studentDiscount}</dd></div>}</dl><div><a href={place.website} target="_blank" rel="noopener noreferrer" className="button button-secondary"><ExternalLink size={16} />Web</a><a href={googleMapsDirectionsUrl(place)} target="_blank" rel="noopener noreferrer" className="button button-primary"><Navigation size={16} />Navigovat</a><a href={`/kontakt?subject=${encodeURIComponent(`Oprava místa: ${place.name}`)}`} className="text-link">Nahlásit změnu</a></div></div>}</article>; })}</div>
-      <div className="map-shell"><PlacesMap items={filtered} city={city} userLocation={userLocation} /><div className="map-caption"><span><MapPin size={16} />{city.name} a okolí</span><small>Mapová data © OpenStreetMap</small></div></div>
+      <div className="places-list"><div className="result-count"><strong>{filtered.length}</strong> míst v seznamu</div>{filtered.length === 0 ? <div className="empty-state"><MapPin size={26} /><h2>Žádné místo neodpovídá filtrům</h2><p>Aktivní filtry: {[query, category !== allCategories ? category : "", universityId, facultyId].filter(Boolean).join(" · ") || "žádné"}.</p><button className="button button-secondary" onClick={resetFilters}>Resetovat filtry</button></div> : filtered.map((place) => { const distance = userLocation ? haversineDistanceKm(userLocation, { lat: place.lat, lng: place.lng }) : null; return <article ref={(node) => { if (node) cardRefs.current.set(place.id, node); else cardRefs.current.delete(place.id); }} id={place.id} key={place.id} className={`place-card ${selected === place.id ? "selected" : ""}`}><button className="place-card-main" type="button" onClick={() => setSelected(selected === place.id ? null : place.id)} aria-expanded={selected === place.id}><span className="place-icon"><MapPin size={19} /></span><span><span className="result-labels"><i className="tag">{place.category}</i></span><strong>{place.name}</strong><small>{place.address}</small>{distance !== null && <small className="place-distance">{distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`} od vás</small>}</span><LocateFixed size={17} /></button>{selected === place.id && <div className="place-details"><p>{place.whyVisit || place.note}</p><dl>{place.studentDiscount && <div><dt>Podmínky přístupu</dt><dd>{place.studentDiscount}</dd></div>}<div><dt>Otevírací doba</dt><dd>{place.hours || "Ověřte na webu provozovatele"}</dd></div><div><dt>Ověřeno</dt><dd>{formatPragueTimestamp(place.openingHoursVerifiedAt || place.lastVerifiedAt)}</dd></div>{place.priceLevel && <div><dt>Cenová úroveň</dt><dd>{place.priceLevel === "free" ? "zdarma" : place.priceLevel === "low" ? "nízká" : "liší se"}</dd></div>}</dl><div><a href={place.website} target="_blank" rel="noopener noreferrer" className="button button-secondary"><ExternalLink size={16} />Web</a><a href={googleMapsDirectionsUrl(place)} target="_blank" rel="noopener noreferrer" className="button button-primary"><Navigation size={16} />Navigovat</a><a href={`/kontakt?subject=${encodeURIComponent(`Oprava místa: ${place.name}`)}`} className="text-link">Nahlásit změnu</a></div></div>}</article>; })}</div>
+      <div className="map-shell"><PlacesMap items={filtered} city={city} userLocation={userLocation} selectedId={selected} onSelect={selectFromMap} /><div className="map-caption"><span><MapPin size={16} />{city.name} a okolí</span><small>Mapová data © OpenStreetMap</small></div></div>
     </section>
   </>;
 }

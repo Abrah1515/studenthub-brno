@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { BookOpen, BriefcaseBusiness, CalendarDays, Handshake, HeartHandshake, Home, Info, MapPinned, Menu, MessageCircle, Monitor, Moon, Settings, Sun, Users, Wrench, X } from "lucide-react";
+import { BookOpen, BriefcaseBusiness, CalendarDays, HeartHandshake, Home, Info, MapPinned, Menu, MessageCircle, Monitor, Moon, Settings, Sun, Users, Wrench, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { brand } from "@/lib/brand";
@@ -16,6 +16,7 @@ import { calendarPreferenceRequestedEvent, useStudentPreference } from "@/lib/cl
 import { useModalDialog } from "@/lib/use-modal-dialog";
 import { PwaInstallButton } from "@/components/pwa-install";
 import { openTutorialEvent } from "@/components/feature-tutorial";
+import { featureFlags } from "@/lib/feature-flags";
 
 function navigationFor(citySlug: string, cityName: string) {
   const cityBase = `/${citySlug}`;
@@ -24,10 +25,10 @@ function navigationFor(citySlug: string, cityName: string) {
     { href: `${cityBase}/kalendar`, label: "Kalendář", short: "Termíny", icon: CalendarDays },
     { href: `${cityBase}/mista`, label: `Místa – ${cityName}`, short: "Místa", icon: MapPinned },
     { href: "/komunita", label: "Studentská komunita", short: "Komunita", icon: MessageCircle },
-    { href: `${cityBase}/brigady`, label: "Brigády", short: "Brigády", icon: BriefcaseBusiness },
-    { href: `${cityBase}/nabidky`, label: "Nabídky a slevy", short: "Slevy", icon: Handshake },
-    { href: "/pomoc", label: "Technická pomoc", short: "Pomoc", icon: Wrench },
     { href: "/partak", label: "Hledám parťáka", short: "Parťák", icon: Users },
+    { href: `${cityBase}/brigady`, label: "Brigády", short: "Brigády", icon: BriefcaseBusiness },
+    ...(featureFlags.offersEnabled ? [{ href: `${cityBase}/nabidky`, label: "Nabídky a slevy", short: "Slevy", icon: CalendarDays }] : []),
+    { href: "/pomoc", label: "Technická pomoc", short: "Pomoc", icon: Wrench },
     { href: "/nastaveni", label: "Moje škola", short: "Nastavení", icon: Settings },
   ];
 }
@@ -88,6 +89,6 @@ export function SiteShell({ children, cities, catalog }: { children: React.React
     <MobileMenu open={menuOpen} close={() => setMenuOpen(false)} navigation={navigation} pathname={pathname} cityRoot={cityRoot} returnFocus={() => menuTriggerRef.current} />
     {cities.length > 1 && <CitySwitcher cities={cities} pathname={pathname} />}
     <div className="main-column"><header className="topbar"><button ref={menuTriggerRef} className="icon-button mobile-only" aria-label="Otevřít nabídku" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><div className="mobile-brand"><Brand href={cityRoot} /></div><div className="topbar-spacer" /><ThemeToggle /></header><main id="hlavni-obsah" className="content">{children}</main><footer className="footer"><p>{brand.editionName} · nezávislý studentský projekt</p><div><Link href="/soukromi">Soukromí</Link><Link href="/cookies">Cookies</Link><Link href="/podminky">Podmínky</Link><button type="button" onClick={() => window.dispatchEvent(new Event("open-cookie-settings"))}>Nastavení cookies</button></div></footer></div>
-    <nav className="bottom-nav" aria-label="Mobilní navigace">{navigation.slice(0, 5).map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} compact />)}</nav><Link href="/pomoc" className="floating-help" aria-label="Potřebuji technickou pomoc"><HeartHandshake size={22} /><span>Technická pomoc</span></Link>
+    <nav className="bottom-nav" aria-label="Mobilní navigace">{navigation.filter((item) => [cityRoot, `${cityRoot}/kalendar`, `${cityRoot}/mista`, "/komunita", `${cityRoot}/brigady`].includes(item.href)).map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} compact />)}</nav><Link href="/pomoc" className="floating-help" aria-label="Potřebuji technickou pomoc"><HeartHandshake size={22} /><span>Technická pomoc</span></Link>
   </div></AcademicCatalogProvider>;
 }

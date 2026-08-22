@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(21);
+      expect(files).toHaveLength(22);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -53,7 +53,8 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         }
       }
       await db.exec(await readFile("supabase/seed.sql", "utf8"));
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(29);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(36);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where status='published' and source_type='external'")).rows[0].count).toBe(16);
       expect((await db.query<{ count: number }>("select count(*)::int as count from (select city_id,dedupe_key from public.places where status='approved' and is_demo=false group by city_id,dedupe_key having count(*) > 1) duplicates")).rows[0].count).toBe(0);
       await db.exec(`
         insert into auth.users(id,email,email_confirmed_at) values
@@ -177,7 +178,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111112"]); await db.exec("set role authenticated");
       expect((await db.query<{ title: string }>("select title from public.academic_events where title like 'RLS %' order by title")).rows.map((row) => row.title)).toEqual(["RLS FEKT", "RLS FIT"]);
       expect((await db.query("update public.academic_events set description='Upraveno městem' where title='RLS FIT' returning id")).rows).toHaveLength(1);
-      expect((await db.query("select id from public.service_requests where id='81111111-1111-4111-8111-111111111111'")).rows).toHaveLength(1); expect((await db.query("select author_email from public.community_events")).rows).toHaveLength(2); await db.exec("reset role");
+      expect((await db.query("select id from public.service_requests where id='81111111-1111-4111-8111-111111111111'")).rows).toHaveLength(1); expect((await db.query("select author_email from public.community_events where source_type='community'")).rows).toHaveLength(2); await db.exec("reset role");
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111113"]); await db.exec("set role authenticated");
       expect((await db.query<{ title: string }>("select title from public.academic_events where title like 'RLS %' order by title")).rows.map((row) => row.title)).toEqual(["RLS FEKT", "RLS FIT"]); await db.exec("reset role");
