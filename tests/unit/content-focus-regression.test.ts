@@ -22,4 +22,12 @@ describe("produkční zaměření obsahu", () => {
     expect(read("app/sitemap.ts")).toContain("featureFlags.offersEnabled");
     expect(read("app/[city]/nabidky/page.tsx")).toContain("redirect(`/${city.slug}`)");
   });
+
+  it("zachytí volbu motivu i před dokončením hydratace na pomalé síti", () => {
+    expect(read("components/site-shell.tsx")).toContain("data-theme-option={value}");
+    const layout = read("app/layout.tsx");
+    expect(layout).toContain("document.addEventListener('click'");
+    expect(layout).toContain("origin.closest('[data-theme-option]')");
+    expect(layout).toContain("localStorage.setItem('studenthub-theme',preference)");
+  });
 });

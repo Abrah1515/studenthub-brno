@@ -14,6 +14,25 @@ import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 const siteUrl = brand.siteUrl;
+const themeBootstrap = `(function(){
+  function apply(preference,persist){
+    if(preference!=='light'&&preference!=='dark'&&preference!=='system')preference='system';
+    var dark=preference==='dark'||(preference==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.dataset.theme=dark?'dark':'light';
+    document.documentElement.dataset.themePreference=preference;
+    if(persist)localStorage.setItem('studenthub-theme',preference);
+    var meta=document.querySelector('meta[name="theme-color"]');
+    if(meta)meta.setAttribute('content',dark?'${brand.colors.darkTheme}':'${brand.colors.lightTheme}');
+  }
+  try{apply(localStorage.getItem('studenthub-theme')||'system',false)}catch(e){}
+  document.addEventListener('click',function(event){
+    try{
+      var origin=event.target instanceof Element?event.target:null;
+      var control=origin&&origin.closest('[data-theme-option]');
+      if(control)apply(control.getAttribute('data-theme-option')||'system',true);
+    }catch(e){}
+  },true);
+})()`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -52,7 +71,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const [cities, catalog] = await Promise.all([getPublishedCities(), getAcademicCatalog()]);
   return (
     <html lang="cs" suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=localStorage.getItem('studenthub-theme')||'system';var d=p==='dark'||(p==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.dataset.themePreference=p}catch(e){}})()` }} /></head>
+      <head><script dangerouslySetInnerHTML={{ __html: themeBootstrap }} /></head>
       <body>
         <a className="skip-link" href="#hlavni-obsah">Přeskočit na obsah</a>
         <PwaInstallProvider>
