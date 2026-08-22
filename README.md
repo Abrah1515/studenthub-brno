@@ -125,6 +125,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608170020_event_relevance_places_buddy.sql` – přesnější akademická relevance, rozšířená metadata míst a bezpečnější vazby sekce Hledám parťáka.
 - `202608170021_student_community.sql` – ověřené účty komunitního feedu, příspěvky, komentáře, reakce, hlášení, audit moderace, RLS a privátní úložiště obrázků.
 - `202608220022_content_focus_update.sql` – 16 ověřených veřejných akcí, 7 dalších oficiálních míst, původ a zdravotní stav zdrojů komunitních akcí, deduplikace a bezpečná fronta ruční kontroly.
+- `202608220023_place_duplicate_cleanup.sql` – bezpečně odstraní nově vloženou kartu KUK pouze tehdy, pokud už stejné fyzické místo existuje; na čisté instalaci záznam zachová.
 
 ## První hlavní superadmin
 
@@ -151,7 +152,7 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 22 migrací, aplikuje 20 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, vytvoření/úpravu/soft delete komunitního příspěvku, komentáře, unikátní reakce, nejužitečnější odpověď, automatické skrytí po třech hlášeních, 16 ověřených veřejných akcí a přesně 36 ověřených míst. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 23 migrací, aplikuje 21 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, vytvoření/úpravu/soft delete komunitního příspěvku, komentáře, unikátní reakce, nejužitečnější odpověď, automatické skrytí po třech hlášeních, 16 ověřených veřejných akcí a přesně 36 ověřených míst na čisté instalaci. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
 Preference ročníku je anonymní a zůstává pouze v prohlížeči. Akademický cyklus se v časové zóně Praha překlápí 1. července; uložený ročník se zvýší nejvýše jednou za každý uplynulý cyklus. Po překročení šestého ročníku se volba bezpečně zruší a aplikace požádá o nový výběr. Ruční změna založí nový referenční cyklus. Událost se na ročník váže jen při jednoznačném údaji v oficiálním zdrojovém textu; společné nebo nejisté termíny zůstávají bez omezení.
 

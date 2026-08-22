@@ -41,7 +41,7 @@ test.describe("produkční StudentHub", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 
     await page.goto("/brno/mista?university=muni&campus=Bohunice", { waitUntil: "networkidle" });
-    await expect(page.getByText("Knihovna univerzitního kampusu MUNI", { exact: true })).toBeVisible();
+    await expect(page.getByText("Knihovna univerzitního kampusu MUNI", { exact: true })).toHaveCount(1);
     await expect(page.locator(".leaflet-host")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 

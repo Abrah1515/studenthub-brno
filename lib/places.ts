@@ -12,14 +12,26 @@ export function placeDedupeKey(place: PlaceIdentity) {
   return stableId ? `source:${normalize(stableId)}` : `content:${normalize(place.name)}|${normalize(place.address)}`;
 }
 
+function isSamePhysicalPlace(first: Place, second: Place) {
+  if (placeDedupeKey(first) === placeDedupeKey(second)) return true;
+  return normalize(first.name) === normalize(second.name)
+    && haversineDistanceKm({ lat: first.lat, lng: first.lng }, { lat: second.lat, lng: second.lng }) <= 0.2;
+}
+
+function verificationPriority(place: Place) {
+  const status = place.verificationStatus === "verified" ? 2 : place.verificationStatus === "needs_review" ? 1 : 0;
+  const verifiedAt = Number.isFinite(new Date(place.lastVerifiedAt).getTime()) ? new Date(place.lastVerifiedAt).getTime() : 0;
+  return status * 10 ** 15 + verifiedAt;
+}
+
 export function deduplicatePlaces(items: Place[]) {
-  const selected = new Map<string, Place>();
+  const selected: Place[] = [];
   for (const place of items) {
-    const key = placeDedupeKey(place);
-    const previous = selected.get(key);
-    if (!previous || new Date(place.lastVerifiedAt).getTime() > new Date(previous.lastVerifiedAt).getTime()) selected.set(key, place);
+    const previousIndex = selected.findIndex((candidate) => isSamePhysicalPlace(candidate, place));
+    if (previousIndex < 0) selected.push(place);
+    else if (verificationPriority(place) > verificationPriority(selected[previousIndex])) selected[previousIndex] = place;
   }
-  return [...selected.values()];
+  return selected;
 }
 
 export function haversineDistanceKm(from: ClientLocation, to: ClientLocation) {

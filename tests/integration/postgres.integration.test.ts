@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(22);
+      expect(files).toHaveLength(23);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
