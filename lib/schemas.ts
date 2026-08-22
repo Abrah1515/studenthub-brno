@@ -138,6 +138,16 @@ export const savedItemSchema = z.object({
   preference: z.object({ cityId: z.string().regex(/^[a-z0-9-]{2,80}$/), universityId: z.string().max(50).nullable().optional(), facultyId: z.string().max(80).nullable().optional(), studyYear: z.number().int().min(1).max(6).nullable().optional() }).optional(),
 }).refine((value) => value.favorite !== undefined || value.watched !== undefined || value.reminderDays !== undefined, "Není co uložit.");
 
+export const watcherMutableCategories = [
+  "teaching", "holiday", "registration", "other", "semester_start", "semester_end",
+  "course_registration", "course_enrollment", "seminar_enrollment", "enrollment_changes",
+  "timetable_release", "exam", "final_exam_application", "final_exam", "thesis_deadline",
+  "matriculation", "graduation", "faculty_event", "internship", "dean_rector_leave",
+] as const;
+export const watcherMutedCategoriesSchema = z.object({
+  mutedCategories: z.array(z.enum(watcherMutableCategories)).max(watcherMutableCategories.length),
+});
+
 export const pushSubscriptionSchema = z.object({
   endpoint: z.string().url().startsWith("https://").max(2000), expirationTime: z.number().int().positive().nullable().optional(),
   keys: z.object({ p256dh: z.string().min(20).max(500), auth: z.string().min(8).max(500) }),

@@ -3,12 +3,13 @@ import { getAdminUser } from "@/lib/admin-auth";
 import { deleteRecord, insertRecord, listRecords, updateRecord, type TableName } from "@/lib/data-store";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 
-const allowed = new Set<TableName>(["cities", "academic_events", "community_events", "places", "offers", "jobs", "submissions", "service_requests", "buddy_posts", "content_reports", "contact_messages", "academic_event_conflicts"]);
+const allowed = new Set<TableName>(["cities", "academic_events", "community_events", "places", "place_live_reports", "offers", "jobs", "submissions", "service_requests", "buddy_posts", "content_reports", "contact_messages", "academic_event_conflicts"]);
 const mutableFields: Partial<Record<TableName, ReadonlySet<string>>> = {
   cities: new Set(["name", "region", "latitude", "longitude", "map_bounds", "map_zoom", "enabled", "public_status", "sort_order", "brand_config"]),
   academic_events: new Set(["title", "description", "category", "school", "faculty", "starts_at", "ends_at", "source_name", "source_url", "source_updated_at", "status", "city_id", "university_id", "faculty_id", "scope_type", "academic_year", "study_years"]),
   community_events: new Set(["title", "category", "starts_at", "ends_at", "venue", "description", "is_free", "price_amount", "event_url", "status"]),
   places: new Set(["name", "category", "description", "address", "latitude", "longitude", "opening_hours", "website_url", "status", "city_id", "university_id", "faculty_id", "campus_id", "campus_name", "verification_status"]),
+  place_live_reports: new Set(["hidden_at", "is_suspicious"]),
   offers: new Set(["title", "description", "category", "partner_name", "discount_label", "conditions", "destination_url", "valid_from", "valid_to", "is_featured", "is_sponsored", "is_affiliate", "status", "university_id", "faculty_id", "campus_id", "verification_status"]),
   jobs: new Set(["title", "company_name", "field", "work_type", "work_location_mode", "location", "reward_amount", "reward_min", "reward_max", "reward_currency", "reward_unit", "reward_period", "workload", "description", "contact_public", "apply_url", "is_featured", "status", "city_id", "university_id", "faculty_id", "verification_status", "expires_at"]),
   submissions: new Set(["status", "moderation_note", "moderated_by", "moderated_at"]),
@@ -26,6 +27,11 @@ function permitted(resource: TableName, input: Record<string, unknown>): Record<
 async function canEdit(resource: TableName, id: string, user: AdminUser) {
   if (user.role === "super_admin") return true;
   const row = (await listRecords(resource)).find((item) => String(item.id) === id);
+  if (resource === "place_live_reports") {
+    const place = (await listRecords("places")).find((item) => String(item.id) === String(row?.place_id));
+    if (user.role === "faculty_editor") return Boolean(user.facultyId) && place?.faculty_id === user.facultyId;
+    return Boolean(user.cityId) && (place?.city_id === user.cityId || (user.cityId === "brno" && !place?.city_id));
+  }
   if (user.role === "faculty_editor") return Boolean(user.facultyId) && (row?.faculty_id === user.facultyId || (row?.content as Record<string, unknown> | undefined)?.facultyId === user.facultyId);
   if (!user.cityId) return false;
   if (resource === "cities") return id === user.cityId && user.role === "admin";
@@ -41,6 +47,7 @@ async function canEdit(resource: TableName, id: string, user: AdminUser) {
 export async function POST(request: Request, context: Context) {
   const user = await getAdminUser(); if (!user) return NextResponse.json({ message: "Nepřihlášeno." }, { status: 401 });
   const resource = await table(context); if (!resource) return NextResponse.json({ message: "Neplatný typ." }, { status: 404 });
+  if (resource === "place_live_reports") return NextResponse.json({ message: "Živé hlášení vzniká pouze veřejným jedním klepnutím." }, { status: 405 });
   if (resource === "cities" && user.role !== "super_admin") return NextResponse.json({ message: "Nové město může založit pouze super administrátor." }, { status: 403 });
   if (user.role === "faculty_editor" && !user.facultyId) return NextResponse.json({ message: "Editor nemá přiřazenou fakultu." }, { status: 403 });
   const body = permitted(resource, await request.json() as Record<string, unknown>);
@@ -58,6 +65,10 @@ export async function PATCH(request: Request, context: Context) {
   const body: Record<string, unknown> = { id: input.id, ...permitted(resource, input) };
   if (!await canEdit(resource, String(body.id), user)) return NextResponse.json({ message: "Záznam není v rozsahu editora." }, { status: 403 });
   const { id, ...changes } = body;
+  if (resource === "place_live_reports") {
+    changes.hidden_by = changes.hidden_at && user.id !== "local-admin" ? user.id : null;
+    await insertRecord("moderation_actions", { city_id: user.cityId || "brno", actor_id: user.id === "local-admin" ? null : user.id, target_type: "place_live_report", target_id: String(id), action: changes.hidden_at ? "hide" : changes.is_suspicious ? "flag_suspicious" : "restore", reason: "Ruční zásah správce", snapshot: input });
+  }
   if (resource === "content_reports" && (body.hideTarget || body.blockAuthor)) {
     const report = (await listRecords("content_reports")).find((row) => String(row.id) === String(body.id));
     if (!report) return NextResponse.json({ message: "Hlášení nebylo nalezeno." }, { status: 404 });
@@ -78,5 +89,9 @@ export async function DELETE(request: Request, context: Context) {
   const id = new URL(request.url).searchParams.get("id"); if (!id) return NextResponse.json({ message: "Chybí ID." }, { status: 422 });
   if (resource === "cities") return NextResponse.json({ message: "Města se archivují, nemažou." }, { status: 409 });
   if (!await canEdit(resource, id, user)) return NextResponse.json({ message: "Záznam není v rozsahu editora." }, { status: 403 });
+  if (resource === "place_live_reports") {
+    const row = (await listRecords(resource)).find((item) => String(item.id) === id);
+    await insertRecord("moderation_actions", { city_id: user.cityId || "brno", actor_id: user.id === "local-admin" ? null : user.id, target_type: "place_live_report", target_id: id, action: "delete", reason: "Ruční odstranění správce", snapshot: row || {} });
+  }
   await deleteRecord(resource, id); return new NextResponse(null, { status: 204 });
 }

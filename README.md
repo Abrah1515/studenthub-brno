@@ -11,7 +11,7 @@ Nezávislá PWA pro studenty všech brněnských vysokých škol, připravená k
 - Leaflet/OpenStreetMap mapu i plně použitelný seznam ověřených míst;
 - brigády s moderací, expirací a označením zvýraznění; modul nabídek zůstává v kódu a databázi, ale ve veřejném webu je výchozím produkčním příznakem vypnutý;
 - žádosti o lokální pomoc zveřejněné ihned po serverové validaci a antispam kontrole; veřejné jsou jen přezdívka, bezpečný popis a přibližná lokalita, kontakt zůstává neveřejný a obsah lze nahlásit nebo dodatečně skrýt;
-- oblíbené termíny a akce bez registrace, sekci `/hlidac`, interní upozornění a dobrovolný Web Push s unikátním doručením a automatickým odstraněním neplatných odběrů;
+- oblíbené termíny a akce bez registrace, sekci `/hlidac`, interní upozornění, ztlumení vybraných kategorií push zpráv a dobrovolný Web Push s unikátním doručením a automatickým odstraněním neplatných odběrů;
 - skutečný obnovovaný ICS/Webcal odběr podle města, školy, fakulty a ročníku se stabilním UID, `SEQUENCE`, `LAST-MODIFIED` a podporou zrušených termínů;
 - GPS řazení podle vzdálenosti bez ukládání přesné polohy a komunitní živý stav menz, knihoven a studoven, který vyžaduje alespoň dvě čerstvá nezávislá hlášení;
 - agregovaný zájem o komunitní akce s unikátností instalace, konzervativními štítky popularity a serverovým limitem;
@@ -135,6 +135,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608220022_content_focus_update.sql` – 16 ověřených veřejných akcí, 7 dalších oficiálních míst, původ a zdravotní stav zdrojů komunitních akcí, deduplikace a bezpečná fronta ruční kontroly.
 - `202608220023_place_duplicate_cleanup.sql` – bezpečně odstraní nově vloženou kartu KUK pouze tehdy, pokud už stejné fyzické místo existuje; na čisté instalaci záznam zachová.
 - `202608220024_watcher_live_features.sql` – anonymní instalace, oblíbené a sledované položky, interní oznámení, Web Push, tokenizované živé kalendáře, zájem o akce, hodinová hlášení míst, historie sémantických změn, provozní audit a odpovídající RLS.
+- `202608230025_watcher_muted_push.sql` – ztlumení kategorií pouze pro Web Push; důležité změny zůstávají v interním centru a zrušení termínu se eviduje jako kritická změna.
 
 ## První hlavní superadmin
 
@@ -161,7 +162,7 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 24 migrací, aplikuje 22 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, vytvoření/úpravu/soft delete komunitního příspěvku, komentáře, unikátní reakce, nejužitečnější odpověď, automatické skrytí po třech hlášeních, 16 ověřených veřejných akcí a přesně 36 ověřených míst na čisté instalaci. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 25 migrací, aplikuje 23 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, vytvoření/úpravu/soft delete komunitního příspěvku, komentáře, unikátní reakce, nejužitečnější odpověď, automatické skrytí po třech hlášeních, ztlumení push kategorií při zachování interního centra, 16 ověřených veřejných akcí a přesně 36 ověřených míst na čisté instalaci. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
 Preference ročníku je anonymní a zůstává pouze v prohlížeči. Akademický cyklus se v časové zóně Praha překlápí 1. července; uložený ročník se zvýší nejvýše jednou za každý uplynulý cyklus. Po překročení šestého ročníku se volba bezpečně zruší a aplikace požádá o nový výběr. Ruční změna založí nový referenční cyklus. Událost se na ročník váže jen při jednoznačném údaji v oficiálním zdrojovém textu; společné nebo nejisté termíny zůstávají bez omezení.
 

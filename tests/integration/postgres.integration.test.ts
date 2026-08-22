@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(24);
+      expect(files).toHaveLength(25);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -142,7 +142,10 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         insert into public.place_live_reports(place_id,installation_id,status,report_window)
           select id,'a2111111-1111-4111-8111-111111111111','many_seats',date_trunc('hour',now())
           from public.places where city_id='brno' order by id limit 1;
+        update public.anonymous_installations set muted_categories=array['teaching'] where id='a2111111-1111-4111-8111-111111111111';
+        update public.academic_events set description=description || ' · změna zůstává v interním centru' where id='61111111-1111-4111-8111-111111111113';
       `);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.internal_notifications where installation_id='a2111111-1111-4111-8111-111111111111' and kind='academic_change'")).rows[0].count).toBe(1);
       const immediatelyPublished = await db.query<{ moderation_status: string }>("insert into public.buddy_posts(id,owner_id,city_id,activity_type,approximate_location,starts_at,description,max_participants,status,expires_at) values ('91111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111111','brno','study','Testovací knihovna','2030-10-14 18:00:00+02','Příspěvek se po ověření e-mailu zveřejní bez čekání na administrátora.',3,'active','2030-10-15 06:00:00+02') returning moderation_status");
       expect(immediatelyPublished.rows[0].moderation_status).toBe("approved");
       await db.exec("insert into public.content_reports(target_type,target_id,reporter_session_hash,reason,city_id) values ('buddy_post','91111111-1111-4111-8111-111111111112',repeat('4',64),'spam','brno'),('buddy_post','91111111-1111-4111-8111-111111111112',repeat('5',64),'spam','brno'),('buddy_post','91111111-1111-4111-8111-111111111112',repeat('6',64),'spam','brno')");

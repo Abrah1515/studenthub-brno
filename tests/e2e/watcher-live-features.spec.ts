@@ -55,6 +55,21 @@ test("oblíbený a sledovaný termín zůstane v Hlídači i bez registrace", as
   await expect(page.getByRole("heading", { name: "Nic tu ještě není" })).toBeVisible();
 });
 
+test("ztlumení kategorie se uloží pro anonymní instalaci a zůstane viditelné v nastavení", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
+  const initialLoad = page.waitForResponse((response) => response.url().endsWith("/api/watcher") && response.request().method() === "GET");
+  await page.goto("/hlidac");
+  await initialLoad;
+  const saved = await page.request.patch("/api/watcher", { data: { mutedCategories: ["exam"] } });
+  expect(saved.status()).toBe(200);
+  expect((await saved.json()).mutedCategories).toEqual(["exam"]);
+  await page.reload();
+  await page.getByText("Ztlumit běžné kategorie push upozornění").click();
+  await expect(page.getByLabel("Zkouškové období")).toBeChecked();
+  expect((await (await page.request.get("/api/watcher")).json()).mutedCategories).toEqual(["exam"]);
+  expect((await page.request.patch("/api/watcher", { data: { mutedCategories: [] } })).status()).toBe(200);
+});
+
 test("živý ICS odběr je stabilní, filtrovaný a lze jej zrušit", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
   const created = await page.request.post("/api/calendar/subscriptions", { data: { cityId: "brno", universityId: "vut", facultyId: "vut-fit" } });

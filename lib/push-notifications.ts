@@ -2,6 +2,7 @@ import "server-only";
 
 import webPush from "web-push";
 import { insertRecord, listRecords, updateRecord } from "@/lib/data-store";
+import { automaticPushIsMuted } from "@/lib/push-preferences";
 
 export function pushConfiguration() {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
@@ -19,7 +20,8 @@ export async function sendPendingPushNotifications(limit = 100) {
   const notifications = (await listRecords("internal_notifications"))
     .filter((row) => !row.push_sent_at && new Date(String(row.available_at)).getTime() <= now)
     .slice(0, limit);
-  const subscriptions = (await listRecords("push_subscriptions")).filter((row) => row.enabled);
+  const [subscriptionsRows, installations, academicEvents] = await Promise.all([listRecords("push_subscriptions"), listRecords("anonymous_installations"), listRecords("academic_events")]);
+  const subscriptions = subscriptionsRows.filter((row) => row.enabled);
   const deliveries = await listRecords("notification_deliveries");
   let sent = 0;
   let failed = 0;
@@ -30,6 +32,12 @@ export async function sendPendingPushNotifications(limit = 100) {
       .filter((row) => row.notification_id === notification.id && row.status === "sent")
       .map((row) => String(row.push_subscription_id)));
     const targets = subscriptions.filter((row) => row.installation_id === notification.installation_id && !alreadyDelivered.has(String(row.id)));
+    const installation = installations.find((row) => row.id === notification.installation_id);
+    if (automaticPushIsMuted(notification, installation, academicEvents)) {
+      await Promise.all(targets.map((subscription) => insertRecord("notification_deliveries", { notification_id: notification.id, push_subscription_id: subscription.id, status: "skipped", error_code: "muted_category" })));
+      await updateRecord("internal_notifications", String(notification.id), { push_sent_at: new Date().toISOString(), push_attempts: Number(notification.push_attempts || 0), last_push_error: "muted_category" });
+      continue;
+    }
     let retryableFailures = 0;
 
     for (const subscription of targets) {

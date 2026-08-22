@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { deleteRecord, insertRecord, listRecords, updateRecord } from "@/lib/data-store";
 import { ensureInstallation, installationCookie } from "@/lib/installation";
 import { allowRequest, requestFingerprint } from "@/lib/rate-limit";
-import { savedItemSchema } from "@/lib/schemas";
+import { savedItemSchema, watcherMutedCategoriesSchema } from "@/lib/schemas";
 import { getAcademicEvents, getCommunityEvents } from "@/lib/public-data";
 import { materializeWatcherReminder } from "@/lib/watcher-notifications";
 
@@ -19,6 +19,7 @@ export async function GET(request: Request) {
   const response = NextResponse.json({
     items: saved.map((item) => ({ id: item.id, targetType: item.target_type, targetId: item.target_id, favorite: item.is_favorite, watched: item.is_watched, reminderDays: item.reminder_days, snapshot: item.snapshot, available: availableIds.has(String(item.target_id)) })).sort((a, b) => String((a.snapshot as Record<string, unknown>)?.start || "").localeCompare(String((b.snapshot as Record<string, unknown>)?.start || ""))),
     notifications: notifications.filter((item) => item.installation_id === installation.id && new Date(String(item.available_at)).getTime() <= Date.now()).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).map((item) => ({ id: item.id, kind: item.kind, title: item.title, body: item.body, url: item.destination_url, createdAt: item.created_at, read: Boolean(item.read_at) })),
+    mutedCategories: Array.isArray(installation.muted_categories) ? installation.muted_categories : [],
   }, { headers: { "Cache-Control": "private, no-store" } });
   installationCookie(response, identity); return response;
 }
@@ -39,7 +40,15 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const body = await request.json().catch(() => null) as { notificationId?: string; read?: boolean } | null;
+  if (!allowRequest(`watcher-settings:${requestFingerprint(request)}`, 80, 60 * 60 * 1000)) return NextResponse.json({ message: "Příliš mnoho změn. Zkuste to později." }, { status: 429 });
+  const body = await request.json().catch(() => null) as { notificationId?: string; read?: boolean; mutedCategories?: unknown } | null;
+  if (body && "mutedCategories" in body) {
+    const parsed = watcherMutedCategoriesSchema.safeParse(body);
+    if (!parsed.success) return NextResponse.json({ message: "Neplatné kategorie upozornění." }, { status: 422 });
+    const { identity, row: installation } = await ensureInstallation(request);
+    await updateRecord("anonymous_installations", String(installation.id), { muted_categories: [...new Set(parsed.data.mutedCategories)] });
+    const response = NextResponse.json({ mutedCategories: parsed.data.mutedCategories }); installationCookie(response, identity); return response;
+  }
   if (!body?.notificationId || typeof body.read !== "boolean") return NextResponse.json({ message: "Neplatná změna oznámení." }, { status: 422 });
   const { identity, row: installation } = await ensureInstallation(request);
   const notification = (await listRecords("internal_notifications")).find((item) => item.id === body.notificationId && item.installation_id === installation.id);
