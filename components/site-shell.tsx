@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { BookOpen, BriefcaseBusiness, CalendarDays, Handshake, HeartHandshake, Home, Info, MapPinned, Menu, Monitor, Moon, Settings, Sun, Users, Wrench, X } from "lucide-react";
+import { BookOpen, BriefcaseBusiness, CalendarDays, Handshake, HeartHandshake, Home, Info, MapPinned, Menu, MessageCircle, Monitor, Moon, Settings, Sun, Users, Wrench, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { brand } from "@/lib/brand";
@@ -23,8 +23,9 @@ function navigationFor(citySlug: string, cityName: string) {
     { href: cityBase, label: "Přehled", short: "Přehled", icon: Home },
     { href: `${cityBase}/kalendar`, label: "Kalendář", short: "Termíny", icon: CalendarDays },
     { href: `${cityBase}/mista`, label: `Místa – ${cityName}`, short: "Místa", icon: MapPinned },
-    { href: `${cityBase}/nabidky`, label: "Nabídky a slevy", short: "Slevy", icon: Handshake },
+    { href: "/komunita", label: "Studentská komunita", short: "Komunita", icon: MessageCircle },
     { href: `${cityBase}/brigady`, label: "Brigády", short: "Brigády", icon: BriefcaseBusiness },
+    { href: `${cityBase}/nabidky`, label: "Nabídky a slevy", short: "Slevy", icon: Handshake },
     { href: "/pomoc", label: "Technická pomoc", short: "Pomoc", icon: Wrench },
     { href: "/partak", label: "Hledám parťáka", short: "Parťák", icon: Users },
     { href: "/nastaveni", label: "Moje škola", short: "Nastavení", icon: Settings },
@@ -42,7 +43,7 @@ function ThemeToggle() {
   return <div className="theme-switcher" role="group" aria-label="Barevný režim">{options.map(({ value, label, icon: Icon }) => <button key={value} type="button" className={theme === value ? "active" : ""} aria-pressed={theme === value} aria-label={label} title={label} onClick={() => { setTheme(value); localStorage.setItem("studenthub-theme", value); applyTheme(value); }}><Icon size={17} /></button>)}</div>;
 }
 
-function isActive(pathname: string, href: string, cityRoot: string) { return pathname === href || (href === cityRoot && pathname === "/"); }
+function isActive(pathname: string, href: string, cityRoot: string) { return pathname === href || (href === "/komunita" && pathname.startsWith("/komunita/")) || (href === cityRoot && pathname === "/"); }
 function CitySwitcher({ cities, pathname }: { cities: City[]; pathname: string }) { const current = cities.find((city) => pathname === `/${city.slug}` || pathname.startsWith(`/${city.slug}/`)) || cities[0]; return <label className="city-switcher"><span>Město</span><select aria-label="Změnit město" value={current?.slug || ""} onChange={(event) => { const suffix = current && pathname.startsWith(`/${current.slug}`) ? pathname.slice(current.slug.length + 1) : ""; window.location.assign(`/${event.target.value}${suffix}`); }}>{cities.map((city) => <option key={city.id} value={city.slug}>{city.name}</option>)}</select></label>; }
 
 type NavigationItem = ReturnType<typeof navigationFor>[number];

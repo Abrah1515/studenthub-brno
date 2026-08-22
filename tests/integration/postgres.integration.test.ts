@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(20);
+      expect(files).toHaveLength(21);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -59,11 +59,43 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         insert into auth.users(id,email,email_confirmed_at) values
           ('71111111-1111-4111-8111-111111111111','faculty@example.cz',now()),
           ('71111111-1111-4111-8111-111111111112','city@example.cz',now()),
-          ('71111111-1111-4111-8111-111111111113','super@example.cz',now());
+          ('71111111-1111-4111-8111-111111111113','super@example.cz',now()),
+          ('71111111-1111-4111-8111-111111111114','student@example.cz',now());
         update public.profiles set role='faculty_editor', university_id='vut', faculty_id='vut-fekt', city_id='brno' where id='71111111-1111-4111-8111-111111111111';
         update public.profiles set role='city_editor', city_id='brno' where id='71111111-1111-4111-8111-111111111112';
         update public.profiles set role='super_admin', city_id=null where id='71111111-1111-4111-8111-111111111113';
       `);
+
+      await db.exec(`
+        insert into public.community_profiles(user_id,nickname,city_id,university_id,faculty_id) values
+          ('71111111-1111-4111-8111-111111111111','Ada','brno','vut','vut-fekt'),
+          ('71111111-1111-4111-8111-111111111112','Bětka','brno','muni','muni-fi'),
+          ('71111111-1111-4111-8111-111111111113','Cyril','brno',null,null);
+        insert into public.community_posts(id,author_id,author_nickname,city_id,university_id,faculty_id,category,body,duplicate_fingerprint) values
+          ('a1111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111111','Ada','brno','vut','vut-fekt','Studium','Původní text otázky pro integrační ověření.',repeat('a',64)),
+          ('a1111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111111','Ada','brno',null,null,'Technika','Obsah určený k automatickému skrytí po hlášeních.',repeat('b',64)),
+          ('a1111111-1111-4111-8111-111111111113','71111111-1111-4111-8111-111111111112','Bětka','brno','muni','muni-fi','Doprava','Příspěvek určený k bezpečnému soft delete.',repeat('c',64));
+        update public.community_posts set body='Upravený text vlastní otázky pro integrační ověření.' where id='a1111111-1111-4111-8111-111111111111';
+        update public.community_posts set status='deleted',deleted_at=now() where id='a1111111-1111-4111-8111-111111111113';
+        insert into public.community_comments(id,post_id,author_id,author_nickname,body) values
+          ('b1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111112','Bětka','První užitečná odpověď.'),
+          ('b1111111-1111-4111-8111-111111111112','a1111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111113','Cyril','Druhá užitečná odpověď.');
+        update public.community_comments set is_best=true where id='b1111111-1111-4111-8111-111111111111';
+        insert into public.community_reactions(user_id,target_type,target_id) values
+          ('71111111-1111-4111-8111-111111111111','post','a1111111-1111-4111-8111-111111111111'),
+          ('71111111-1111-4111-8111-111111111112','post','a1111111-1111-4111-8111-111111111111'),
+          ('71111111-1111-4111-8111-111111111113','comment','b1111111-1111-4111-8111-111111111111');
+        insert into public.community_reports(reporter_id,target_type,target_id,reason,city_id) values
+          ('71111111-1111-4111-8111-111111111111','post','a1111111-1111-4111-8111-111111111112','spam','brno'),
+          ('71111111-1111-4111-8111-111111111112','post','a1111111-1111-4111-8111-111111111112','fraud','brno'),
+          ('71111111-1111-4111-8111-111111111113','post','a1111111-1111-4111-8111-111111111112','dangerous','brno');
+      `);
+      expect((await db.query<{ body: string; helpful_count: number; comment_count: number }>("select body,helpful_count,comment_count from public.community_posts where id='a1111111-1111-4111-8111-111111111111'")).rows[0]).toEqual({ body: "Upravený text vlastní otázky pro integrační ověření.", helpful_count: 2, comment_count: 2 });
+      expect((await db.query<{ status: string; report_count: number }>("select status,report_count from public.community_posts where id='a1111111-1111-4111-8111-111111111112'")).rows[0]).toEqual({ status: "hidden", report_count: 3 });
+      expect((await db.query<{ status: string; deleted_at: Date | null }>("select status,deleted_at from public.community_posts where id='a1111111-1111-4111-8111-111111111113'")).rows[0].status).toBe("deleted");
+      expect((await db.query<{ is_best: boolean; helpful_count: number }>("select is_best,helpful_count from public.community_comments where id='b1111111-1111-4111-8111-111111111111'")).rows[0]).toEqual({ is_best: true, helpful_count: 1 });
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_moderation_history where action='auto_hidden' and target_id='a1111111-1111-4111-8111-111111111112'")).rows[0].count).toBe(1);
+      await expect(db.exec("insert into public.community_reports(reporter_id,target_type,target_id,reason,city_id) values ('71111111-1111-4111-8111-111111111114','post','a1111111-1111-4111-8111-111111111199','spam','brno')")).rejects.toThrow(/report city does not match target/);
 
       const modes = await db.query<{ monitoring_mode: string; count: number }>("select monitoring_mode, count(*)::int as count from public.content_sources where source_type='academic_calendar' group by monitoring_mode order by monitoring_mode");
       expect(modes.rows).toEqual([{ monitoring_mode: "automatic_publish", count: 18 }, { monitoring_mode: "automatic_review", count: 9 }]);
@@ -121,6 +153,8 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await expect(db.query("select * from public.content_sources")).rejects.toThrow();
       await expect(db.query("select * from public.community_events")).rejects.toThrow();
       expect((await db.query<{ approximate_location: string }>("select approximate_location from public.buddy_posts")).rows).toEqual([{ approximate_location: "Veřejná knihovna" }]);
+      expect((await db.query<{ body: string }>("select body from public.community_posts order by created_at,id")).rows).toEqual([{ body: "Upravený text vlastní otázky pro integrační ověření." }]);
+      await expect(db.query("select author_id from public.community_posts")).rejects.toThrow();
       await expect(db.query("insert into public.page_views(path,city_id) values ('/obchazeni-souhlasu','brno')")).rejects.toThrow();
       await db.exec("reset role");
 
@@ -130,6 +164,15 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query("update public.academic_events set description='Zakázáno' where title='RLS FIT' returning id")).rows).toHaveLength(0);
       await expect(db.query("insert into public.buddy_posts(owner_id,city_id,activity_type,approximate_location,starts_at,description,max_participants,expires_at) values ('71111111-1111-4111-8111-111111111111','brno','study','Obejití API','2031-01-01 18:00:00+01','Přímý zápis musí odmítnout databázová oprávnění.',3,'2031-01-02 06:00:00+01')")).rejects.toThrow();
       expect((await db.query("select * from public.service_requests")).rows).toHaveLength(0); expect((await db.query("select * from public.community_events")).rows).toHaveLength(0); await db.exec("reset role");
+
+      await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111111"]); await db.exec("set role authenticated");
+      expect((await db.query("update public.community_posts set body='Vlastní povolená úprava.' where id='a1111111-1111-4111-8111-111111111111' returning id")).rows).toHaveLength(1);
+      await expect(db.query("update public.community_posts set status='active' where id='a1111111-1111-4111-8111-111111111112'")).rejects.toThrow();
+      await db.exec("reset role");
+
+      await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111114"]); await db.exec("set role authenticated");
+      expect((await db.query("update public.community_posts set body='Cizí zakázaná úprava.' where id='a1111111-1111-4111-8111-111111111111' returning id")).rows).toHaveLength(0);
+      await db.exec("reset role");
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111112"]); await db.exec("set role authenticated");
       expect((await db.query<{ title: string }>("select title from public.academic_events where title like 'RLS %' order by title")).rows.map((row) => row.title)).toEqual(["RLS FEKT", "RLS FIT"]);

@@ -1,4 +1,4 @@
-export const adminSectionKeys = ["cities", "content_sources", "academic_events", "community_events", "places", "offers", "jobs", "service_requests", "buddy_posts", "contact_messages", "content_reports", "academic_event_conflicts", "analytics", "admin_users", "submissions", "source_review_queue"] as const;
+export const adminSectionKeys = ["cities", "content_sources", "academic_events", "community_events", "community_forum", "places", "offers", "jobs", "service_requests", "buddy_posts", "contact_messages", "content_reports", "academic_event_conflicts", "analytics", "admin_users", "submissions", "source_review_queue"] as const;
 export type AdminSection = (typeof adminSectionKeys)[number];
 
 const facultySections = new Set<AdminSection>(["content_sources", "academic_events", "places", "offers", "jobs", "academic_event_conflicts", "submissions", "source_review_queue"]);

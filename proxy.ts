@@ -10,6 +10,7 @@ const reservedTopLevelRoutes = new Set([
   "cookies",
   "kalendar",
   "kontakt",
+  "komunita",
   "mendelu",
   "mista",
   "muni",

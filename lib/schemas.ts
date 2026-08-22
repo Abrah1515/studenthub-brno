@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { faculties } from "@/lib/universities";
+import { communityCategories } from "@/lib/community-types";
 
 const honeypot = z.string().max(0, "Spam byl rozpoznán.").optional();
 const cityId = z.string().regex(/^[a-z0-9-]{2,80}$/).optional();
@@ -72,6 +73,27 @@ export const buddyPostUpdateSchema = z.object({
   .refine((value) => !value.startsAt || new Date(value.startsAt).getTime() > Date.now() + 30 * 60 * 1000, { path: ["startsAt"], message: "Termín musí být alespoň 30 minut v budoucnu." });
 
 export const buddyJoinSchema = z.object({ message: z.string().trim().max(500).default("") });
+
+const optionalScope = {
+  universityId: z.string().trim().max(50).optional().or(z.literal("")),
+  facultyId: z.string().trim().max(80).optional().or(z.literal("")),
+};
+const validCommunityScope = (value: { universityId?: string; facultyId?: string }, ctx: z.RefinementCtx) => {
+  if (value.facultyId && !faculties.some((faculty) => faculty.id === value.facultyId && faculty.universityId === value.universityId)) ctx.addIssue({ code: "custom", path: ["facultyId"], message: "Fakulta nepatří k vybrané univerzitě." });
+};
+export const communityPostSchema = z.object({
+  nickname: z.string().trim().min(2, "Přezdívka musí mít alespoň 2 znaky.").max(40), category: z.enum(communityCategories),
+  body: z.string().trim().min(2, "Napište alespoň krátkou otázku nebo tip.").max(500, "Příspěvek může mít nejvýše 500 znaků."),
+  ...optionalScope, placeId: z.string().uuid("Vybrané místo není platné.").optional().or(z.literal("")), company: honeypot, cityId,
+}).superRefine(validCommunityScope);
+export const communityPostUpdateSchema = z.object({
+  nickname: z.string().trim().min(2).max(40).optional(), category: z.enum(communityCategories).optional(), body: z.string().trim().min(2).max(500).optional(),
+  ...optionalScope, placeId: z.string().uuid().optional().or(z.literal("")),
+}).superRefine(validCommunityScope).refine((value) => Object.keys(value).length > 0, "Není co změnit.");
+export const communityCommentSchema = z.object({ nickname: z.string().trim().min(2).max(40), body: z.string().trim().min(2).max(300), company: honeypot });
+export const communityCommentUpdateSchema = z.object({ body: z.string().trim().min(2).max(300) });
+export const communityReactionSchema = z.object({ targetType: z.enum(["post", "comment"]), targetId: z.string().uuid() });
+export const communityReportSchema = z.object({ targetType: z.enum(["post", "comment"]), targetId: z.string().uuid(), reason: z.enum(["spam", "harassment", "hate", "privacy", "fraud", "dangerous", "other"]), detail: z.string().trim().max(800).default("") });
 
 export const contactMessageSchema = z.object({
   name: z.string().trim().min(2, "Uveďte své jméno.").max(100),
