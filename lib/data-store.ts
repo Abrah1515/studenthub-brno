@@ -2,6 +2,7 @@ import "server-only";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
+import { recordOrderColumn } from "@/lib/data-store-order";
 
 export type TableName = "cities" | "campuses" | "service_requests" | "submissions" | "outbound_clicks" | "page_views" | "academic_events" | "community_events" | "places" | "offers" | "jobs" | "content_sources" | "source_sync_runs" | "source_review_queue" | "link_checks" | "content_publication_events" | "buddy_posts" | "buddy_join_requests" | "content_reports" | "contact_messages" | "academic_event_conflicts" | "community_profiles" | "community_posts" | "community_comments" | "community_reactions" | "community_reports" | "community_moderation_history" | "community_moderation_settings" | "anonymous_installations" | "saved_items" | "internal_notifications" | "push_subscriptions" | "calendar_subscriptions" | "community_event_interests" | "place_live_reports" | "academic_event_changes" | "notification_deliveries" | "moderation_actions";
 type RecordValue = Record<string, unknown>;
@@ -22,7 +23,7 @@ export async function insertRecord(table: TableName, record: RecordValue) {
   assertStorage(); const store = await readLocalStore(); const saved = { id: record.id || crypto.randomUUID(), created_at: new Date().toISOString(), ...record }; store[table].push(saved); await writeLocalStore(store); return saved;
 }
 export async function listRecords(table: TableName) {
-  if (isSupabaseConfigured()) { const { data, error } = await createServiceClient().from(table).select("*").order("created_at", { ascending: false }); if (error) throw error; return data as RecordValue[]; }
+  if (isSupabaseConfigured()) { const { data, error } = await createServiceClient().from(table).select("*").order(recordOrderColumn(table), { ascending: false }); if (error) throw error; return data as RecordValue[]; }
   if (!localStoreAllowed()) return []; return (await readLocalStore())[table];
 }
 export async function updateRecord(table: TableName, id: string, changes: RecordValue) {

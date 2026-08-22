@@ -16,6 +16,7 @@ test.describe("produkční StudentHub", () => {
   test("veřejná část používá nový obsah, bezpečné přesměrování a nepřetéká", async ({ page, request }, testInfo) => {
     const consoleErrors: string[] = [];
     const failedRequests: string[] = [];
+    const httpErrors: string[] = [];
     page.on("console", (message) => {
       if (message.type() === "error" && !message.text().includes("favicon")) consoleErrors.push(message.text());
     });
@@ -24,6 +25,9 @@ test.describe("produkční StudentHub", () => {
       const errorText = requestItem.failure()?.errorText || "neznámá chyba";
       if (errorText === "net::ERR_ABORTED" && (url.includes("_rsc=") || url.includes("/admin/prihlaseni?from=%2Fadmin"))) return;
       if (!url.includes("tile.openstreetmap.org")) failedRequests.push(`${requestItem.failure()?.errorText}: ${url}`);
+    });
+    page.on("response", (response) => {
+      if (response.status() >= 400 && response.url().startsWith("https://studenthub-brno.vercel.app")) httpErrors.push(`${response.status()} ${response.request().method()} ${response.url()}`);
     });
 
     await page.goto(`/brno?production-audit=${Date.now()}`, { waitUntil: "networkidle" });
@@ -51,7 +55,8 @@ test.describe("produkční StudentHub", () => {
     expect([401, 403]).toContain(adminApi.status());
     const sitemap = await request.get("/sitemap.xml");
     expect(await sitemap.text()).not.toContain("/nabidky");
-    expect(consoleErrors).toEqual([]);
+    expect(httpErrors).toEqual([]);
+    expect(consoleErrors, httpErrors.join("\n")).toEqual([]);
     expect(failedRequests).toEqual([]);
   });
 });
