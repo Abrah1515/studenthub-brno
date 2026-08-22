@@ -1,0 +1,7 @@
+<resources>
+    <color name="color_primary">#0B6B4D</color>
+    <color name="color_primary_dark">#0E1714</color>
+    <color name="color_background">#F2F6F3</color>
+    <color name="color_background_dark">#0E1714</color>
+    <color name="launcher_background">#0B6B4D</color>
+</resources>

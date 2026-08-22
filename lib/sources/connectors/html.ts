@@ -20,7 +20,7 @@ export async function parseHtml(context: ConnectorContext): Promise<ConnectorRes
     const title = text.replace(/^(?:\d{1,2}\.\s*(?:\d{1,2}\.|[\p{L}]+)(?:\s*\d{4})?\s*(?:[-–—]\s*\d{1,2}\.\s*(?:\d{1,2}\.|[\p{L}]+)\s*\d{4})?\s*)/iu, "").replace(/^[-–—|:\s]+/, "").trim();
     if (title.length < 4) continue;
     const category = inferCategory(title); if (category === "Ostatní") continue;
-    const externalId = (await sha256(`${context.source.id}|${title}|${parsed.start}`)).slice(0, 32);
+    const externalId = (await sha256(`${context.source.id}|${academicYearFor(new Date(parsed.start))}|${inferCategory(title)}|${title}`)).slice(0, 32);
     events.push({ externalId, title, description: "Událost načtená z veřejného oficiálního harmonogramu.", startAt: parsed.start, endAt: parsed.end, allDay: parsed.allDay, timezone: "Europe/Prague", category, academicYear: academicYearFor(new Date(parsed.start)), universityId: context.source.universityId, facultyId: context.source.facultyId, sourceId: context.source.id, sourceUrl: context.source.sourceUrl, sourceHash: await sha256(text), confidence: context.source.monitoringMode === "automatic_publish" ? 0.92 : 0.8, status: context.source.monitoringMode === "automatic_publish" ? "approved" : "pending", lastVerifiedAt: context.checkedAt });
   }
   if (!events.length) warnings.push("Parser nenašel žádnou dostatečně jistou událost; dokument čeká na kontrolu.");

@@ -1,4 +1,5 @@
 import type { EventCategory } from "@/lib/types";
+import type { NormalizedEvent } from "@/lib/sources/types";
 
 const czechMonths: Record<string, number> = { leden: 1, ledna: 1, únor: 2, února: 2, březen: 3, března: 3, duben: 4, dubna: 4, květen: 5, května: 5, červen: 6, června: 6, červenec: 7, července: 7, srpen: 8, srpna: 8, září: 9, říjen: 10, října: 10, listopad: 11, listopadu: 11, prosinec: 12, prosince: 12 };
 
@@ -6,6 +7,9 @@ export function inferCategory(value: string): EventCategory {
   const text = value.toLocaleLowerCase("cs-CZ");
   const folded = text.normalize("NFD").replace(/\p{Diacritic}/gu, "");
   if (/zmen.*zapis/.test(folded)) return "Změny zápisu";
+  if (/seminar.*skup|rozvrhov.*seminar/.test(folded)) return "Zápis do seminárních skupin";
+  if (/prihl.*(?:statni.*zkou|szz)/.test(folded)) return "Přihlášky ke státním zkouškám";
+  if (/(?:dekansk|rektorsk).*voln/.test(folded)) return "Děkanské a rektorské volno";
   if (/zverejnen.*rozvrh/.test(folded)) return "Zveřejnění rozvrhu";
   if (/registrac/.test(folded)) return "Registrace předmětů";
   if (/statni.*zkou|szz/.test(folded)) return "Státní závěrečné zkoušky";
@@ -86,4 +90,16 @@ export async function sha256(value: Uint8Array | string) {
   const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
   const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function semanticText(value?: string) {
+  return (value || "").replace(/<[^>]+>/g, " ").normalize("NFKC").toLocaleLowerCase("cs-CZ").replace(/\s+/g, " ").trim();
+}
+
+export function semanticEventPayload(event: Pick<NormalizedEvent, "title" | "description" | "startAt" | "endAt" | "allDay" | "category" | "academicYear" | "studyYears">) {
+  return JSON.stringify({ title: semanticText(event.title), description: semanticText(event.description), startAt: event.startAt, endAt: event.endAt || null, allDay: event.allDay, category: event.category, academicYear: event.academicYear, studyYears: event.studyYears || [] });
+}
+
+export function semanticEventHash(event: Parameters<typeof semanticEventPayload>[0]) {
+  return sha256(semanticEventPayload(event));
 }

@@ -1,6 +1,6 @@
 # StudentHub Brno
 
-Nezávislá PWA pro studenty všech brněnských vysokých škol, připravená k produkčnímu nasazení po dokončení checklistu v tomto dokumentu. Spojuje ověřené veřejné akademické termíny, užitečná místa, brigády, moderované žádosti o lokální pomoc, hledání parťáků a bezpečnou Studentskou komunitu. Není oficiální službou žádné univerzity a nepřihlašuje se do školních informačních systémů.
+Nezávislá PWA pro studenty všech brněnských vysokých škol, připravená k produkčnímu nasazení po dokončení checklistu v tomto dokumentu. Spojuje ověřené veřejné akademické termíny, užitečná místa, brigády, bezpečně zveřejněné žádosti o lokální pomoc, hledání parťáků a Studentskou komunitu. Není oficiální službou žádné univerzity a nepřihlašuje se do školních informačních systémů.
 
 ## Co aplikace obsahuje
 
@@ -10,7 +10,11 @@ Nezávislá PWA pro studenty všech brněnských vysokých škol, připravená k
 - povinný sekvenční onboarding města/školy/fakulty bez registrace, vědomé pokračování pro celé město a aktuální studijní kontext pod značkou v desktopové i mobilní navigaci;
 - Leaflet/OpenStreetMap mapu i plně použitelný seznam ověřených míst;
 - brigády s moderací, expirací a označením zvýraznění; modul nabídek zůstává v kódu a databázi, ale ve veřejném webu je výchozím produkčním příznakem vypnutý;
-- moderované veřejné žádosti o lokální pomoc s neveřejnými kontakty, filtry, vlastnickým tokenem, úpravou/smazáním a hlášením;
+- žádosti o lokální pomoc zveřejněné ihned po serverové validaci a antispam kontrole; veřejné jsou jen přezdívka, bezpečný popis a přibližná lokalita, kontakt zůstává neveřejný a obsah lze nahlásit nebo dodatečně skrýt;
+- oblíbené termíny a akce bez registrace, sekci `/hlidac`, interní upozornění a dobrovolný Web Push s unikátním doručením a automatickým odstraněním neplatných odběrů;
+- skutečný obnovovaný ICS/Webcal odběr podle města, školy, fakulty a ročníku se stabilním UID, `SEQUENCE`, `LAST-MODIFIED` a podporou zrušených termínů;
+- GPS řazení podle vzdálenosti bez ukládání přesné polohy a komunitní živý stav menz, knihoven a studoven, který vyžaduje alespoň dvě čerstvá nezávislá hlášení;
+- agregovaný zájem o komunitní akce s unikátností instalace, konzervativními štítky popularity a serverovým limitem;
 - sekci „Hledám parťáka“ pro ověřené Supabase účty s filtry, kapacitou, žádostmi o připojení, expirací, moderací a bezpečnostními doporučeními;
 - sekci `/komunita` s průběžně stránkovaným feedem, školními filtry, komentáři, reakcemi „Užitečné“, nejužitečnější odpovědí, obrázkem po bezpečné konverzi a moderací po nahlášení;
 - návrhy studentských spolků s fakultním rozsahem a serverovou validací;
@@ -77,6 +81,10 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `FAJN_BRIGADY_FEED_MODE` | server | ne | bezpečné `incremental`; `full_snapshot` až po písemném potvrzení úplnosti feedu |
 | `ISIC_FEED_ENABLED` / `ISIC_FEED_PERMISSION_CONFIRMED` / `ISIC_FEED_URL` | server | ne | rezervovaný autorizovaný feed; bez písemného oprávnění zůstává vynuceně vypnutý |
 | `OCR_ENDPOINT_URL` / `OCR_API_KEY` | pouze server | ne | volitelné HTTPS OCR API pro skenované PDF; výsledek vždy čeká na schválení |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | klient/build | ano pro push | veřejná část VAPID páru; oprávnění se žádá až po kliknutí uživatele |
+| `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | pouze server | ano pro push | podpis Web Push; soukromý klíč nikdy nepatří do klienta ani Gitu |
+| `ANDROID_PACKAGE_ID` | pouze server | ano pro TWA | původní package ID z Play Console pro Digital Asset Links |
+| `ANDROID_SHA256_CERT_FINGERPRINTS` | pouze server | ano pro TWA | SHA-256 App Signing certifikátu; více otisků lze oddělit čárkou |
 | `DEMO_MODE` | server | ne | výhradně lokální testovací přihlášení |
 | `ALLOW_LOCAL_FILE_STORE` | server | ne | lokální souborové úložiště; vyžaduje současně `DEMO_MODE=true` |
 | `ALLOW_VERIFIED_FALLBACK` | server | ne | kurátorovaný fallback bez DB; v produkci ponechat `false` |
@@ -126,6 +134,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608170021_student_community.sql` – ověřené účty komunitního feedu, příspěvky, komentáře, reakce, hlášení, audit moderace, RLS a privátní úložiště obrázků.
 - `202608220022_content_focus_update.sql` – 16 ověřených veřejných akcí, 7 dalších oficiálních míst, původ a zdravotní stav zdrojů komunitních akcí, deduplikace a bezpečná fronta ruční kontroly.
 - `202608220023_place_duplicate_cleanup.sql` – bezpečně odstraní nově vloženou kartu KUK pouze tehdy, pokud už stejné fyzické místo existuje; na čisté instalaci záznam zachová.
+- `202608220024_watcher_live_features.sql` – anonymní instalace, oblíbené a sledované položky, interní oznámení, Web Push, tokenizované živé kalendáře, zájem o akce, hodinová hlášení míst, historie sémantických změn, provozní audit a odpovídající RLS.
 
 ## První hlavní superadmin
 
@@ -152,7 +161,7 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 23 migrací, aplikuje 21 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, vytvoření/úpravu/soft delete komunitního příspěvku, komentáře, unikátní reakce, nejužitečnější odpověď, automatické skrytí po třech hlášeních, 16 ověřených veřejných akcí a přesně 36 ověřených míst na čisté instalaci. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 24 migrací, aplikuje 22 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, vytvoření/úpravu/soft delete komunitního příspěvku, komentáře, unikátní reakce, nejužitečnější odpověď, automatické skrytí po třech hlášeních, 16 ověřených veřejných akcí a přesně 36 ověřených míst na čisté instalaci. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
 Preference ročníku je anonymní a zůstává pouze v prohlížeči. Akademický cyklus se v časové zóně Praha překlápí 1. července; uložený ročník se zvýší nejvýše jednou za každý uplynulý cyklus. Po překročení šestého ročníku se volba bezpečně zruší a aplikace požádá o nový výběr. Ruční změna založí nový referenční cyklus. Událost se na ročník váže jen při jednoznačném údaji v oficiálním zdrojovém textu; společné nebo nejisté termíny zůstávají bez omezení.
 
@@ -230,6 +239,21 @@ pnpm check:pwa https://studenthub-brno.vercel.app
 
 `pnpm check:links` používá bezpečný GET s limitem velikosti, respektuje `robots.txt` a u ročních rozcestníků prochází stránkování i cestu seznam → detail → finální PDF. Kontroluje finální URL, skutečný MIME typ, akademický rok, PDF hlavičku a očekávanou strukturu obsahu. Sdílené IS stránky načítá jednou s omezeným backoff retry a při dočasné nedostupnosti nic nemění. Produkční cron uchovává historii a za definitivně rozbitý označí odkaz až po třech selháních.
 
+## Android / TWA
+
+Složka [`android/`](android/) obsahuje samostatný Trusted Web Activity obal s `compileSdk=36`, `targetSdk=36`, Android Browser Helper 2.7.3 a pouze síťovým oprávněním. Podrobný postup sestavení a bezpečného podpisu je v [`android/README.md`](android/README.md). Release identity se nastavuje mimo Git přes Gradle properties nebo `ORG_GRADLE_PROJECT_*` tajemství.
+
+Před publikováním je povinné převzít původní `applicationId`, vyšší `versionCode`, upload keystore a App Signing SHA-256 z existujícího záznamu v Play Console. Bez nich lze ověřit debug APK a nepodepsaný release AAB/APK, nelze však pravdivě vytvořit aktualizaci již nainstalované aplikace. Po nastavení podpisu spusťte:
+
+```powershell
+cd android
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+.\gradlew.bat --no-daemon clean lint bundleRelease assembleRelease assembleDebug
+```
+
+`/.well-known/assetlinks.json` vrací deklaraci pouze při platném `ANDROID_PACKAGE_ID` a `ANDROID_SHA256_CERT_FINGERPRINTS`; bez nich bezpečně vrací prázdné pole.
+
 ## Nasazení na Vercel
 
 1. Nahrajte repozitář na GitHub/GitLab/Bitbucket.
@@ -255,6 +279,11 @@ NEXT_PUBLIC_DEFAULT_CITY_SLUG=brno
 MULTI_CITY_ENABLED=false
 NEXT_PUBLIC_MULTI_CITY_ENABLED=false
 PUBLISHED_CITY_SLUGS=brno
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=<veřejný VAPID klíč>
+VAPID_PRIVATE_KEY=<serverové tajemství>
+VAPID_SUBJECT=mailto:studenthubbrno@gmail.com
+ANDROID_PACKAGE_ID=<původní package ID>
+ANDROID_SHA256_CERT_FINGERPRINTS=<SHA-256 App Signing certifikátu>
 ```
 
 4. Vygenerujte tajemství například `openssl rand -base64 48` pro `CRON_SECRET` a `RATE_LIMIT_SALT`.
@@ -272,6 +301,11 @@ pnpm dlx vercel env add SUPABASE_SERVICE_ROLE_KEY production
 pnpm dlx vercel env add CRON_SECRET production
 pnpm dlx vercel env add ADMIN_COOKIE_SECRET production
 pnpm dlx vercel env add RATE_LIMIT_SALT production
+pnpm dlx vercel env add NEXT_PUBLIC_VAPID_PUBLIC_KEY production
+pnpm dlx vercel env add VAPID_PRIVATE_KEY production
+pnpm dlx vercel env add VAPID_SUBJECT production
+pnpm dlx vercel env add ANDROID_PACKAGE_ID production
+pnpm dlx vercel env add ANDROID_SHA256_CERT_FINGERPRINTS production
 pnpm dlx vercel env add APP_ENV production
 pnpm dlx vercel --prod
 ```
@@ -294,6 +328,8 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 - [ ] první hlavní `super_admin` vznikl přes `pnpm admin:invite`; pozvánka, magic link, obnova a odhlášení fungují se skutečným SMTP;
 - [ ] případní `admin`, `city_editor`/`faculty_editor` mají shodný profil i App metadata a otestovaný rozsah;
 - [ ] service role, cron a rate-limit tajemství jsou pouze ve Vercelu a byla rotována;
+- [ ] VAPID pár je vygenerovaný, soukromý klíč je pouze ve Vercelu a push byl ověřen na fyzickém Androidu/iOS i desktopu;
+- [ ] původní Android package ID, vyšší versionCode, upload keystore a App Signing SHA-256 odpovídají Play Console; podepsaný AAB prošel interním testem aktualizace;
 - [ ] tři produkční testovací přepínače jsou `false`;
 - [ ] všechny automatické zdroje prošly prvním během a ruční zdroje mají vlastníka;
 - [ ] nabídky/brigády jsou podložené souhlasem partnera nebo smluvním feedem;

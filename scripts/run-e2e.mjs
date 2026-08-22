@@ -13,7 +13,7 @@ function run(command, args, options = {}) {
   const { env: extraEnv, ...spawnOptions } = options;
   return spawn(command, args, {
     cwd: root,
-    env: { ...process.env, CI: process.env.CI ?? "true", DEMO_MODE: "true", ALLOW_LOCAL_FILE_STORE: "true", ALLOW_VERIFIED_FALLBACK: "true", NEXT_PUBLIC_SUPABASE_URL: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "", ADMIN_DEMO_PASSWORD: process.env.ADMIN_DEMO_PASSWORD || "local-test-password-2026", ADMIN_COOKIE_SECRET: process.env.ADMIN_COOKIE_SECRET || "local-test-cookie-secret-at-least-32-characters", NEXT_PUBLIC_ADS_ENABLED: "false", ...extraEnv },
+    env: { ...process.env, CI: process.env.CI ?? "true", DEMO_MODE: "true", ALLOW_LOCAL_FILE_STORE: "true", ALLOW_VERIFIED_FALLBACK: "true", LOCAL_STORE_FILE_NAME: "e2e-test-store.json", NEXT_PUBLIC_SUPABASE_URL: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "", ADMIN_DEMO_PASSWORD: process.env.ADMIN_DEMO_PASSWORD || "local-test-password-2026", ADMIN_COOKIE_SECRET: process.env.ADMIN_COOKIE_SECRET || "local-test-cookie-secret-at-least-32-characters", NEXT_PUBLIC_ADS_ENABLED: "false", ...extraEnv },
     stdio: "inherit",
     ...spawnOptions,
   });
@@ -92,6 +92,7 @@ let server;
 
 try {
   await assertPortFree();
+  rmSync(resolve(root, ".data", "e2e-test-store.json"), { force: true });
   rmSync(resolve(root, ".next"), { recursive: true, force: true });
   console.log("\n[E2E] Vytvářím produkční build…\n");
   await waitForExit(run(process.execPath, [nextCli, "build"]));

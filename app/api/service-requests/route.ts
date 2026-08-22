@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     ? rows.filter((row) => row.owner_token_hash === owner.hash)
     : rows.filter((row) => row.moderation_status === "approved");
   const filtered = visible.filter((row) => (!type || row.service_type === type) && (!location || String(row.location || "").toLocaleLowerCase("cs-CZ").includes(location)));
-  const response = NextResponse.json({ items: filtered.map((row) => scope === "mine" ? { id: row.id, publicTitle: row.public_title, serviceType: row.service_type, description: row.description, location: row.location, preferredDate: row.preferred_date, moderationStatus: row.moderation_status, createdAt: row.created_at } : { id: row.id, publicTitle: row.public_title, serviceType: row.service_type, description: row.description, location: row.location, preferredDate: row.preferred_date, publishedAt: row.published_at || row.updated_at }) });
+  const response = NextResponse.json({ items: filtered.map((row) => scope === "mine" ? { id: row.id, publicTitle: row.public_title, publicAlias: row.public_alias, serviceType: row.service_type, description: row.description, location: row.location, preferredDate: row.preferred_date, moderationStatus: row.moderation_status, createdAt: row.created_at } : { id: row.id, publicTitle: row.public_title, publicAlias: row.public_alias, serviceType: row.service_type, description: row.description, location: row.location, preferredDate: row.preferred_date, publishedAt: row.published_at || row.updated_at }) });
   if (owner.isNew) response.cookies.set(ownerCookieName, owner.token, ownerCookieOptions);
   return response;
 }
@@ -28,9 +28,10 @@ export async function POST(request: Request) {
   const data = parsed.data; const city = await getPublishedCity(data.cityId || defaultCitySlug);
   if (!city) return NextResponse.json({ message: "Vybrané město není aktivní." }, { status: 422 });
   const owner = ownerIdentity(request);
-  const saved = await insertRecord("service_requests", { city_id: city.id, public_title: data.publicTitle, name: data.name, email: data.email || null, phone: data.phone || null, service_type: data.serviceType, description: data.description, location: data.location, preferred_date: data.preferredDate, consent_at: new Date().toISOString(), owner_token_hash: owner.hash, moderation_status: "pending", status: "new", source: "web" });
+  const publishedAt = new Date().toISOString();
+  const saved = await insertRecord("service_requests", { city_id: city.id, public_title: data.publicTitle, public_alias: data.publicAlias, name: data.name, email: data.email || null, phone: data.phone || null, service_type: data.serviceType, description: data.description, location: data.location, preferred_date: data.preferredDate, consent_at: publishedAt, publish_consent_at: publishedAt, owner_token_hash: owner.hash, moderation_status: "approved", published_at: publishedAt, status: "new", source: "web" });
   const id = String(saved.id);
-  const response = NextResponse.json({ message: "Žádost je uložená a čeká na schválení. Kontakt zůstává neveřejný.", status: "pending", reference: `SH-${id.slice(0, 8).toUpperCase()}` }, { status: 201 });
+  const response = NextResponse.json({ message: "Veřejná část je po bezpečnostní kontrole zveřejněná. Kontaktní údaje zůstávají neveřejné.", status: "published", reference: `SH-${id.slice(0, 8).toUpperCase()}` }, { status: 201 });
   if (owner.isNew) response.cookies.set(ownerCookieName, owner.token, ownerCookieOptions);
   return response;
 }

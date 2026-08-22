@@ -1,0 +1,12 @@
+"use client";
+
+import { Activity, CheckCircle2, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { placeLiveLabels, statusesForPlace, type PlaceLiveCode, type PlaceLiveSummary } from "@/lib/place-live-status";
+
+const unknown: PlaceLiveSummary = { code: "unknown", label: "Aktuální stav zatím neznáme", reportCount: 0, available: false };
+export function PlaceLiveStatus({ placeId, category, initialSummary = unknown, proximityBand = "unknown", onChange }: { placeId: string; category: string; initialSummary?: PlaceLiveSummary; proximityBand?: "near" | "unknown"; onChange?: (summary: PlaceLiveSummary) => void }) {
+  const [summary, setSummary] = useState(initialSummary); const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(""); const statuses = statusesForPlace(category); if (!statuses.length) return null;
+  async function report(status: PlaceLiveCode) { setBusy(true); setMessage(""); const response = await fetch(`/api/places/${placeId}/live-status`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ status, proximityBand }) }); const payload = await response.json().catch(() => ({})); setBusy(false); if (!response.ok) return setMessage(String(payload.message || "Hlášení se nepodařilo uložit.")); setSummary(payload.summary); onChange?.(payload.summary); setMessage("Děkujeme. Hlášení platí 60 minut."); }
+  return <section className="place-live"><div className="place-live-summary"><Activity size={16} /><div><strong>Jak je tam teď?</strong><span className={`live-status live-${summary.code}`}>{summary.label}</span><small>{summary.reportCount ? `${summary.reportCount} čerstvá nezávislá hlášení${summary.lastUpdatedAt ? ` · aktualizováno ${new Intl.DateTimeFormat("cs-CZ", { timeStyle: "short", timeZone: "Europe/Prague" }).format(new Date(summary.lastUpdatedAt))}` : ""}` : "Komunitní stav je oddělený od oficiální otevírací doby."}</small></div></div><button className="button button-secondary" type="button" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Skrýt možnosti" : "Nahlásit stav"}</button>{open && <div className="place-live-options" aria-label="Nahlásit aktuální stav">{statuses.map((status) => <button type="button" disabled={busy} key={status} onClick={() => report(status)}>{busy ? <Loader2 className="spin" size={14} /> : <CheckCircle2 size={14} />}{placeLiveLabels[status]}</button>)}</div>}{message && <small role="status">{message}</small>}</section>;
+}

@@ -18,8 +18,8 @@ export async function PATCH(request: Request, context: Context) {
   const parsed = serviceRequestUpdateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte změny.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
   const data = parsed.data;
-  const saved = await updateRecord("service_requests", id, { ...(data.publicTitle === undefined ? {} : { public_title: data.publicTitle }), ...(data.serviceType === undefined ? {} : { service_type: data.serviceType }), ...(data.description === undefined ? {} : { description: data.description }), ...(data.location === undefined ? {} : { location: data.location }), ...(data.preferredDate === undefined ? {} : { preferred_date: data.preferredDate }), moderation_status: "pending", published_at: null });
-  return NextResponse.json({ id: saved.id, moderationStatus: saved.moderation_status, message: "Změna je uložená a znovu čeká na schválení." });
+  const saved = await updateRecord("service_requests", id, { ...(data.publicTitle === undefined ? {} : { public_title: data.publicTitle }), ...(data.publicAlias === undefined ? {} : { public_alias: data.publicAlias }), ...(data.serviceType === undefined ? {} : { service_type: data.serviceType }), ...(data.description === undefined ? {} : { description: data.description }), ...(data.location === undefined ? {} : { location: data.location }), ...(data.preferredDate === undefined ? {} : { preferred_date: data.preferredDate }), moderation_status: "approved", published_at: new Date().toISOString() });
+  return NextResponse.json({ id: saved.id, moderationStatus: saved.moderation_status, message: "Změna je ověřená a veřejná." });
 }
 
 export async function DELETE(request: Request, context: Context) {

@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { buddyPostSchema, communityEventSchema, contactMessageSchema, contentSubmissionSchema, jobSubmissionSchema, pageViewSchema, reportSchema, serviceRequestSchema, serviceRequestUpdateSchema } from "@/lib/schemas";
 
-const validRequest = { publicTitle: "Pomoc se zálohou notebooku", name: "Jan Novák", email: "jan@example.cz", phone: "", serviceType: "backup", description: "Potřebuji bezpečně zazálohovat celý notebook.", location: "Brno-střed", preferredDate: "2026-08-10", consent: true, publishConsent: true, company: "" };
+const validRequest = { publicTitle: "Pomoc se zálohou notebooku", publicAlias: "Honza", name: "Jan Novák", email: "jan@example.cz", phone: "", serviceType: "backup", description: "Potřebuji bezpečně zazálohovat celý notebook.", location: "Brno-střed", preferredDate: "2026-08-10", consent: true, publishConsent: true, company: "" };
 
 describe("validace poptávky", () => {
   it("přijme úplnou poptávku", () => expect(serviceRequestSchema.safeParse(validRequest).success).toBe(true));
   it("odmítne krátký popis", () => expect(serviceRequestSchema.safeParse({ ...validRequest, description: "Nefunguje" }).success).toBe(false));
   it("vyžaduje alespoň jeden kontakt", () => expect(serviceRequestSchema.safeParse({ ...validRequest, email: "", phone: "" }).success).toBe(false));
   it("odmítne vyplněný honeypot", () => expect(serviceRequestSchema.safeParse({ ...validRequest, company: "spam" }).success).toBe(false));
+  it("nepustí kontaktní údaj do veřejného popisu ani při pozdější úpravě", () => {
+    expect(serviceRequestSchema.safeParse({ ...validRequest, description: "Napište mi prosím na jan@example.cz kvůli opravě notebooku." }).success).toBe(false);
+    expect(serviceRequestUpdateSchema.safeParse({ description: "Ozvěte se mi na telefon 777 123 456 kvůli podrobnostem." }).success).toBe(false);
+  });
 });
 
 describe("validace návrhu brigády", () => {

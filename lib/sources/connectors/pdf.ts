@@ -53,7 +53,7 @@ export async function parsePdfExtractedText(
 
   const events: NormalizedEvent[] = [];
   for (const candidate of eligibleCandidates) {
-    const externalId = (await sha256(`${context.source.id}|${candidate.title}|${candidate.parsed.start}`)).slice(0, 32);
+    const externalId = (await sha256(`${context.source.id}|${documentAcademicYear || academicYearFor(new Date(candidate.parsed.start))}|${candidate.category}|${candidate.title}|${sourcePage}`)).slice(0, 32);
     events.push({
       externalId,
       title: candidate.title,

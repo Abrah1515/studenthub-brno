@@ -1,4 +1,4 @@
-const STATIC_CACHE = "studenthub-static-v3";
+const STATIC_CACHE = "studenthub-static-v4";
 const OFFLINE_PAGE = "/offline.html";
 const PRECACHE = [
   OFFLINE_PAGE,
@@ -48,4 +48,24 @@ self.addEventListener("fetch", (event) => {
     event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy)));
     return response;
   }).catch(() => caches.match(request)));
+});
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let payload;
+  try { payload = event.data.json(); } catch { payload = { title: "StudentHub", body: event.data.text(), url: "/hlidac" }; }
+  event.waitUntil(self.registration.showNotification(payload.title || "StudentHub", {
+    body: payload.body || "Máte nové upozornění.", icon: "/brand/brno/icon-192.png", badge: "/brand/brno/icon-maskable-192.png",
+    tag: payload.tag || "studenthub-notification", data: { url: payload.url || "/hlidac" }, renotify: false,
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const destination = new URL(event.notification.data?.url || "/hlidac", self.location.origin).href;
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+    const existing = clients.find((client) => client.url.startsWith(self.location.origin));
+    if (existing) { existing.navigate(destination); return existing.focus(); }
+    return self.clients.openWindow(destination);
+  }));
 });

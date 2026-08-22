@@ -7,7 +7,7 @@ import { parseIcs } from "@/lib/sources/connectors/ics";
 import { deduplicatePdfEvents, parsePdf, parsePdfExtractedText } from "@/lib/sources/connectors/pdf";
 import { runConnector } from "@/lib/sources/connectors";
 import { contentSources } from "@/lib/sources/registry";
-import { parseCzechDateRange, sha256, zonedDateTimeToIso } from "@/lib/sources/normalize";
+import { parseCzechDateRange, semanticEventHash, sha256, zonedDateTimeToIso } from "@/lib/sources/normalize";
 import { reconcileEvents } from "@/lib/sources/reconcile";
 import { discoverAcademicDocument, discoverPaginationUrls } from "@/lib/sources/discovery";
 import type { ConnectorContext, NormalizedEvent } from "@/lib/sources/types";
@@ -156,6 +156,11 @@ describe("idempotentní reconciliace", () => {
   });
   it("pozná nahrazené PDF na stejné URL podle hashe", async () => { const before = await sha256(await readFile("tests/fixtures/calendar-text.pdf")); const after = await sha256(await readFile("tests/fixtures/calendar-table.pdf")); expect(before).not.toBe(after); expect(before).toMatch(/^[a-f0-9]{64}$/); });
   it("přesunutý termín označí ke změně a chybějící budoucí termín ke zrušení", () => { const moved = { ...event, sourceHash: "moved", startAt: "2027-01-05T00:00:00Z" }; const changes = reconcileEvents([{ id: "1", external_id: "uid-1", source_hash: "old", manual_override: false, starts_at: "2027-01-04T00:00:00Z", title: "x", is_cancelled: false }, { id: "2", external_id: "removed", source_hash: "x", manual_override: false, starts_at: "2099-01-04T00:00:00Z", title: "x", is_cancelled: false }], [moved]); expect(changes.updates).toHaveLength(1); expect(changes.archived).toHaveLength(1); });
+  it("ignoruje čistě formátovací rozdíl, ale zachytí skutečnou změnu data", async () => {
+    const baseEvent = { ...event, title: "  Zápis   předmětů ", description: "<p>Důležitý termín</p>", endAt: "2027-01-05T00:00:00Z", allDay: true, category: "Zápis předmětů" as const, academicYear: "2026/2027" };
+    expect(await semanticEventHash(baseEvent)).toBe(await semanticEventHash({ ...baseEvent, title: "zápis předmětů", description: "DŮLEŽITÝ   TERMÍN" }));
+    expect(await semanticEventHash(baseEvent)).not.toBe(await semanticEventHash({ ...baseEvent, startAt: "2027-01-06T00:00:00Z" }));
+  });
 });
 
 it("registr pokrývá a monitoruje všech 27 fakult", () => { const academic = contentSources.filter((item) => item.sourceType === "academic_calendar"); expect(academic).toHaveLength(27); expect(new Set(academic.map((item) => item.facultyId)).size).toBe(27); expect(contentSources.every((item) => item.enabled)).toBe(true); });

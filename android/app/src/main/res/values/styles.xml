@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.StudentHub.Launcher" parent="android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">@color/color_primary</item>
+    </style>
+</resources>

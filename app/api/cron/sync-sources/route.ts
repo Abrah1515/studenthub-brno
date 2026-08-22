@@ -6,6 +6,9 @@ import { getPublishedCity } from "@/lib/city-data";
 import { expireBuddyPosts } from "@/lib/buddy";
 import { archiveExpiredCommunityEvents } from "@/lib/public-data";
 import { syncVerifiedCommunityEvents } from "@/lib/verified-community-events";
+import { sendPendingPushNotifications } from "@/lib/push-notifications";
+import { syncDuePlaceSources } from "@/lib/place-source-sync";
+import { materializeDueWatcherNotifications } from "@/lib/watcher-notifications";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,8 +27,10 @@ async function run(request: Request) {
   const university = new URL(request.url).searchParams.get("university") || undefined;
   const citySlug = new URL(request.url).searchParams.get("city") || defaultCitySlug; const city = await getPublishedCity(citySlug);
   if (!city) return NextResponse.json({ message: "Město není aktivní; synchronizace nebyla spuštěna." }, { status: 409 });
-  const [results, expiredBuddyPosts, archivedCommunityEvents, communityEventSources] = await Promise.all([syncDueSources({ cityId: city.id, universityId: university, batchSize: 6 }), expireBuddyPosts(), archiveExpiredCommunityEvents(), syncVerifiedCommunityEvents()]);
-  return NextResponse.json({ ok: true, city: city.id, university: university || "all", expiredBuddyPosts, archivedCommunityEvents, communityEventSources, results: results.map((result) => result.status === "fulfilled" ? result.value : { status: "failed", message: result.reason instanceof Error ? result.reason.message : "Neznámá chyba" }) });
+  const [results, expiredBuddyPosts, archivedCommunityEvents, communityEventSources, placeSources] = await Promise.all([syncDueSources({ cityId: city.id, universityId: university, batchSize: 6 }), expireBuddyPosts(), archiveExpiredCommunityEvents(), syncVerifiedCommunityEvents(), syncDuePlaceSources(city.id, 6)]);
+  const watcherNotifications = await materializeDueWatcherNotifications();
+  const push = await sendPendingPushNotifications();
+  return NextResponse.json({ ok: true, city: city.id, university: university || "all", expiredBuddyPosts, archivedCommunityEvents, communityEventSources, placeSources, watcherNotifications, push, results: results.map((result) => result.status === "fulfilled" ? result.value : { status: "failed", message: result.reason instanceof Error ? result.reason.message : "Neznámá chyba" }) });
 }
 
 export const GET = run;

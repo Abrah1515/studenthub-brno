@@ -1,0 +1,69 @@
+apply plugin: 'com.android.application'
+
+def secret = { String name -> project.findProperty(name) ?: System.getenv(name) }
+def packageId = secret('studentHubPackageId') ?: 'cz.studenthub.brno'
+def releaseVersionCode = (secret('studentHubVersionCode') ?: '2').toInteger()
+def releaseVersionName = secret('studentHubVersionName') ?: '1.1.0'
+def releaseStore = secret('studentHubKeystorePath')
+def releaseStorePassword = secret('studentHubKeystorePassword')
+def releaseKeyAlias = secret('studentHubKeyAlias')
+def releaseKeyPassword = secret('studentHubKeyPassword')
+def canSignRelease = [releaseStore, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it != null && !it.toString().isBlank() }
+
+android {
+    namespace 'cz.studenthub.brno'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId packageId
+        minSdk 23
+        targetSdk 36
+        versionCode releaseVersionCode
+        versionName releaseVersionName
+        vectorDrawables.useSupportLibrary = true
+    }
+
+    signingConfigs {
+        if (canSignRelease) {
+            production {
+                storeFile file(releaseStore)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (canSignRelease) signingConfig signingConfigs.production
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError true
+        checkReleaseBuilds true
+        warningsAsErrors true
+        disable 'GradleDependency'
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.3'
+}

@@ -7,6 +7,7 @@ const cityId = z.string().regex(/^[a-z0-9-]{2,80}$/).optional();
 
 const serviceRequestObject = z.object({
   publicTitle: z.string().trim().min(4, "Uveďte krátký veřejný název.").max(120),
+  publicAlias: z.string().trim().min(2, "Uveďte přezdívku pro veřejnou část.").max(60),
   name: z.string().trim().min(2, "Uveďte prosím jméno.").max(80),
   email: z.string().trim().email("Zadejte platný e-mail.").optional().or(z.literal("")),
   phone: z.string().trim().regex(/^[+\d\s()-]{7,20}$/, "Zadejte platný telefon.").optional().or(z.literal("")),
@@ -15,13 +16,18 @@ const serviceRequestObject = z.object({
   location: z.string().trim().min(2, "Uveďte přibližnou lokalitu.").max(100),
   preferredDate: z.string().min(1, "Vyberte preferovaný termín."),
   consent: z.boolean().refine(Boolean, "Bez souhlasu nelze poptávku odeslat."),
-  publishConsent: z.boolean().refine(Boolean, "Potvrďte zveřejnění popisu po schválení."),
+  publishConsent: z.boolean().refine(Boolean, "Potvrďte okamžité zveřejnění veřejné části žádosti."),
   company: honeypot, cityId,
 });
 
-export const serviceRequestSchema = serviceRequestObject.superRefine((value, ctx) => { if (!value.email && !value.phone) ctx.addIssue({ code: "custom", path: ["email"], message: "Uveďte e-mail nebo telefon." }); });
+export const serviceRequestSchema = serviceRequestObject.superRefine((value, ctx) => {
+  if (!value.email && !value.phone) ctx.addIssue({ code: "custom", path: ["email"], message: "Uveďte e-mail nebo telefon." });
+  if (/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(value.description) || /(?:\+?420\s*)?(?:\d[\s-]*){9}/.test(value.description)) ctx.addIssue({ code: "custom", path: ["description"], message: "Do veřejného popisu neuvádějte e-mail ani telefon." });
+});
 
-export const serviceRequestUpdateSchema = serviceRequestObject.pick({ publicTitle: true, serviceType: true, description: true, location: true, preferredDate: true }).partial().refine((value) => Object.keys(value).length > 0, "Není co změnit.");
+export const serviceRequestUpdateSchema = serviceRequestObject.pick({ publicTitle: true, publicAlias: true, serviceType: true, description: true, location: true, preferredDate: true }).partial()
+  .refine((value) => Object.keys(value).length > 0, "Není co změnit.")
+  .refine((value) => !value.description || (!/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(value.description) && !/(?:\+?420\s*)?(?:\d[\s-]*){9}/.test(value.description)), { path: ["description"], message: "Do veřejného popisu neuvádějte e-mail ani telefon." });
 
 export const reportSchema = z.object({ targetType: z.enum(["service_request", "buddy_post", "community_event"]), targetId: z.string().uuid(), reason: z.enum(["spam", "harassment", "illegal", "privacy", "outdated", "other"]), detail: z.string().trim().max(800).default(""), cityId });
 
@@ -123,6 +129,29 @@ export const contentSubmissionSchema = z.object({
   contentType: z.enum(["event", "offer", "place", "job"]), title: z.string().trim().min(4).max(180), description: z.string().trim().min(30).max(2500),
   sourceUrl: z.string().url("Zadejte veřejný odkaz.").optional().or(z.literal("")), contactEmail: z.string().email("Zadejte platný e-mail."), consent: z.boolean().refine(Boolean, "Potvrďte souhlas."), company: honeypot, cityId,
 }).superRefine((value, ctx) => { if (value.facultyId && !faculties.some((faculty) => faculty.id === value.facultyId && faculty.universityId === value.universityId)) ctx.addIssue({ code: "custom", path: ["facultyId"], message: "Fakulta nepatří k vybrané univerzitě." }); });
+
+export const savedItemSchema = z.object({
+  targetType: z.enum(["academic_event", "community_event"]), targetId: z.string().uuid(),
+  favorite: z.boolean().optional(), watched: z.boolean().optional(),
+  reminderDays: z.array(z.union([z.literal(0), z.literal(1), z.literal(3), z.literal(7)])).min(1).max(4).optional(),
+  snapshot: z.object({ title: z.string().trim().min(3).max(180), start: z.string().datetime({ offset: true }), end: z.string().datetime({ offset: true }).optional(), url: z.string().startsWith("/").max(300) }),
+  preference: z.object({ cityId: z.string().regex(/^[a-z0-9-]{2,80}$/), universityId: z.string().max(50).nullable().optional(), facultyId: z.string().max(80).nullable().optional(), studyYear: z.number().int().min(1).max(6).nullable().optional() }).optional(),
+}).refine((value) => value.favorite !== undefined || value.watched !== undefined || value.reminderDays !== undefined, "Není co uložit.");
+
+export const pushSubscriptionSchema = z.object({
+  endpoint: z.string().url().startsWith("https://").max(2000), expirationTime: z.number().int().positive().nullable().optional(),
+  keys: z.object({ p256dh: z.string().min(20).max(500), auth: z.string().min(8).max(500) }),
+});
+
+export const calendarSubscriptionSchema = z.object({
+  cityId: z.string().regex(/^[a-z0-9-]{2,80}$/).default("brno"), universityId: z.string().max(50).optional().or(z.literal("")),
+  facultyId: z.string().max(80).optional().or(z.literal("")), studyYear: z.number().int().min(1).max(6).optional(), category: z.string().max(80).optional().or(z.literal("")),
+}).superRefine(validCommunityScope);
+
+export const placeLiveReportSchema = z.object({
+  status: z.enum(["no_queue", "short_queue", "long_queue", "closed", "many_seats", "partly_occupied", "almost_full"]),
+  proximityBand: z.enum(["near", "unknown"]).optional().default("unknown"),
+});
 
 export type ServiceRequestInput = z.infer<typeof serviceRequestSchema>;
 export type JobSubmissionInput = z.infer<typeof jobSubmissionSchema>;

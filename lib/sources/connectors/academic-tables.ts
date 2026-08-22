@@ -39,7 +39,8 @@ function sourceStatus(context: ConnectorContext) {
 
 async function event(context: ConnectorContext, values: { title: string; startAt: string; endAt?: string; allDay: boolean; academicYear: string; originalText: string }): Promise<NormalizedEvent> {
   const category = inferCategory(values.title);
-  const signature = `${context.source.id}|${context.source.facultyId}|${category}|${values.title}|${values.startAt}|${values.endAt || ""}`;
+  // Identity excludes the schedule so a moved term updates one durable event.
+  const signature = `${context.source.id}|${context.source.facultyId}|${values.academicYear}|${category}|${values.title}`;
   return {
     externalId: (await sha256(signature)).slice(0, 32), title: values.title,
     description: "Událost načtená ze strukturovaného veřejného harmonogramu.",
@@ -98,7 +99,7 @@ function academicYearFromPeriod(period: string) {
   return /jaro|léto/.test(match[1]) ? `${year - 1}/${year}` : `${year}/${year + 1}`;
 }
 
-const allowedIsCategory = /registrac|zápis|zmen|změn|zveřejnění rozvrhu|výuka|zkouškové|szz|státnic/iu;
+const allowedIsCategory = /registrac|zápis|seminár|zmen|změn|zveřejnění rozvrhu|výuka|zkouškové|szz|státnic|volno|prázdnin|promoc|imatrikul/iu;
 
 export async function parseIsAcademicPeriods(context: ConnectorContext): Promise<ConnectorResult> {
   const html = new TextDecoder().decode(context.body);
