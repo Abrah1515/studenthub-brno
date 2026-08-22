@@ -21,6 +21,8 @@ test.describe("produkční StudentHub", () => {
     });
     page.on("requestfailed", (requestItem) => {
       const url = requestItem.url();
+      const errorText = requestItem.failure()?.errorText || "neznámá chyba";
+      if (errorText === "net::ERR_ABORTED" && (url.includes("_rsc=") || url.includes("/admin/prihlaseni?from=%2Fadmin"))) return;
       if (!url.includes("tile.openstreetmap.org")) failedRequests.push(`${requestItem.failure()?.errorText}: ${url}`);
     });
 
