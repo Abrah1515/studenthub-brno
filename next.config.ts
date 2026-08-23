@@ -29,6 +29,8 @@ const securityHeaders = [
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
 ];
 
+const noIndexHeaders = [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
+
 const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
   serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist"],
@@ -40,6 +42,16 @@ const nextConfig: NextConfig = {
       { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Service-Worker-Allowed", value: "/" }] },
       { source: "/manifest.webmanifest", headers: [{ key: "Cache-Control", value: "no-cache, must-revalidate" }] },
       { source: "/offline.html", headers: [{ key: "Cache-Control", value: "no-cache, must-revalidate" }] },
+      { source: "/admin/:path*", headers: noIndexHeaders },
+      { source: "/api/:path*", headers: noIndexHeaders },
+      { source: "/ucet/:path*", headers: noIndexHeaders },
+      { source: "/partak/moje", headers: noIndexHeaders },
+      { source: "/pomoc/moje", headers: noIndexHeaders },
+      { source: "/akce/sprava", headers: noIndexHeaders },
+      { source: "/nastaveni", headers: noIndexHeaders },
+      { source: "/hlidac", headers: noIndexHeaders },
+      { source: "/nabidky", headers: noIndexHeaders },
+      { source: "/:city/nabidky", headers: noIndexHeaders },
     ];
   },
 };

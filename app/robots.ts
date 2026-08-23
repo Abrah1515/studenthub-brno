@@ -1,2 +1,28 @@
 import type { MetadataRoute } from "next";
-export default function robots(): MetadataRoute.Robots { const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"; return { rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/api/admin"] }, sitemap: `${base}/sitemap.xml`, host: base }; }
+import { getPublicSiteUrl } from "@/lib/seo";
+
+export default function robots(): MetadataRoute.Robots {
+  const base = getPublicSiteUrl();
+
+  return {
+    rules: {
+      userAgent: "*",
+      allow: "/",
+      disallow: [
+        "/admin",
+        "/admin/",
+        "/api",
+        "/api/",
+        "/ucet",
+        "/ucet/",
+        "/partak/moje",
+        "/pomoc/moje",
+        "/akce/sprava",
+        "/nastaveni",
+        "/hlidac",
+      ],
+    },
+    sitemap: `${base}/sitemap.xml`,
+    host: base,
+  };
+}

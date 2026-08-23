@@ -39,6 +39,7 @@ export const metadata: Metadata = {
   title: { default: brand.seo.title, template: `%s | ${brand.editionName}` },
   description: brand.seo.description,
   applicationName: brand.editionName,
+  verification: { google: "60df659d3c8fefaa" },
   alternates: { canonical: "/brno" },
   manifest: "/manifest.webmanifest",
   icons: { icon: [{ url: brand.assets.icon192, sizes: "192x192", type: "image/png" }], apple: brand.assets.icon192 },
