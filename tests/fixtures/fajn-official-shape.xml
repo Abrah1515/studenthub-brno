@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<inzeraty>
+  <pridani>
+    <id_sekce>1</id_sekce><id_inzeratu>910001</id_inzeratu><titulek_sk>Predaj na prevádzke</titulek_sk>
+    <id_statu>2</id_statu><adresa_pracoviste_id_mesta>1185</adresa_pracoviste_id_mesta>
+    <adresa_pracoviste_adresa>Horská cesta 12</adresa_pracoviste_adresa><id_pozice>216</id_pozice>
+    <mzda_typ>29</mzda_typ><mzda_mena>0</mzda_mena>
+    <url_detail>https://www.fajn-brigady.sk/brigady/910001-anonymizovana/</url_detail>
+  </pridani>
+  <pridani>
+    <id_sekce>3</id_sekce><id_inzeratu>910002</id_inzeratu><titulek_cs>Práce ve skladu</titulek_cs>
+    <id_statu>1</id_statu><id_mesta>566985</id_mesta><id_pozice>30</id_pozice>
+    <mzda_od>30000</mzda_od><mzda_typ>2</mzda_typ><mzda_mena>1</mzda_mena>
+    <url_detail>https://www.fajn-brigady.cz/prace/910002-anonymizovana/</url_detail>
+  </pridani>
+  <pridani>
+    <id_sekce>3</id_sekce><id_inzeratu>910003</id_inzeratu><id_statu>7</id_statu>
+    <id_pozice>101</id_pozice><mzda_od>1200</mzda_od><mzda_typ>2</mzda_typ><mzda_mena>2</mzda_mena>
+    <url_detail>https://www.inwork.cz/prace/910003-anonymizovana/</url_detail>
+  </pridani>
+</inzeraty>

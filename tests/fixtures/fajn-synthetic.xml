@@ -13,7 +13,7 @@
   </pridani>
   <pridani>
     <id_sekce>1</id_sekce><id_inzeratu>900002</id_inzeratu><titulek_sk>Pomoc pri podujatí</titulek_sk>
-    <popis_sk>Bezpečný slovenský fallback.</popis_sk><id_pozice>497</id_pozice><mzda_typ>29</mzda_typ><mzda_mena>1</mzda_mena>
+    <popis_sk>Bezpečný slovenský fallback.</popis_sk><id_statu>1</id_statu><id_pozice>497</id_pozice><mzda_typ>29</mzda_typ><mzda_mena>1</mzda_mena>
     <pocet_dni>3</pocet_dni><url_detail>https://www.fajn-brigady.sk/brigady/900002-synteticka-ponuka/</url_detail>
   </pridani>
 </inzeraty>

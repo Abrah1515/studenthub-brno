@@ -5,14 +5,13 @@ import { fetchRegisteredSource } from "@/lib/sources/fetch-source";
 import { sha256 } from "@/lib/sources/normalize";
 import { fajnFeedConfig } from "@/lib/job-feed/config";
 import { parseFajnXml, type ParsedFajnJob } from "@/lib/job-feed/fajn-parser";
-import { planFajnImport, type ExistingFajnJob } from "@/lib/job-feed/reconcile";
+import { effectiveFajnImportMode, planFajnImport, type ExistingFajnJob } from "@/lib/job-feed/reconcile";
 
 type Client = ReturnType<typeof createServiceClient>;
 const providerKey = "fajn-brigady";
 
 function nextCheckAt(finishedAt: string, hours: number) { return new Date(new Date(finishedAt).getTime() + hours * 3_600_000).toISOString(); }
 function xmlMime(value: string) { const mime = value.toLowerCase().split(";", 1)[0].trim(); return mime === "text/xml" || mime === "application/xml" || /^application\/[a-z0-9.+-]+\+xml$/.test(mime); }
-function expiresAt(job: ParsedFajnJob, checkedAt: string) { return job.durationDays ? new Date(new Date(checkedAt).getTime() + job.durationDays * 86_400_000).toISOString() : null; }
 function legacyRewardUnit(job: ParsedFajnJob) { return job.salaryUnit === "hour" ? "hour" : job.salaryUnit === "month" ? "month" : "fixed"; }
 function jobRow(job: ParsedFajnJob, checkedAt: string) {
   return {
@@ -20,11 +19,13 @@ function jobRow(job: ParsedFajnJob, checkedAt: string) {
     field: job.field, work_type: job.workType, location: job.location, workplace_address: job.location === "Brno" ? null : job.location,
     reward_amount: job.salaryMin == null ? null : Math.floor(job.salaryMin), reward_unit: legacyRewardUnit(job), reward_min: job.salaryMin || null,
     reward_max: job.salaryMax || null, reward_currency: job.salaryCurrency || null, reward_period: job.salaryUnit || null,
-    workload: job.workload, workload_codes: job.workloadCodes, benefit_codes: job.benefitCodes, description: job.description,
+    workload: job.workload || "Neuvedeno", workload_codes: job.workloadCodes, benefit_codes: job.benefitCodes,
+    suitability_codes: job.suitabilityCodes, minimum_education_external_id: job.minimumEducationExternalId || null,
+    position_label: job.positionLabel || null, description: job.description,
     contact_public: null, apply_url: job.applyUrl, source_url: job.applyUrl, country_external_id: job.countryExternalId || null,
     city_external_id: job.cityExternalId || null, position_external_id: job.positionExternalId || null,
     positions_count: job.positionsCount || null, duration_days: job.durationDays || null, source_hash: job.sourceHash,
-    last_seen_at: checkedAt, last_verified_at: checkedAt, expires_at: expiresAt(job, checkedAt), city_id: "brno",
+    last_seen_at: checkedAt, last_verified_at: checkedAt, expires_at: null, missing_from_feed_runs: 0, city_id: "brno",
     work_location_mode: "onsite", status: "approved", verification_status: "verified", is_featured: false, is_demo: false,
   };
 }
@@ -55,16 +56,31 @@ export async function syncFajnJobFeed(client: Client, source: ContentSource, run
     await client.from("source_sync_runs").update({ status: "not_modified", finished_at: checkedAt, http_status: fetched.status, content_hash: contentHash }).eq("id", runId);
     return { sourceId: source.id, status: "not_modified" as const };
   }
-  const parsed = await parseFajnXml(fetched.body); if (!parsed.jobs.length) throw new Error("XML feed neobsahuje žádný bezpečně publikovatelný inzerát; poslední platná data zůstala beze změny.");
+  const parsed = await parseFajnXml(fetched.body);
+  if (!parsed.jobs.length) {
+    await client.from("source_sync_runs").update({
+      loaded_count: parsed.total, rejected_count: parsed.rejected, warning_count: parsed.warnings.length,
+      warnings: parsed.warnings.slice(0, 100), discovered_count: parsed.total,
+    }).eq("id", runId);
+    throw new Error("XML feed neobsahuje žádný bezpečně publikovatelný inzerát; poslední platná data zůstala beze změny.");
+  }
   const normalizedHash = await sha256(JSON.stringify(parsed.jobs.map(({ externalId, sourceHash }) => ({ externalId, sourceHash }))));
-  const { error: snapshotError } = await client.from("source_snapshots").upsert({ source_id: source.id, sync_run_id: runId, content_hash: contentHash, normalized_hash: normalizedHash, content_type: fetched.contentType, document_title: "Smluvní XML feed pracovních nabídek", extracted_text: null, content: `\\x${Buffer.from(fetched.body).toString("hex")}` }, { onConflict: "source_id,content_hash" }); if (snapshotError) throw snapshotError;
-  const { data: existingRows, error: existingError } = await client.from("jobs").select("id,external_id,source_hash,status").eq("provider_key", providerKey).not("external_id", "is", null); if (existingError) throw existingError;
-  const plan = planFajnImport((existingRows || []) as ExistingFajnJob[], parsed.jobs, config.mode);
+  // Snapshot obsahuje jen normalizovaná veřejná pole. Zdrojové XML může obsahovat
+  // e-maily a telefony, proto se jeho tělo ani testovací data do databáze neukládají.
+  const sanitizedSnapshot = Buffer.from(JSON.stringify(parsed.jobs));
+  const { error: snapshotError } = await client.from("source_snapshots").upsert({ source_id: source.id, sync_run_id: runId, content_hash: contentHash, normalized_hash: normalizedHash, content_type: "application/json", document_title: "Normalizovaný smluvní XML feed pracovních nabídek", extracted_text: null, content: `\\x${sanitizedSnapshot.toString("hex")}` }, { onConflict: "source_id,content_hash" }); if (snapshotError) throw snapshotError;
+  const { data: existingRows, error: existingError } = await client.from("jobs").select("id,external_id,source_hash,status,missing_from_feed_runs").eq("provider_key", providerKey).not("external_id", "is", null); if (existingError) throw existingError;
+  const existing = (existingRows || []) as ExistingFajnJob[]; const effectiveMode = effectiveFajnImportMode(existing, parsed.jobs.length, parsed.rejected, config.mode);
+  if (config.mode === "full_snapshot" && effectiveMode !== "full_snapshot") parsed.warnings.push("Úplný snapshot byl vyhodnocen jako neúplný; chybějící nabídky nebyly započítány ani archivovány.");
+  const plan = planFajnImport(existing, parsed.jobs, effectiveMode);
   const changedJobs = [...plan.inserts, ...plan.updates];
   if (changedJobs.length) { const { error: upsertError } = await client.from("jobs").upsert(changedJobs.map((job) => jobRow(job, checkedAt)), { onConflict: "provider_key,external_id" }); if (upsertError) throw upsertError; }
-  if (plan.unchanged.length) { const { error: seenError } = await client.from("jobs").update({ last_seen_at: checkedAt, last_verified_at: checkedAt }).eq("provider_key", providerKey).in("external_id", plan.unchanged.map((job) => job.externalId)); if (seenError) throw seenError; }
-  if (plan.archiveIds.length) { const { error } = await client.from("jobs").update({ status: "archived" }).in("id", plan.archiveIds); if (error) throw error; }
+  if (plan.unchanged.length) { const { error: seenError } = await client.from("jobs").update({ last_seen_at: checkedAt, last_verified_at: checkedAt, missing_from_feed_runs: 0 }).eq("provider_key", providerKey).in("external_id", plan.unchanged.map((job) => job.externalId)); if (seenError) throw seenError; }
+  for (const missing of plan.missing.filter((job) => job.count < 3)) {
+    const { error } = await client.from("jobs").update({ missing_from_feed_runs: missing.count }).eq("id", missing.id); if (error) throw error;
+  }
+  if (plan.archiveIds.length) { const { error } = await client.from("jobs").update({ status: "archived", missing_from_feed_runs: 3 }).in("id", plan.archiveIds); if (error) throw error; }
   await client.from("content_sources").update({ last_checked_at: checkedAt, last_changed_at: checkedAt, last_success_at: checkedAt, last_http_status: fetched.status, etag: fetched.etag, last_modified: fetched.lastModified, content_hash: contentHash, normalized_hash: normalizedHash, confidence: 1, requires_review: false, last_final_url: fetched.finalUrl, last_content_type: fetched.contentType, consecutive_failures: 0, sync_status: "success", next_check_at: nextCheckAt(checkedAt, config.intervalHours), next_retry_at: null, last_error_message: null }).eq("id", source.id);
-  await client.from("source_sync_runs").update({ status: "success", finished_at: checkedAt, http_status: fetched.status, content_hash: contentHash, discovered_count: parsed.jobs.length + parsed.rejected, published_count: plan.inserts.length + plan.updates.length, review_count: 0, loaded_count: parsed.jobs.length + parsed.rejected, inserted_count: plan.inserts.length, updated_count: plan.updates.length, archived_count: plan.archiveIds.length, rejected_count: parsed.rejected, error_message: parsed.warnings.length ? parsed.warnings.join(" ").slice(0, 2000) : null }).eq("id", runId);
-  return { sourceId: source.id, status: "success" as const, loaded: parsed.jobs.length + parsed.rejected, inserted: plan.inserts.length, updated: plan.updates.length, archived: plan.archiveIds.length, rejected: parsed.rejected };
+  await client.from("source_sync_runs").update({ status: "success", finished_at: checkedAt, http_status: fetched.status, content_hash: contentHash, discovered_count: parsed.total, published_count: plan.inserts.length + plan.updates.length, review_count: 0, loaded_count: parsed.total, inserted_count: plan.inserts.length, updated_count: plan.updates.length, unchanged_count: plan.unchanged.length, archived_count: plan.archiveIds.length, rejected_count: parsed.rejected, warning_count: parsed.warnings.length, warnings: parsed.warnings.slice(0, 100), error_message: null }).eq("id", runId);
+  return { sourceId: source.id, status: "success" as const, loaded: parsed.total, inserted: plan.inserts.length, updated: plan.updates.length, unchanged: plan.unchanged.length, archived: plan.archiveIds.length, rejected: parsed.rejected, warnings: parsed.warnings.length };
 }

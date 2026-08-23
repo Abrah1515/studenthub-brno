@@ -136,6 +136,8 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608220023_place_duplicate_cleanup.sql` – bezpečně odstraní nově vloženou kartu KUK pouze tehdy, pokud už stejné fyzické místo existuje; na čisté instalaci záznam zachová.
 - `202608220024_watcher_live_features.sql` – anonymní instalace, oblíbené a sledované položky, interní oznámení, Web Push, tokenizované živé kalendáře, zájem o akce, hodinová hlášení míst, historie sémantických změn, provozní audit a odpovídající RLS.
 - `202608230025_watcher_muted_push.sql` – ztlumení kategorií pouze pro Web Push; důležité změny zůstávají v interním centru a zrušení termínu se eviduje jako kritická změna.
+- `202608230026_fajn_feed_hardening.sql` – doplňuje oficiální číselníková metadata brigád, strukturovaná varování a bezpečné archivování až po třetím úspěšném úplném snapshotu bez dané nabídky.
+- `202608230027_fajn_public_listing.sql` – nastavuje výhradně veřejný odkaz na brněnský výpis poskytovatele; tato stránka se nescrapuje a není zaměněna za tajný XML feed.
 
 ## První hlavní superadmin
 
@@ -166,7 +168,9 @@ V současném registru se 18 fakultních zdrojů může publikovat automaticky a
 
 Preference ročníku je anonymní a zůstává pouze v prohlížeči. Akademický cyklus se v časové zóně Praha překlápí 1. července; uložený ročník se zvýší nejvýše jednou za každý uplynulý cyklus. Po překročení šestého ročníku se volba bezpečně zruší a aplikace požádá o nový výběr. Ruční změna založí nový referenční cyklus. Událost se na ročník váže jen při jednoznačném údaji v oficiálním zdrojovém textu; společné nebo nejisté termíny zůstávají bez omezení.
 
-Konektor Fajn‑brigády je v čisté instalaci i produkčním vzoru vypnutý. Neprovádí scraping webu a neukládá kontakty z popisu. Po získání písemného oprávnění nastavte všech pět `FAJN_BRIGADY_*` proměnných pouze na serveru. Parser přijímá omezené XML bez DTD/entit, detailní odkazy pouze na ověřených doménách a mapuje odměnu podle oficiálních číselníků. Import je idempotentní podle `(provider_key, external_id)`; výchozí inkrementální režim při chybějící položce nic nemaže. URL feedu se nezobrazuje ve veřejném ani administrátorském API a testovací XML se konfigurací nedá aktivovat.
+Konektor Fajn‑brigády je v čisté instalaci i produkčním vzoru vypnutý. Neprovádí scraping webu a neukládá kontakty z popisu ani zdrojové XML do snapshotu. Po získání písemného oprávnění nastavte všech pět `FAJN_BRIGADY_*` proměnných pouze na serveru. Parser přijímá omezené XML bez DTD/entit, pouze `id_sekce=1`, detailní odkazy jen na schválených doménách a mapuje odměnu, pozice, úvazek, benefity, vhodnost a vzdělání podle veřejné specifikace poskytovatele. Známou mimobrněnskou lokalitu odmítne; bez přesného kódu použije „Brno a okolí“ jen u české položky z brněnského feedu. Import je idempotentní podle `(provider_key, external_id)`; výchozí inkrementální režim při chybějící položce nic nemaže a volitelný úplný snapshot archivuje až po třetím po sobě jdoucím úspěšném chybění. `pocet_dni` je pouze zdrojové metadata, nikoli datum expirace. URL feedu se nezobrazuje ve veřejném ani administrátorském API a `vzor_detail.xml` se konfigurací nedá aktivovat.
+
+Veřejné testovací XML lze ručně ověřit bez zápisu do databáze příkazem `FAJN_LIVE_TEST=true pnpm test tests/integration/fajn-live.integration.test.ts` (v PowerShellu nejprve nastavte `$env:FAJN_LIVE_TEST="true"`). Běžné CI používá pouze anonymizované fixtures; živý test je bez proměnné přeskočený. Testovací nabídky se nikdy nepřenášejí na veřejný web.
 
 ## Komunitní kalendář „Co se děje“
 
