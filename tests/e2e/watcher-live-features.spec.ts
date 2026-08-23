@@ -9,13 +9,52 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/brno", { waitUntil: "domcontentloaded" });
 });
 
-test("nové hlavní akce jsou dostupné bez překryvu", async ({ page }) => {
-  await expect(page.getByRole("link", { name: "Technická pomoc", exact: true }).first()).toBeVisible();
-  const buddy = page.getByRole("link", { name: "Hledám parťáka", exact: true }).last();
-  await expect(buddy).toBeVisible();
-  const box = await buddy.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.y + box!.height).toBeLessThanOrEqual((page.viewportSize()?.height || 0) - 66);
+test("hlavní akce odpovídají telefonu, tabletu a počítači", async ({ page }, testInfo) => {
+  const topHelp = page.locator(".topbar-help");
+  const topTheme = page.locator(".topbar-theme");
+  const buddy = page.locator(".floating-help");
+  if (testInfo.project.name === "mobile-390") {
+    await expect(topHelp).toBeVisible();
+    await expect(topTheme).toBeHidden();
+    await expect(buddy).toBeVisible();
+    const box = await buddy.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y + box!.height).toBeLessThanOrEqual((page.viewportSize()?.height || 0) - 66);
+    return;
+  }
+  await expect(topTheme).toBeVisible();
+  await expect(topHelp).toBeHidden();
+  await expect(buddy).toBeHidden();
+  if (testInfo.project.name === "desktop-1440") {
+    await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Technická pomoc" })).toBeVisible();
+  } else {
+    await page.getByRole("button", { name: "Otevřít nabídku" }).click();
+    const menu = page.getByRole("dialog", { name: "Mobilní nabídka" });
+    await expect(menu.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Technická pomoc" })).toBeVisible();
+    await expect(menu.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Hledám parťáka" })).toBeVisible();
+  }
+});
+
+test("hranice 767 a 768 px nikdy nezobrazí obě varianty navigace", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
+  await page.setViewportSize({ width: 767, height: 900 });
+  await expect(page.locator(".topbar-help")).toBeVisible();
+  await expect(page.locator(".topbar-theme")).toBeHidden();
+  await expect(page.locator(".floating-help")).toBeVisible();
+  await page.getByRole("button", { name: "Otevřít nabídku" }).click();
+  let menu = page.getByRole("dialog", { name: "Mobilní nabídka" });
+  await expect(menu.getByRole("navigation", { name: "Doplňkové funkce" })).toBeVisible();
+  await expect(menu.getByRole("navigation", { name: "Hlavní navigace" })).toBeHidden();
+  await page.keyboard.press("Escape");
+
+  await page.setViewportSize({ width: 768, height: 900 });
+  await expect(page.locator(".topbar-theme")).toBeVisible();
+  await expect(page.locator(".topbar-help")).toBeHidden();
+  await expect(page.locator(".floating-help")).toBeHidden();
+  await page.getByRole("button", { name: "Otevřít nabídku" }).click();
+  menu = page.getByRole("dialog", { name: "Mobilní nabídka" });
+  await expect(menu.getByRole("navigation", { name: "Hlavní navigace" })).toBeVisible();
+  await expect(menu.getByRole("navigation", { name: "Doplňkové funkce" })).toBeHidden();
 });
 
 test("telefonní menu obsahuje jen doplňkové funkce v určeném pořadí", async ({ page }, testInfo) => {

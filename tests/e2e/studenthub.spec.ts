@@ -9,7 +9,7 @@ async function openDirectoryFilters(page: import("@playwright/test").Page) {
   if (await button.isVisible() && await button.getAttribute("aria-expanded") === "false") await button.click();
 }
 async function openThemeSettings(page: import("@playwright/test").Page, projectName: string) {
-  if (projectName === "desktop-1440") return page.getByRole("navigation", { name: "Doplňkové odkazy" }).getByRole("radiogroup", { name: "Nastavení vzhledu" });
+  if (projectName !== "mobile-390") return page.getByRole("radiogroup", { name: "Barevný režim" });
   const dialog = page.getByRole("dialog", { name: "Mobilní nabídka" });
   if (!await dialog.isVisible()) await page.getByRole("button", { name: "Otevřít nabídku" }).click();
   return dialog.getByRole("radiogroup", { name: "Nastavení vzhledu" });
