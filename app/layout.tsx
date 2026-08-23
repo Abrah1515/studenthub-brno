@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     locale: "cs_CZ",
     siteName: brand.editionName,
     title: brand.seo.title,
-    description: "Termíny, místa, slevy, brigády a technická pomoc v jednom klidném přehledu.",
+    description: "Termíny, místa, brigády, komunita a studentská burza v jednom klidném přehledu.",
     images: [{ url: new URL(brand.assets.openGraph, siteUrl), width: 1734, height: 907, alt: `${brand.editionName} – termíny, místa, slevy a brigády` }],
   },
   twitter: { card: "summary_large_image", title: brand.editionName, description: `Praktický studentský přehled pro ${brand.editionShortName}.`, images: [new URL(brand.assets.openGraph, siteUrl)] },

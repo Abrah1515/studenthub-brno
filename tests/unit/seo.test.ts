@@ -31,7 +31,9 @@ describe("SEO a indexace", () => {
       "/api/",
       "/ucet/",
       "/partak/moje",
-      "/pomoc/moje",
+      "/*/burza/novy",
+      "/*/burza/overit",
+      "/*/burza/sprava",
       "/nastaveni",
     ]));
     expect(result.sitemap).toBe("https://studenthub-brno.vercel.app/sitemap.xml");
@@ -45,7 +47,7 @@ describe("SEO a indexace", () => {
   it("definuje důležité veřejné stránky a vynechává soukromé přehledy", () => {
     const source = readFileSync("app/sitemap.ts", "utf8");
 
-    for (const path of ["/kalendar", "/mista", "/brigady", "/komunita", "/pomoc", "/partak", "/o-projektu", "/kontakt"]) {
+    for (const path of ["/kalendar", "/mista", "/brigady", "/burza", "/komunita", "/partak", "/o-projektu", "/kontakt"]) {
       expect(source, path).toContain(`"${path}"`);
     }
     for (const path of ["/admin", "/api", "/ucet", "/nastaveni", "/hlidac", "/partak/moje", "/navrhnout-obsah"]) {
@@ -59,7 +61,9 @@ describe("SEO a indexace", () => {
       "app/admin/page.tsx",
       "app/ucet/prihlaseni/page.tsx",
       "app/partak/moje/page.tsx",
-      "app/pomoc/moje/page.tsx",
+      "app/[city]/burza/novy/page.tsx",
+      "app/[city]/burza/overit/page.tsx",
+      "app/[city]/burza/sprava/page.tsx",
       "app/akce/sprava/page.tsx",
       "app/nastaveni/page.tsx",
       "app/hlidac/page.tsx",

@@ -1,4 +1,4 @@
-const STATIC_CACHE = "studenthub-static-v4";
+const STATIC_CACHE = "studenthub-static-v5";
 const OFFLINE_PAGE = "/offline.html";
 const PRECACHE = [
   OFFLINE_PAGE,
@@ -7,7 +7,7 @@ const PRECACHE = [
   "/brand/brno/icon-maskable-192.png",
   "/brand/brno/icon-maskable-512.png",
 ];
-const PRIVATE_PREFIXES = ["/admin", "/api", "/auth", "/ucet", "/pomoc/moje", "/partak/moje"];
+const PRIVATE_PREFIXES = ["/admin", "/api", "/auth", "/ucet", "/partak/moje"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -22,7 +22,7 @@ self.addEventListener("activate", (event) => {
 });
 
 function isPrivatePath(pathname) {
-  return PRIVATE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return PRIVATE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) || /^\/[^/]+\/burza\/(novy|overit|sprava)(?:\/|$)/.test(pathname);
 }
 
 function isVersionedStaticAsset(request, url) {

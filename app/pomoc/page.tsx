@@ -1,9 +1,3 @@
-import type { Metadata } from "next";
-import { Check, Clock3, LockKeyhole } from "lucide-react";
-import { PageHeading } from "@/components/page-heading";
-import { ServiceRequestForm } from "@/components/service-request-form";
-import { HelpRequestsExplorer } from "@/components/help-requests-explorer";
-import Link from "next/link";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Technická pomoc", description: "Bezpečná žádost o pomoc s počítačem, notebookem, sítí, zálohou nebo výběrem zařízení. Kontaktní údaje zůstávají neveřejné.", alternates: { canonical: "/pomoc" } };
-export default function HelpPage() { return <div className="page-stack"><PageHeading eyebrow="Lidská pomoc, bez call-centra" title="Lokální technická pomoc" description="Po bezpečnostní kontrole formuláře se veřejná část zobrazí automaticky. Jméno, e-mail a telefon se nikdy nezveřejní." actions={<Link className="button button-secondary" href="/pomoc/moje">Moje žádosti</Link>} /><section className="help-layout"><aside className="help-aside"><h2>Jak to funguje</h2><ol><li><span>1</span><div><strong>Popíšete problém</strong><p>Stačí lidsky a bez kontaktu ve veřejném popisu.</p></div></li><li><span>2</span><div><strong>Automatická kontrola</strong><p>Validní veřejná část se zveřejní hned.</p></div></li><li><span>3</span><div><strong>Domluvíme postup</strong><p>Kontakt zůstává dostupný pouze oprávněné obsluze.</p></div></li></ol><div className="help-benefits"><span><Clock3 size={17} />Preferovaný termín zvolíte vy</span><span><LockKeyhole size={17} />Kontakt zůstává neveřejný</span><span><Check size={17} />Vlastní žádost lze upravit i smazat</span></div></aside><ServiceRequestForm /></section><section><div className="section-head"><div><span className="section-icon"><Check size={18} /></span><h2>Veřejné žádosti</h2></div></div><HelpRequestsExplorer /></section></div>; }
+export default function LegacyHelpPage() { redirect("/brno/burza"); }

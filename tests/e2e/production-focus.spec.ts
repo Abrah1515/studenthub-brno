@@ -9,7 +9,7 @@ test.describe("produkční StudentHub", () => {
     await page.addInitScript(() => {
       localStorage.setItem("studenthub-consent", JSON.stringify({ analytics: false, marketing: false }));
       localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: null, facultyId: null, studyYear: null, studyYearCycleStart: null, completed: true }));
-      localStorage.setItem("studenthub-tutorial-version", "studenthub-focus-v3");
+      localStorage.setItem("studenthub-tutorial-version", "studenthub-marketplace-v4");
     });
   });
 

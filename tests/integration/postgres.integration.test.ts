@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(27);
+      expect(files).toHaveLength(28);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -162,6 +162,25 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await db.query("insert into public.source_review_queue(source_id,sync_run_id,proposed_payload,reason,status,source_text,confidence,source_document_title) values ('src-vetuni-fvl',$1,$2::jsonb,'low_confidence','pending',$3,$4,$5)", [run.rows[0].id, JSON.stringify({ events: pdfPartition.review, warnings: pdfResult.warnings }), pdfResult.sourceText, Math.max(...pdfPartition.review.map((item) => item.confidence)), pdfResult.documentTitle]);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.source_review_queue where source_id='src-vetuni-fvl' and status='pending'")).rows[0].count).toBe(1);
 
+      await db.exec(`
+        insert into public.marketplace_listings(id,city_id,listing_type,category,title,short_description,description,price_mode,price_amount,price_scope,university_id,faculty_id,semester,material_format,item_condition,handoff_method,handoff_location,public_alias,seller_email,seller_email_hash,request_fingerprint,management_token_hash,duplicate_fingerprint,copyright_confirmed,privacy_consent_at,status,email_verified_at,published_at,expires_at)
+        values
+          ('c1111111-1111-4111-8111-111111111111','brno','offer','textbook','Integrační učebnice','Zachovalá fyzická učebnice.','Zachovalá fyzická učebnice určená k bezpečnému integračnímu testu.','fixed',250,'item','vut','vut-fekt','winter','printed','used','in_person','Technická','Student', 'seller@example.cz',repeat('a',64),repeat('b',24),repeat('c',64),repeat('d',64),true,now(),'active',now(),now(),now()+interval '30 days'),
+          ('c1111111-1111-4111-8111-111111111112','brno','wanted','other','Expirovaná poptávka','Poptávka určená k expiraci.','Poptávka určená pouze k ověření databázové automatické expirace.','negotiable',null,'item',null,null,'not_applicable','printed','used','shipping',null,'Student', 'expired@example.cz',repeat('e',64),repeat('f',24),repeat('1',64),repeat('2',64),true,now(),'sold',now(),now(),now()-interval '1 hour');
+        insert into public.marketplace_messages(listing_id,buyer_email,message,consent_at,request_fingerprint)
+          values ('c1111111-1111-4111-8111-111111111111','buyer@example.cz','Soukromá zpráva zájemce nesmí být dostupná přes přímé RLS čtení.',now(),repeat('3',24));
+        insert into public.marketplace_reports(listing_id,reporter_hash,reason) values
+          ('c1111111-1111-4111-8111-111111111111',repeat('4',24),'copyright'),
+          ('c1111111-1111-4111-8111-111111111111',repeat('5',24),'academic_integrity'),
+          ('c1111111-1111-4111-8111-111111111111',repeat('6',24),'fraud');
+      `);
+      expect((await db.query<{ status: string; report_count: number }>("select status,report_count from public.marketplace_listings where id='c1111111-1111-4111-8111-111111111111'")).rows[0]).toEqual({ status: "hidden", report_count: 3 });
+      expect((await db.query<{ expire_marketplace_listings: number }>("select public.expire_marketplace_listings()")).rows[0].expire_marketplace_listings).toBe(1);
+      expect((await db.query<{ status: string }>("select status from public.marketplace_listings where id='c1111111-1111-4111-8111-111111111112'")).rows[0].status).toBe("expired");
+      expect((await db.query<{ previous_status: string; new_status: string }>("select previous_status,new_status from public.marketplace_history where listing_id='c1111111-1111-4111-8111-111111111112' and event_type='expired'")).rows[0]).toEqual({ previous_status: "sold", new_status: "expired" });
+      expect((await db.query<{ consume_marketplace_rate_limit: boolean }>("select public.consume_marketplace_rate_limit(repeat('7',24),'create',1,3600)")).rows[0].consume_marketplace_rate_limit).toBe(true);
+      expect((await db.query<{ consume_marketplace_rate_limit: boolean }>("select public.consume_marketplace_rate_limit(repeat('7',24),'create',1,3600)")).rows[0].consume_marketplace_rate_limit).toBe(false);
+
       await db.exec("set role anon");
       const publicEvents = await db.query<{ title: string }>("select title from public.academic_events where title like 'Integration %' order by title");
       expect(publicEvents.rows.map((row) => row.title)).toEqual([expect.stringMatching(/^Integration approved/)]);
@@ -173,6 +192,9 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await expect(db.query("select * from public.push_subscriptions")).rejects.toThrow();
       await expect(db.query("select * from public.place_live_reports")).rejects.toThrow();
       await expect(db.query("select * from public.academic_event_changes")).rejects.toThrow();
+      await expect(db.query("select * from public.marketplace_listings")).rejects.toThrow();
+      await expect(db.query("select * from public.marketplace_messages")).rejects.toThrow();
+      await expect(db.query("select * from public.marketplace_reports")).rejects.toThrow();
       expect((await db.query<{ approximate_location: string }>("select approximate_location from public.buddy_posts")).rows).toEqual([{ approximate_location: "Veřejná knihovna" }]);
       expect((await db.query<{ body: string }>("select body from public.community_posts order by created_at,id")).rows).toEqual([{ body: "Upravený text vlastní otázky pro integrační ověření." }]);
       await expect(db.query("select author_id from public.community_posts")).rejects.toThrow();
@@ -180,6 +202,8 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await db.exec("reset role");
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111111"]); await db.exec("set role authenticated");
+      await expect(db.query("select seller_email from public.marketplace_listings")).rejects.toThrow();
+      await expect(db.query("select buyer_email from public.marketplace_messages")).rejects.toThrow();
       expect((await db.query<{ title: string }>("select title from public.academic_events where title like 'RLS %' order by title")).rows.map((row) => row.title)).toEqual(["RLS FEKT"]);
       expect((await db.query("update public.academic_events set description='Upraveno FEKT' where title='RLS FEKT' returning id")).rows).toHaveLength(1);
       expect((await db.query("update public.academic_events set description='Zakázáno' where title='RLS FIT' returning id")).rows).toHaveLength(0);

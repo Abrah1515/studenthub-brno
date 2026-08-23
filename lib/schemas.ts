@@ -163,8 +163,70 @@ export const placeLiveReportSchema = z.object({
   proximityBand: z.enum(["near", "unknown"]).optional().default("unknown"),
 });
 
+const marketplaceScope = z.object({
+  universityId: z.string().trim().max(50).optional().or(z.literal("")),
+  facultyId: z.string().trim().max(80).optional().or(z.literal("")),
+});
+
+export const marketplaceListingSchema = z.object({
+  listingType: z.enum(["offer", "wanted"]),
+  category: z.enum(["textbook", "scripts", "own_notes", "study_materials", "calculator_equipment", "other"]),
+  title: z.string().trim().min(4, "Název musí mít alespoň 4 znaky.").max(140),
+  shortDescription: z.string().trim().min(10, "Krátký popis musí mít alespoň 10 znaků.").max(240),
+  description: z.string().trim().min(30, "Úplný popis musí mít alespoň 30 znaků.").max(3000),
+  priceMode: z.enum(["fixed", "free", "negotiable"]),
+  priceAmount: z.coerce.number().int("Cena musí být celé číslo.").min(0).max(1_000_000).optional(),
+  priceScope: z.enum(["item", "bundle"]),
+  ...marketplaceScope.shape,
+  studyProgram: z.string().trim().max(140).optional().or(z.literal("")),
+  subjectName: z.string().trim().max(140).optional().or(z.literal("")),
+  subjectCode: z.string().trim().max(40).optional().or(z.literal("")),
+  teacherName: z.string().trim().max(120).optional().or(z.literal("")),
+  recommendedYear: z.coerce.number().int().min(1).max(6).optional(),
+  semester: z.enum(["winter", "summer", "both", "not_applicable"]),
+  academicYear: z.string().trim().regex(/^20\d{2}\/20\d{2}$/, "Použijte formát 2026/2027.").optional().or(z.literal("")),
+  materialFormat: z.enum(["printed", "digital", "both"]),
+  itemCondition: z.enum(["new", "like_new", "used", "worn"]).optional().or(z.literal("")),
+  handoffMethod: z.enum(["in_person", "shipping", "digital", "agreement"]),
+    handoffLocation: z.string().trim().min(2, "Místo předání musí mít alespoň 2 znaky.").max(120).optional().or(z.literal("")),
+  publicAlias: z.string().trim().min(2, "Přezdívka musí mít alespoň 2 znaky.").max(50),
+  sellerEmail: z.string().trim().email("Zadejte platný e-mail.").max(254),
+  copyrightConfirmed: z.boolean().refine(Boolean, "Potvrďte právo nabízený obsah zveřejnit."),
+  ownNotesConfirmed: z.boolean().default(false),
+  privacyConsent: z.boolean().refine(Boolean, "Potvrďte zpracování kontaktního e-mailu."),
+  company: honeypot,
+  cityId,
+}).superRefine((value, ctx) => {
+  validCommunityScope(value, ctx);
+  if (value.priceMode === "fixed" && value.priceAmount == null) ctx.addIssue({ code: "custom", path: ["priceAmount"], message: "Doplňte cenu v Kč." });
+  if (value.priceMode === "free" && value.priceAmount != null && value.priceAmount !== 0) ctx.addIssue({ code: "custom", path: ["priceAmount"], message: "Bezplatný inzerát musí mít cenu 0 Kč." });
+  if (value.priceMode === "negotiable" && value.listingType !== "wanted") ctx.addIssue({ code: "custom", path: ["priceMode"], message: "Cenu dohodou lze použít pouze u inzerátu Hledám." });
+  if (value.materialFormat === "digital" && value.itemCondition) ctx.addIssue({ code: "custom", path: ["itemCondition"], message: "Digitální materiál nemá fyzický stav." });
+  if (value.materialFormat !== "digital" && !value.itemCondition) ctx.addIssue({ code: "custom", path: ["itemCondition"], message: "Doplňte stav fyzického předmětu." });
+  if (["in_person", "agreement"].includes(value.handoffMethod) && !value.handoffLocation) ctx.addIssue({ code: "custom", path: ["handoffLocation"], message: "Doplňte přibližné místo předání." });
+  if (value.category === "own_notes" && !value.ownNotesConfirmed) ctx.addIssue({ code: "custom", path: ["ownNotesConfirmed"], message: "Potvrďte autorství vlastních poznámek." });
+});
+
+export const marketplaceListingUpdateSchema = z.object({
+  action: z.enum(["update", "reserve", "sold", "reopen", "renew"]),
+  title: z.string().trim().min(4).max(140).optional(),
+  shortDescription: z.string().trim().min(10).max(240).optional(),
+  description: z.string().trim().min(30).max(3000).optional(),
+  priceMode: z.enum(["fixed", "free", "negotiable"]).optional(),
+  priceAmount: z.number().int().min(0).max(1_000_000).nullable().optional(),
+  priceScope: z.enum(["item", "bundle"]).optional(),
+  handoffMethod: z.enum(["in_person", "shipping", "digital", "agreement"]).optional(),
+    handoffLocation: z.string().trim().min(2).max(120).optional().or(z.literal("")),
+}).refine((value) => value.action !== "update" || Object.keys(value).some((key) => key !== "action"), "Není co změnit.");
+
+export const marketplaceVerificationSchema = z.object({ verificationToken: z.string().regex(/^[a-f0-9]{64}$/), managementToken: z.string().regex(/^[a-f0-9]{64}$/) });
+export const marketplaceContactSchema = z.object({ buyerEmail: z.string().trim().email("Zadejte platný e-mail.").max(254), message: z.string().trim().min(20, "Zpráva musí mít alespoň 20 znaků.").max(2000), consent: z.boolean().refine(Boolean, "Potvrďte předání zprávy prodávajícímu."), company: honeypot });
+export const marketplaceReportSchema = z.object({ reason: z.enum(["fraud", "copyright", "academic_integrity", "illegal", "sold", "privacy", "spam", "other"]), detail: z.string().trim().max(1000).default(""), company: honeypot });
+
 export type ServiceRequestInput = z.infer<typeof serviceRequestSchema>;
 export type JobSubmissionInput = z.infer<typeof jobSubmissionSchema>;
 export type ContentSubmissionInput = z.infer<typeof contentSubmissionSchema>;
 export type BuddyPostInput = z.infer<typeof buddyPostSchema>;
 export type ContactMessageInput = z.infer<typeof contactMessageSchema>;
+export type MarketplaceListingFormInput = z.input<typeof marketplaceListingSchema>;
+export type MarketplaceListingInput = z.infer<typeof marketplaceListingSchema>;

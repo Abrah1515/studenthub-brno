@@ -15,7 +15,7 @@ export const brand = {
   colors: { primary: "#0b6b4d", lightTheme: "#f3f7f5", darkTheme: "#101915" },
   seo: {
     title: "StudentHub Brno – prakticky pro studenty",
-    description: "Nezávislý praktický rozcestník pro studenty v Brně: termíny, místa, slevy, brigády a technická pomoc.",
+    description: "Nezávislý praktický rozcestník pro studenty v Brně: termíny, místa, brigády, komunita a studentská burza.",
   },
 } as const;
 

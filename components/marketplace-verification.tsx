@@ -1,0 +1,11 @@
+"use client";
+
+import Link from "next/link";
+import { CheckCircle2, Loader2, ShieldX } from "lucide-react";
+import { useEffect, useState } from "react";
+
+export function MarketplaceVerification({ listingId, citySlug }: { listingId: string; citySlug: string }) {
+  const [state, setState] = useState<"loading" | "success" | "error">("loading"); const [message, setMessage] = useState("Ověřuji jednorázový odkaz…"); const [manageHref, setManageHref] = useState("");
+  useEffect(() => { const values = new URLSearchParams(window.location.hash.slice(1)); const verificationToken = values.get("verification") || ""; const managementToken = values.get("management") || ""; window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`); if (!listingId || !verificationToken || !managementToken) { setState("error"); setMessage("Ověřovací odkaz není úplný."); return; } void (async () => { const response = await fetch(`/api/marketplace/listings/${encodeURIComponent(listingId)}/verify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ verificationToken, managementToken }) }); const payload = await response.json().catch(() => ({})); if (!response.ok) { setState("error"); setMessage(payload.message || "Inzerát se nepodařilo ověřit."); return; } localStorage.setItem(`studenthub-marketplace-manage:${listingId}`, managementToken); setManageHref(`/${citySlug}/burza/sprava?id=${encodeURIComponent(listingId)}#token=${managementToken}`); setState("success"); setMessage(payload.message); })(); }, [citySlug, listingId]);
+  return <div className="page-stack marketplace-verification"><section className={state === "error" ? "error-state marketplace-verification-card" : "success-state marketplace-verification-card"}>{state === "loading" ? <Loader2 className="spin" size={36} /> : state === "success" ? <CheckCircle2 size={38} /> : <ShieldX size={38} />}<h1>{state === "loading" ? "Ověřuji inzerát" : state === "success" ? "Inzerát je zveřejněný" : "Ověření se nezdařilo"}</h1><p>{message}</p><div>{state === "success" && <a className="button button-primary" href={manageHref}>Spravovat inzerát</a>}<Link className="button button-secondary" href={`/${citySlug}/burza`}>Přejít do burzy</Link></div></section></div>;
+}

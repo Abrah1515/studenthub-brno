@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BriefcaseBusiness, CalendarDays, GraduationCap, MapPinned, Settings2, Sparkles, Wrench } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, CalendarDays, GraduationCap, MapPinned, Settings2, ShoppingBag, Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import type { City } from "@/lib/cities";
 import type { AcademicEvent, Job, Offer } from "@/lib/types";
@@ -17,7 +17,7 @@ export function DashboardHeading({ city, selection }: { city: City; selection?: 
   const university = catalog.universities.find((item) => item.id === selected.universityId);
   const faculty = university ? catalog.faculties.find((item) => item.id === selected.facultyId && item.universityId === university.id) : undefined;
   const today = new Intl.DateTimeFormat("cs-CZ", { weekday: "long", day: "numeric", month: "long", timeZone: city.timezone }).format(new Date());
-  return <header className="page-heading"><div><span className="eyebrow">{today}</span><h1>{university ? `Přehled pro ${faculty?.shortName || university.shortName}` : `StudentHub ${city.name}`}</h1><p>{university ? `${university.name}${faculty ? ` · ${faculty.name}` : ""}. K tomu obsah užitečný pro celé město ${city.name}.` : `Ověřené termíny, místa a praktické služby pro studenty ve městě ${city.name}.`}</p></div><div className="heading-actions"><Link href="/nastaveni" className="button button-secondary"><Settings2 size={18} />Moje škola</Link><Link href="/pomoc" className="button button-primary"><Wrench size={18} />Potřebuji technickou pomoc</Link></div></header>;
+  return <header className="page-heading"><div><span className="eyebrow">{today}</span><h1>{university ? `Přehled pro ${faculty?.shortName || university.shortName}` : `StudentHub ${city.name}`}</h1><p>{university ? `${university.name}${faculty ? ` · ${faculty.name}` : ""}. K tomu obsah užitečný pro celé město ${city.name}.` : `Ověřené termíny, místa a praktické služby pro studenty ve městě ${city.name}.`}</p></div><div className="heading-actions"><Link href="/nastaveni" className="button button-secondary"><Settings2 size={18} />Moje škola</Link><Link href={`/${city.slug}/burza`} className="button button-primary"><ShoppingBag size={18} />Studentská burza</Link></div></header>;
 }
 
 export function PersonalizedDashboard({ events, offers, jobs, city, selection }: { events: AcademicEvent[]; offers: Offer[]; jobs: Job[]; city: City; selection?: StudySelection }) {

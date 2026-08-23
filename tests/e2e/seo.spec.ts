@@ -22,7 +22,7 @@ test.describe("SEO a serverové HTML", () => {
     const sitemap = await request.get("/sitemap.xml");
     const sitemapText = await sitemap.text();
     expect(sitemap.status()).toBe(200);
-    for (const path of ["/brno", "/brno/kalendar", "/brno/mista", "/komunita", "/brno/brigady", "/pomoc", "/partak", "/o-projektu", "/kontakt"]) {
+    for (const path of ["/brno", "/brno/kalendar", "/brno/mista", "/komunita", "/brno/brigady", "/brno/burza", "/partak", "/o-projektu", "/kontakt"]) {
       expect(sitemapText).toContain(`https://studenthub-brno.vercel.app${path}`);
     }
     expect(sitemapText).not.toMatch(/\/(admin|api|ucet|nastaveni|hlidac)(\/|&lt;)/);
@@ -36,7 +36,7 @@ test.describe("SEO a serverové HTML", () => {
       ["/brno/mista", "Užitečná místa"],
       ["/komunita", "Studentská komunita"],
       ["/brno/brigady", "Brigády · Brno"],
-      ["/pomoc", "Lokální technická pomoc"],
+      ["/brno/burza", "Studentská burza"],
       ["/partak", "Hledám parťáka"],
       ["/o-projektu", "O StudentHub Brno"],
       ["/kontakt", "Kontakt"],
@@ -53,7 +53,7 @@ test.describe("SEO a serverové HTML", () => {
   });
 
   test("soukromé stránky mají noindex na serveru", async ({ request }) => {
-    for (const path of ["/nastaveni", "/hlidac", "/partak/moje", "/pomoc/moje"]) {
+    for (const path of ["/nastaveni", "/hlidac", "/partak/moje", "/brno/burza/novy", "/brno/burza/overit", "/brno/burza/sprava"]) {
       const response = await request.get(path);
       const html = await response.text();
       expect(response.headers()["x-robots-tag"], path).toContain("noindex");
