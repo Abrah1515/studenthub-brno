@@ -49,6 +49,9 @@ describe("odstranění veřejné sekce Pro spolky", () => {
     expect(existsSync("components/content-submission-form.tsx")).toBe(false);
     expect(existsSync("app/api/submissions/route.ts")).toBe(false);
     expect(readFileSync("app/navrhnout-obsah/page.tsx", "utf8")).toContain('permanentRedirect("/kontakt")');
+    const proxy = readFileSync("proxy.ts", "utf8");
+    expect(proxy).toContain('pathname === "/navrhnout-obsah"');
+    expect(proxy).toContain("NextResponse.redirect(contactUrl, 308)");
   });
 
   it("odstraňuje odkazy z navigace a školního rozcestníku, ale ponechává neveřejný archiv", () => {

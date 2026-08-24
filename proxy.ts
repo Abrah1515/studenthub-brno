@@ -59,6 +59,15 @@ function cityNotFoundResponse() {
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
+  if (pathname === "/navrhnout-obsah" || pathname === "/navrhnout-obsah/") {
+    const contactUrl = request.nextUrl.clone();
+    contactUrl.pathname = "/kontakt";
+    contactUrl.search = "";
+    const response = NextResponse.redirect(contactUrl, 308);
+    response.headers.set("Cache-Control", "public, max-age=3600");
+    return response;
+  }
+
   if (pathname.startsWith("/admin") && pathname !== "/admin/prihlaseni") {
     const hasDemo = Boolean(request.cookies.get("sh_admin"));
     const hasSupabase = request.cookies.getAll().some((cookie) => cookie.name.startsWith("sb-") && cookie.name.includes("auth-token"));
