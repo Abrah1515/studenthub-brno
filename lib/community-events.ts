@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { CommunityEvent } from "@/lib/types";
+import type { PublicProfileIdentity } from "@/lib/profile-types";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 
 export const communityImageBucket = "community-event-images";
@@ -27,8 +28,8 @@ export function managementTokenMatches(token: string | null, expectedHash: unkno
   return timingSafeEqual(Buffer.from(actual), Buffer.from(expectedHash));
 }
 
-export function publicCommunityEvent(row: Record<string, unknown>): CommunityEvent {
-  return { id: String(row.id), cityId: String(row.city_id), title: String(row.title), category: String(row.category) as CommunityEvent["category"], startsAt: String(row.starts_at), endsAt: row.ends_at ? String(row.ends_at) : undefined, venue: String(row.venue), description: String(row.description), isFree: Boolean(row.is_free), priceAmount: row.price_amount == null ? undefined : Number(row.price_amount), currency: "CZK", eventUrl: row.event_url ? String(row.event_url) : undefined, imageUrl: row.image_url ? String(row.image_url) : undefined, organizer: row.organizer ? String(row.organizer) : undefined, sourceType: row.source_type === "external" ? "external" : "community", sourceUrl: row.source_url ? String(row.source_url) : undefined, sourceExternalId: row.source_external_id ? String(row.source_external_id) : undefined, lastVerifiedAt: row.last_verified_at ? String(row.last_verified_at) : undefined, createdAt: String(row.created_at) };
+export function publicCommunityEvent(row: Record<string, unknown>, author?: PublicProfileIdentity): CommunityEvent {
+  return { id: String(row.id), cityId: String(row.city_id), title: String(row.title), category: String(row.category) as CommunityEvent["category"], startsAt: String(row.starts_at), endsAt: row.ends_at ? String(row.ends_at) : undefined, venue: String(row.venue), description: String(row.description), isFree: Boolean(row.is_free), priceAmount: row.price_amount == null ? undefined : Number(row.price_amount), currency: "CZK", eventUrl: row.event_url ? String(row.event_url) : undefined, imageUrl: row.image_url ? String(row.image_url) : undefined, organizer: row.organizer ? String(row.organizer) : undefined, sourceType: row.source_type === "external" ? "external" : "community", sourceUrl: row.source_url ? String(row.source_url) : undefined, sourceExternalId: row.source_external_id ? String(row.source_external_id) : undefined, lastVerifiedAt: row.last_verified_at ? String(row.last_verified_at) : undefined, createdAt: String(row.created_at), author };
 }
 
 export async function sanitizeAndUploadCommunityImage(file: File, eventId: string) {

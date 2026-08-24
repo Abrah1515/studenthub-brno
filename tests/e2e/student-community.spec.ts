@@ -18,11 +18,11 @@ test("komunitní feed má bezpečný prázdný stav, filtry a nepřetéká", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
 });
 
-test("formulář příspěvku vyžádá ověřený e-mail a zachová jediný modál", async ({ page }) => {
+test("formulář příspěvku vyžádá jednotný účet a zachová jediný modál", async ({ page }) => {
   await page.goto("/komunita"); const trigger = page.getByRole("button", { name: "Napsat příspěvek" }).first(); await trigger.click();
   await expect(page.locator('[role="dialog"][aria-modal="true"]')).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "Ověřit e-mail" })).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Ověřit e-mail" })).toContainText("e-mail se nikde veřejně nezobrazuje");
+  await expect(page.getByRole("heading", { name: "Přihlášení k publikování" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Přihlášení k publikování" })).toContainText("rozepsaný text zůstane uložený");
   await expect(page.getByRole("button", { name: "Zavřít formulář" })).toBeFocused();
   await page.keyboard.press("Escape"); await expect(page.locator('[role="dialog"][aria-modal="true"]')).toHaveCount(0); await expect(trigger).toBeFocused();
 });
@@ -30,9 +30,9 @@ test("formulář příspěvku vyžádá ověřený e-mail a zachová jediný mod
 test("přihlášený formulář drží layout, validuje obrázek a odešle školní rozsah jen jednou", async ({ page }, testInfo) => {
   let submitted = ""; let postRequests = 0;
   await page.route("**/api/community/posts**", async (route) => {
-    if (route.request().method() === "GET") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [], viewer: { loggedIn: true, nickname: "Audit" }, nextPage: null }) });
+    if (route.request().method() === "GET") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [], viewer: { loggedIn: true, nickname: "Audit", profileComplete: true }, nextPage: null }) });
     postRequests += 1; submitted = route.request().postData() || "";
-    return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ item: { id: "11111111-1111-4111-8111-111111111111", nickname: "Audit", category: "Studium", body: "Hledám tipy na klidné studium v okolí kampusu.", universityId: "vut", facultyId: "vut-fekt", helpfulCount: 0, commentCount: 0, createdAt: "2026-08-22T10:00:00Z", updatedAt: "2026-08-22T10:00:00Z", owned: true, viewerHelpful: false } }) });
+    return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ item: { id: "11111111-1111-4111-8111-111111111111", nickname: "Audit", author: { username: "audit_student", displayName: "Audit", verifiedEmail: true, legacy: false }, category: "Studium", body: "Hledám tipy na klidné studium v okolí kampusu.", universityId: "vut", facultyId: "vut-fekt", helpfulCount: 0, commentCount: 0, createdAt: "2026-08-22T10:00:00Z", updatedAt: "2026-08-22T10:00:00Z", owned: true, viewerHelpful: false } }) });
   });
   await page.goto("/komunita"); await page.getByRole("button", { name: "Napsat příspěvek" }).first().click();
   const dialog = page.getByRole("dialog", { name: "Napsat příspěvek" }); await expect(dialog).toBeVisible();

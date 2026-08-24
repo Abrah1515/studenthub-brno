@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { listRecords, updateRecord } from "@/lib/data-store";
-import { getCurrentUser } from "@/lib/user-auth";
+import { getCurrentAccount } from "@/lib/user-auth";
 
 type Context = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, context: Context) {
-  const user = await getCurrentUser(); if (!user) return NextResponse.json({ message: "Nepřihlášeno." }, { status: 401 });
+  const user = await getCurrentAccount(); if (!user) return NextResponse.json({ message: "Nepřihlášeno." }, { status: 401 }); if (!user.complete || user.accountStatus !== "active") return NextResponse.json({ message: "Profil není připravený pro komunitní akce." }, { status: 403 });
   const id = (await context.params).id; const body = await request.json().catch(() => null) as { status?: string } | null;
   if (!body || !["accepted", "rejected"].includes(body.status || "")) return NextResponse.json({ message: "Neplatné rozhodnutí." }, { status: 422 });
   const join = (await listRecords("buddy_join_requests")).find((row) => String(row.id) === id); if (!join) return NextResponse.json({ message: "Žádost nenalezena." }, { status: 404 });

@@ -1,3 +1,5 @@
+import type { PublicProfileIdentity } from "@/lib/profile-types";
+
 export const marketplaceListingTypes = ["offer", "wanted"] as const;
 export const marketplaceCategories = ["textbook", "scripts", "own_notes", "study_materials", "calculator_equipment", "other"] as const;
 export const marketplaceFormats = ["printed", "digital", "both"] as const;
@@ -37,6 +39,7 @@ export type MarketplaceListing = {
   handoffMethod: "in_person" | "shipping" | "digital" | "agreement";
   handoffLocation?: string;
   publicAlias: string;
+  author: PublicProfileIdentity;
   status: MarketplacePublicStatus;
   publishedAt: string;
   expiresAt: string;

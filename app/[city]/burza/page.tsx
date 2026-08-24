@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { MarketplaceExplorer } from "@/components/marketplace-explorer";
 import { getPublishedCity } from "@/lib/city-data";
 import { getPublicMarketplaceListings, marketplaceEmailConfigured } from "@/lib/marketplace-server";
+import { getCurrentAccount } from "@/lib/user-auth";
 
 type Props = { params: Promise<{ city: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> { const city = await getPublishedCity((await params).city); if (!city) notFound(); return { title: `Studentská burza · ${city.name}`, description: "Bezpečná studentská burza učebnic, skript, vlastních poznámek, kalkulaček a studijního vybavení.", alternates: { canonical: `/${city.slug}/burza` } }; }
 export const dynamic = "force-dynamic";
-export default async function MarketplacePage({ params }: Props) { const city = await getPublishedCity((await params).city); if (!city) notFound(); return <MarketplaceExplorer city={city} initialItems={await getPublicMarketplaceListings(city.id)} emailReady={marketplaceEmailConfigured() || process.env.DEMO_MODE === "true"} />; }
+export default async function MarketplacePage({ params }: Props) { const city = await getPublishedCity((await params).city); if (!city) notFound(); const viewer = await getCurrentAccount(); return <MarketplaceExplorer city={city} initialItems={await getPublicMarketplaceListings(city.id, viewer?.id)} emailReady={marketplaceEmailConfigured() || process.env.DEMO_MODE === "true"} />; }

@@ -5,6 +5,7 @@ import { allowRequest, requestFingerprint } from "@/lib/rate-limit";
 import { insertRecord, listRecords, updateRecord } from "@/lib/data-store";
 import { publicMarketplaceListing } from "@/lib/marketplace-public";
 import type { MarketplaceListing } from "@/lib/marketplace-types";
+import { legacyProfileIdentity, publicIdentityForRows } from "@/lib/profile-server";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 
 export const marketplaceImageBucket = "marketplace-images";
@@ -94,13 +95,15 @@ async function photosWithSignedUrls(rows: Record<string, unknown>[]) {
   const signed = new Map((data || []).map((item) => [item.path, item.signedUrl || undefined])); return rows.map((row): Record<string, unknown> & { signedUrl?: string } => ({ ...row, signedUrl: signed.get(String(row.storage_path)) }));
 }
 
-export async function getPublicMarketplaceListings(cityId = "brno") {
+export async function getPublicMarketplaceListings(cityId = "brno", viewerId?: string) {
   const now = Date.now(); const rows = await listRecords("marketplace_listings");
   const stale = rows.filter((row) => ["active", "reserved", "sold"].includes(String(row.status)) && row.expires_at && new Date(String(row.expires_at)).getTime() <= now);
   await Promise.all(stale.map((row) => updateRecord("marketplace_listings", String(row.id), { status: "expired" }).catch(() => null)));
-  const visible = rows.filter((row) => row.city_id === cityId && publicStatuses.has(String(row.status)) && (!row.expires_at || new Date(String(row.expires_at)).getTime() > now));
+  let visible = rows.filter((row) => row.city_id === cityId && publicStatuses.has(String(row.status)) && (!row.expires_at || new Date(String(row.expires_at)).getTime() > now));
+  if (viewerId) { const { data: blocks } = await createServiceClient().from("profile_blocks").select("blocked_id").eq("blocker_id", viewerId); const blocked = new Set((blocks || []).map((row) => String(row.blocked_id))); visible = visible.filter((row) => !blocked.has(String(row.seller_id || ""))); }
   const ids = new Set(visible.map((row) => String(row.id))); const photoRows = (await listRecords("marketplace_listing_photos")).filter((row) => ids.has(String(row.listing_id))); const signedPhotos = await photosWithSignedUrls(photoRows);
-  return (await Promise.all(visible.map(async (row) => publicMarketplaceListing(row, signedPhotos.filter((photo) => photo.listing_id === row.id))))).filter((item): item is MarketplaceListing => Boolean(item));
+  const identities = await publicIdentityForRows(visible.map((row) => row.seller_id), viewerId);
+  return (await Promise.all(visible.map(async (row) => { const item = publicMarketplaceListing(row, signedPhotos.filter((photo) => photo.listing_id === row.id)); return item ? { ...item, author: row.seller_id ? identities.get(String(row.seller_id)) || legacyProfileIdentity : legacyProfileIdentity } : null; }))).filter((item): item is MarketplaceListing => Boolean(item));
 }
 
 export async function getPublicMarketplaceListing(id: string) { return (await getPublicMarketplaceListings()).find((item) => item.id === id) || null; }

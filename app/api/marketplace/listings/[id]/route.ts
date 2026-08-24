@@ -2,23 +2,26 @@ import { NextResponse } from "next/server";
 import { deleteRecord, listRecords, updateRecord } from "@/lib/data-store";
 import { cleanMarketplaceText, consumeMarketplaceLimit, getPublicMarketplaceListing, marketplaceListingByManagementToken, prohibitedMarketplaceReason, recordMarketplaceHistory, removeMarketplacePhotos } from "@/lib/marketplace-server";
 import { marketplaceListingUpdateSchema } from "@/lib/schemas";
+import { getCurrentAccount } from "@/lib/user-auth";
 
 type Context = { params: Promise<{ id: string }> };
-const privateManagementFields = new Set(["seller_email", "seller_email_hash", "request_fingerprint", "verification_token_hash", "management_token_hash", "duplicate_fingerprint", "moderation_note"]);
+const privateManagementFields = new Set(["seller_id", "seller_email", "seller_email_hash", "request_fingerprint", "verification_token_hash", "management_token_hash", "duplicate_fingerprint", "moderation_note"]);
 function managedItem(row: Record<string, unknown>) { return Object.fromEntries(Object.entries(row).filter(([key]) => !privateManagementFields.has(key))); }
+async function ownedOrLegacy(id: string, request: Request) { const account = await getCurrentAccount(); const row = (await listRecords("marketplace_listings")).find((item) => String(item.id) === id); if (account?.complete && account.accountStatus === "active" && row?.seller_id === account.id) return row; return marketplaceListingByManagementToken(id, request.headers.get("x-marketplace-token")); }
 
 export async function GET(request: Request, context: Context) {
   const id = (await context.params).id; const token = request.headers.get("x-marketplace-token");
-  if (token) {
-    const row = await marketplaceListingByManagementToken(id, token); if (!row) return NextResponse.json({ message: "Odkaz pro správu není platný." }, { status: 404 });
-    return NextResponse.json({ item: managedItem(row) }, { headers: { "Cache-Control": "private, no-store" } });
+  const account = await getCurrentAccount();
+  if (token || account) {
+    const row = await ownedOrLegacy(id, request); if (row) return NextResponse.json({ item: managedItem(row) }, { headers: { "Cache-Control": "private, no-store" } });
+    if (token) return NextResponse.json({ message: "Odkaz pro správu není platný." }, { status: 404 });
   }
   const item = await getPublicMarketplaceListing(id); return item ? NextResponse.json({ item }, { headers: { "Cache-Control": "public, max-age=30" } }) : NextResponse.json({ message: "Inzerát nebyl nalezen." }, { status: 404 });
 }
 
 export async function PATCH(request: Request, context: Context) {
   if (!await consumeMarketplaceLimit(request, "manage", 30, 60 * 60)) return NextResponse.json({ message: "Limit úprav byl vyčerpán." }, { status: 429 });
-  const id = (await context.params).id; const row = await marketplaceListingByManagementToken(id, request.headers.get("x-marketplace-token")); if (!row) return NextResponse.json({ message: "Odkaz pro správu není platný." }, { status: 404 });
+  const id = (await context.params).id; const row = await ownedOrLegacy(id, request); if (!row) return NextResponse.json({ message: "Inzerát nebyl nalezen nebo vám nepatří." }, { status: 404 });
   if (["deleted", "rejected", "pending_verification", "hidden"].includes(String(row.status))) return NextResponse.json({ message: row.status === "hidden" ? "Inzerát skryl správce a nelze jej tímto odkazem obnovit." : "Tento inzerát už nelze upravit." }, { status: 409 });
   const parsed = marketplaceListingUpdateSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte změny.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
   const value = parsed.data; const previous = String(row.status); const changes: Record<string, unknown> = {};
@@ -44,7 +47,7 @@ export async function PATCH(request: Request, context: Context) {
 
 export async function DELETE(request: Request, context: Context) {
   if (!await consumeMarketplaceLimit(request, "delete", 5, 60 * 60)) return NextResponse.json({ message: "Limit operací byl vyčerpán." }, { status: 429 });
-  const id = (await context.params).id; const row = await marketplaceListingByManagementToken(id, request.headers.get("x-marketplace-token")); if (!row) return NextResponse.json({ message: "Odkaz pro správu není platný." }, { status: 404 });
+  const id = (await context.params).id; const row = await ownedOrLegacy(id, request); if (!row) return NextResponse.json({ message: "Inzerát nebyl nalezen nebo vám nepatří." }, { status: 404 });
   const photos = (await listRecords("marketplace_listing_photos")).filter((photo) => photo.listing_id === id); await removeMarketplacePhotos(photos.map((photo) => photo.storage_path)); for (const photo of photos) await deleteRecord("marketplace_listing_photos", String(photo.id));
   await updateRecord("marketplace_listings", id, { status: "deleted", deleted_at: new Date().toISOString(), seller_email: `deleted+${id}@invalid.local`, verification_token_hash: null }); await recordMarketplaceHistory(id, "deleted", row.status, "deleted", "seller");
   return new NextResponse(null, { status: 204 });

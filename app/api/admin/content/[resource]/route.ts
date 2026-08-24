@@ -75,7 +75,7 @@ export async function PATCH(request: Request, context: Context) {
     const targetTable = report.target_type === "buddy_post" ? "buddy_posts" : report.target_type === "community_event" ? "community_events" : "service_requests";
     const target = (await listRecords(targetTable)).find((row) => String(row.id) === String(report.target_id));
     if (body.hideTarget && target) await updateRecord(targetTable, String(target.id), targetTable === "community_events" ? { status: "hidden" } : { moderation_status: "hidden" });
-    if (body.blockAuthor && target?.owner_id && isSupabaseConfigured()) await createServiceClient().from("profiles").update({ is_blocked: true }).eq("id", target.owner_id);
+    if (body.blockAuthor && target?.owner_id && isSupabaseConfigured()) await createServiceClient().from("profiles").update({ is_blocked: true, account_status: "suspended", suspended_at: new Date().toISOString(), suspension_reason: String(body.reason || "Moderátorský zásah") }).eq("id", target.owner_id);
     changes.status = "actioned"; changes.reviewed_by = user.id === "local-admin" ? null : user.id; changes.reviewed_at = new Date().toISOString(); changes.resolution = body.blockAuthor ? "Obsah skryt a autor zablokován." : "Obsah skryt.";
     delete changes.hideTarget; delete changes.blockAuthor;
   }

@@ -30,7 +30,7 @@ export function MarketplaceAdminPanel({ listings, reports, history, actions, blo
   }
 
   return <section className="admin-panel marketplace-admin-panel">
-    <div className="admin-section-head"><div><h2>Studentská burza</h2><p>Inzeráty se publikují až po ověření e-mailu. Kontakty se nenačítají automaticky a jejich zobrazení superadminem se audituje.</p></div><Link className="button button-secondary" href="/brno/burza" target="_blank">Otevřít burzu</Link></div>
+    <div className="admin-section-head"><div><h2>Studentská burza</h2><p>Nové inzeráty se publikují z dokončeného profilu s ověřeným e-mailem. Kontakty se nenačítají automaticky a jejich zobrazení superadminem se audituje.</p></div><Link className="button button-secondary" href="/brno/burza" target="_blank">Otevřít burzu</Link></div>
     <div className="marketplace-admin-stats">
       <article><span>Aktivní</span><strong>{count("active")}</strong></article><article><span>Rezervované</span><strong>{count("reserved")}</strong></article><article><span>Prodané</span><strong>{count("sold")}</strong></article><article><span>Expirované</span><strong>{count("expired")}</strong></article><article><span>Nahlášené</span><strong>{reports.filter((row) => ["new", "reviewed"].includes(String(row.status))).length}</strong></article><article><span>Kontaktování</span><strong>{listings.reduce((total, row) => total + Number(row.contact_count || 0), 0)}</strong></article>
     </div>

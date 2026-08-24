@@ -2,6 +2,8 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 import type { CommunityComment, CommunityPlace, CommunityPost } from "@/lib/community-types";
+import type { PublicProfileIdentity } from "@/lib/profile-types";
+import { legacyProfileIdentity } from "@/lib/profile-server";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 
 export const communityPostImageBucket = "community-post-images";
@@ -60,16 +62,16 @@ export async function removeCommunityPostImage(imageUrl: unknown) {
   await createServiceClient().storage.from(communityPostImageBucket).remove([path]);
 }
 
-export function publicCommunityPost(row: Record<string, unknown>, options: { owned?: boolean; viewerHelpful?: boolean; place?: CommunityPlace } = {}): CommunityPost {
+export function publicCommunityPost(row: Record<string, unknown>, options: { owned?: boolean; viewerHelpful?: boolean; place?: CommunityPlace; author?: PublicProfileIdentity } = {}): CommunityPost {
   return {
     id: String(row.id), nickname: String(row.author_nickname), category: String(row.category) as CommunityPost["category"], body: String(row.body),
     imageUrl: row.image_url ? String(row.image_url) : undefined, place: options.place,
     universityId: row.university_id ? String(row.university_id) : undefined, facultyId: row.faculty_id ? String(row.faculty_id) : undefined,
     helpfulCount: Number(row.helpful_count || 0), commentCount: Number(row.comment_count || 0), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
-    owned: Boolean(options.owned), viewerHelpful: Boolean(options.viewerHelpful),
+    owned: Boolean(options.owned), viewerHelpful: Boolean(options.viewerHelpful), author: options.author || legacyProfileIdentity,
   };
 }
 
-export function publicCommunityComment(row: Record<string, unknown>, options: { owned?: boolean; viewerHelpful?: boolean } = {}): CommunityComment {
-  return { id: String(row.id), postId: String(row.post_id), nickname: String(row.author_nickname), body: String(row.body), isBest: Boolean(row.is_best), helpfulCount: Number(row.helpful_count || 0), createdAt: String(row.created_at), updatedAt: String(row.updated_at), owned: Boolean(options.owned), viewerHelpful: Boolean(options.viewerHelpful) };
+export function publicCommunityComment(row: Record<string, unknown>, options: { owned?: boolean; viewerHelpful?: boolean; author?: PublicProfileIdentity } = {}): CommunityComment {
+  return { id: String(row.id), postId: String(row.post_id), nickname: String(row.author_nickname), body: String(row.body), isBest: Boolean(row.is_best), helpfulCount: Number(row.helpful_count || 0), createdAt: String(row.created_at), updatedAt: String(row.updated_at), owned: Boolean(options.owned), viewerHelpful: Boolean(options.viewerHelpful), author: options.author || legacyProfileIdentity };
 }

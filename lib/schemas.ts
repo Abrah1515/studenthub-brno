@@ -5,6 +5,21 @@ import { communityCategories } from "@/lib/community-types";
 const honeypot = z.string().max(0, "Spam byl rozpoznán.").optional();
 const cityId = z.string().regex(/^[a-z0-9-]{2,80}$/).optional();
 
+const reservedUsernames = new Set(["admin","administrator","studenthub","studenthubbrno","moderator","support","podpora","root","system","api","profil","profily","ucet"]);
+export const usernameSchema = z.string().trim().toLowerCase().min(3,"Uživatelské jméno musí mít alespoň 3 znaky.").max(30).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/,"Použijte malá písmena, čísla, podtržítko nebo pomlčku.").refine((value)=>!reservedUsernames.has(value),"Toto uživatelské jméno je vyhrazené.");
+export const accountEmailSchema = z.string().trim().email("Zadejte platný e-mail.").max(254);
+export const accountPasswordSchema = z.string().min(10,"Heslo musí mít alespoň 10 znaků.").max(128).refine((value)=>/[a-zá-ž]/i.test(value)&&/\d/.test(value),"Heslo musí obsahovat písmeno a číslo.");
+export const profileUpdateSchema = z.object({
+  username: usernameSchema, displayName: z.string().trim().min(2,"Doplňte veřejnou přezdívku.").max(100),
+  bio: z.string().trim().max(500).optional().or(z.literal("")), cityId: z.string().regex(/^[a-z0-9-]{2,80}$/).default("brno"),
+  universityId: z.string().trim().max(50).optional().or(z.literal("")), facultyId: z.string().trim().max(80).optional().or(z.literal("")),
+  studyProgram: z.string().trim().max(140).optional().or(z.literal("")), studyYear: z.coerce.number().int().min(1).max(6).nullable().optional(),
+  interests: z.array(z.string().trim().min(1).max(40)).max(12).default([]), profileVisibility: z.enum(["public","private"]).default("public"),
+  showFaculty: z.boolean().default(true), showStudyProgram: z.boolean().default(true), showStudyYear: z.boolean().default(true),
+  communityRulesAccepted: z.boolean().refine(Boolean,"Pro veřejné akce je nutný souhlas s pravidly komunity."),
+}).superRefine((value,ctx)=>validCommunityScope(value,ctx));
+export const profileReportSchema = z.object({ reason:z.enum(["spam","harassment","hate","privacy","fraud","impersonation","other"]),detail:z.string().trim().max(800).default("") });
+
 const serviceRequestObject = z.object({
   publicTitle: z.string().trim().min(4, "Uveďte krátký veřejný název.").max(120),
   publicAlias: z.string().trim().min(2, "Uveďte přezdívku pro veřejnou část.").max(60),
@@ -43,7 +58,6 @@ const communityEventFields = z.object({
   isFree: z.boolean(),
   priceAmount: z.coerce.number().min(0).max(100_000).optional(),
   eventUrl: safeHttpsUrl.optional().or(z.literal("")),
-  authorEmail: z.string().trim().email("Zadejte platný e-mail.").max(254),
   publicVenueConsent: z.boolean().refine(Boolean, "Potvrďte, že nejde o soukromou adresu."),
   company: honeypot,
   cityId,
@@ -57,7 +71,7 @@ export const communityEventSchema = communityEventFields.superRefine((value, ctx
   if (value.isFree === false && value.priceAmount == null) ctx.addIssue({ code: "custom", path: ["priceAmount"], message: "Doplňte cenu, nebo označte akci jako zdarma." });
 });
 
-export const communityEventUpdateSchema = communityEventFields.omit({ authorEmail: true, publicVenueConsent: true, company: true, cityId: true }).partial().refine((value) => Object.keys(value).length > 0, "Není co změnit.");
+export const communityEventUpdateSchema = communityEventFields.omit({ publicVenueConsent: true, company: true, cityId: true }).partial().refine((value) => Object.keys(value).length > 0, "Není co změnit.");
 
 export const buddyPostSchema = z.object({
   activityType: z.enum(["beer", "cinema", "sport", "culture", "study", "trip"]),
@@ -189,11 +203,8 @@ export const marketplaceListingSchema = z.object({
   itemCondition: z.enum(["new", "like_new", "used", "worn"]).optional().or(z.literal("")),
   handoffMethod: z.enum(["in_person", "shipping", "digital", "agreement"]),
     handoffLocation: z.string().trim().min(2, "Místo předání musí mít alespoň 2 znaky.").max(120).optional().or(z.literal("")),
-  publicAlias: z.string().trim().min(2, "Přezdívka musí mít alespoň 2 znaky.").max(50),
-  sellerEmail: z.string().trim().email("Zadejte platný e-mail.").max(254),
   copyrightConfirmed: z.boolean().refine(Boolean, "Potvrďte právo nabízený obsah zveřejnit."),
   ownNotesConfirmed: z.boolean().default(false),
-  privacyConsent: z.boolean().refine(Boolean, "Potvrďte zpracování kontaktního e-mailu."),
   company: honeypot,
   cityId,
 }).superRefine((value, ctx) => {
@@ -220,7 +231,7 @@ export const marketplaceListingUpdateSchema = z.object({
 }).refine((value) => value.action !== "update" || Object.keys(value).some((key) => key !== "action"), "Není co změnit.");
 
 export const marketplaceVerificationSchema = z.object({ verificationToken: z.string().regex(/^[a-f0-9]{64}$/), managementToken: z.string().regex(/^[a-f0-9]{64}$/) });
-export const marketplaceContactSchema = z.object({ buyerEmail: z.string().trim().email("Zadejte platný e-mail.").max(254), message: z.string().trim().min(20, "Zpráva musí mít alespoň 20 znaků.").max(2000), consent: z.boolean().refine(Boolean, "Potvrďte předání zprávy prodávajícímu."), company: honeypot });
+export const marketplaceContactSchema = z.object({ message: z.string().trim().min(20, "Zpráva musí mít alespoň 20 znaků.").max(2000), consent: z.boolean().refine(Boolean, "Potvrďte předání zprávy prodávajícímu."), company: honeypot });
 export const marketplaceReportSchema = z.object({ reason: z.enum(["fraud", "copyright", "academic_integrity", "illegal", "sold", "privacy", "spam", "other"]), detail: z.string().trim().max(1000).default(""), company: honeypot });
 
 export type ServiceRequestInput = z.infer<typeof serviceRequestSchema>;

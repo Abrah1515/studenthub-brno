@@ -2,14 +2,12 @@ import { NextResponse } from "next/server";
 import { insertRecord, listRecords } from "@/lib/data-store";
 import { allowRequest, requestFingerprint } from "@/lib/rate-limit";
 import { buddyJoinSchema } from "@/lib/schemas";
-import { getCurrentUser } from "@/lib/user-auth";
-import { createServiceClient } from "@/lib/supabase-server";
+import { getCurrentAccount } from "@/lib/user-auth";
 
 type Context = { params: Promise<{ id: string }> };
 export async function POST(request: Request, context: Context) {
   if (!allowRequest(`buddy-join:${requestFingerprint(request)}`, 15, 24 * 60 * 60 * 1000)) return NextResponse.json({ message: "Denní limit žádostí byl vyčerpán." }, { status: 429 });
-  const user = await getCurrentUser(); if (!user) return NextResponse.json({ message: "Přihlaste se ověřovacím odkazem." }, { status: 401 });
-  const { data: profile } = await createServiceClient().from("profiles").select("is_blocked").eq("id", user.id).maybeSingle(); if (profile?.is_blocked) return NextResponse.json({ message: "Váš účet má pozastavené komunitní funkce." }, { status: 403 });
+  const user = await getCurrentAccount(); if (!user) return NextResponse.json({ message: "Přihlaste se." }, { status: 401 }); if(user.accountStatus!=="active")return NextResponse.json({message:"Váš účet má pozastavené komunitní funkce."},{status:403}); if(!user.complete)return NextResponse.json({message:"Nejdřív dokončete veřejný profil.",profileRequired:true},{status:428});
   const parsed = buddyJoinSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Neplatná zpráva." }, { status: 422 });
   const id = (await context.params).id; const post = (await listRecords("buddy_posts")).find((row) => String(row.id) === id && row.moderation_status === "approved" && row.status === "active");
   if (!post || new Date(String(post.expires_at)).getTime() < Date.now()) return NextResponse.json({ message: "Příspěvek už není aktivní." }, { status: 404 });

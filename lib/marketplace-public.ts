@@ -1,4 +1,5 @@
 import type { MarketplaceListing, MarketplacePhoto } from "@/lib/marketplace-types";
+import { legacyProfileIdentity } from "@/lib/profile-types";
 
 const publicStatuses = new Set(["active", "reserved", "sold"]);
 
@@ -15,7 +16,7 @@ export function publicMarketplaceListing(row: Record<string, unknown>, photos: A
     subjectCode: optionalText(row.subject_code), teacherName: optionalText(row.teacher_name), recommendedYear: row.recommended_year == null ? undefined : Number(row.recommended_year),
     semester: String(row.semester) as MarketplaceListing["semester"], academicYear: optionalText(row.academic_year), materialFormat: String(row.material_format) as MarketplaceListing["materialFormat"],
     itemCondition: optionalText(row.item_condition) as MarketplaceListing["itemCondition"], handoffMethod: String(row.handoff_method) as MarketplaceListing["handoffMethod"],
-    handoffLocation: optionalText(row.handoff_location), publicAlias: String(row.public_alias), status: status as MarketplaceListing["status"], publishedAt: String(row.published_at),
+    handoffLocation: optionalText(row.handoff_location), publicAlias: String(row.public_alias), author: legacyProfileIdentity, status: status as MarketplaceListing["status"], publishedAt: String(row.published_at),
     expiresAt: String(row.expires_at), renewedAt: optionalText(row.renewed_at), createdAt: String(row.created_at), updatedAt: String(row.updated_at || row.created_at),
     photos: photos.filter((photo) => photo.signedUrl).sort((a, b) => Number(a.sort_order) - Number(b.sort_order)).map((photo) => ({ id: String(photo.id), url: String(photo.signedUrl), width: Number(photo.width), height: Number(photo.height), sortOrder: Number(photo.sort_order) } satisfies MarketplacePhoto)),
   };

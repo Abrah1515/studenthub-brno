@@ -1,0 +1,16 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("server-only", () => ({}));
+import { accountPasswordSchema, profileUpdateSchema, usernameSchema } from "@/lib/schemas";
+import { safeNextPath } from "@/lib/auth-route-client";
+
+const profile = { username: "adam_fekt", displayName: "Adam", bio: "Student v Brně", cityId: "brno", universityId: "vut", facultyId: "vut-fekt", studyProgram: "Elektrotechnika", studyYear: 2, interests: ["technika", "sport"], profileVisibility: "public", showFaculty: true, showStudyProgram: true, showStudyYear: false, communityRulesAccepted: true };
+
+describe("Jednotný účet a veřejný profil", () => {
+  it("validuje bezpečné a unikátně použitelné uživatelské jméno", () => { expect(usernameSchema.safeParse("adam_brno").success).toBe(true); for (const value of ["admin", "studenthub", "A B", "--adam--"]) expect(usernameSchema.safeParse(value).success).toBe(false); });
+  it("vyžaduje jen krátké dokončení profilu a platný školní rozsah", () => { expect(profileUpdateSchema.safeParse(profile).success).toBe(true); expect(profileUpdateSchema.safeParse({ ...profile, universityId: "muni" }).success).toBe(false); expect(profileUpdateSchema.safeParse({ ...profile, communityRulesAccepted: false }).success).toBe(false); });
+  it("vyžaduje bezpečné heslo a odmítá externí návratové adresy", () => { expect(accountPasswordSchema.safeParse("Bezpecne2026").success).toBe(true); expect(accountPasswordSchema.safeParse("bez-cisla").success).toBe(false); expect(safeNextPath("/brno/burza/novy")).toBe("/brno/burza/novy"); expect(safeNextPath("//evil.example")).toBe("/nastaveni"); expect(safeNextPath("https://evil.example")).toBe("/nastaveni"); });
+  it("migrace zachovává starší obsah, přidává vlastnictví, blokace, hlášení a audit", () => { const sql = readFileSync("supabase/migrations/202608240029_unified_user_profiles.sql", "utf8"); for (const value of ["seller_id", "buyer_id", "author_id", "profile_blocks", "profile_reports", "account_moderation_history", "is_profile_ready"]) expect(sql).toContain(value); expect(sql).toContain("alter column owner_id drop not null"); expect(sql).not.toMatch(/update\s+public\.(?:marketplace_listings|community_events)[\s\S]*author_email[\s\S]*author_id/i); });
+  it("zájem o akci zůstává unikátní pro jednu anonymní instalaci", () => { const sql = readFileSync("supabase/migrations/202608220024_watcher_live_features.sql", "utf8"); expect(sql).toMatch(/unique\s*\(event_id,installation_id\)/i); expect(sql).toContain("refresh_community_event_interest_counts"); });
+  it("veřejný grant profilu neobsahuje e-mail, telefon, roli ani interní poznámku", () => { const sql = readFileSync("supabase/migrations/202608240029_unified_user_profiles.sql", "utf8"); const grant = sql.match(/grant select \(([^)]+)\) on public\.profiles to anon,authenticated/i)?.[1] || ""; const columns = grant.split(",").map((value) => value.trim()); expect(columns).toContain("username"); for (const privateColumn of ["id", "email", "phone", "role", "suspension_reason", "internal_note"]) expect(columns).not.toContain(privateColumn); });
+});

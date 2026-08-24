@@ -65,7 +65,7 @@ test("telefonní menu obsahuje jen doplňkové funkce v určeném pořadí", asy
   const labels = await menu.getByRole("navigation", { name: "Doplňkové funkce" }).locator(":scope > *").allTextContents();
   expect(labels.map((value) => value.replace(/\s+/g, " ").trim())).toEqual([
     "Hlídač",
-    "Moje škola",
+    "Moje škola a profil",
     "Nainstalovat aplikaci",
     "Návod",
     "Nastavení vzhleduPodle zařízeníSvětlý režimTmavý režim",
@@ -161,32 +161,8 @@ test("GPS chybu vysvětlí a dvoufázové klepnutí na mapu neposune stránku na
   await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - before)).toBeGreaterThan(20);
 });
 
-test("komunitní zájem se nezapočítá dvakrát a živý stav zůstane nejistý po jednom hlasu", async ({ page }, testInfo) => {
+test("živý stav místa zůstane nejistý po jednom hlasu", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
-  const title = `E2E zájem ${Date.now()}`;
-  await page.goto("/brno/kalendar?view=community");
-  await page.getByRole("button", { name: "Přidat akci" }).click();
-  const dialog = page.getByRole("dialog", { name: "Přidat akci" });
-  const localFuture = await page.evaluate(() => { const date = new Date(Date.now() + 3 * 86_400_000); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); });
-  await dialog.getByLabel("Název *").fill(title);
-  await dialog.getByLabel("Začátek *").fill(localFuture);
-  await dialog.getByLabel("Veřejné místo *").fill("Veřejná knihovna v Brně");
-  await dialog.getByLabel("Popis *").fill("Veřejná studentská akce pro ověření unikátního projevení zájmu.");
-  await dialog.getByLabel("E-mail autora *").fill("e2e-interest@example.cz");
-  await dialog.getByText(/Potvrzuji, že uvádím pouze veřejné místo/).click();
-  await dialog.getByRole("button", { name: "Zveřejnit akci" }).click();
-  const manageUrl = await dialog.getByRole("link", { name: "Otevřít správu akce" }).getAttribute("href");
-  await dialog.getByRole("button", { name: "Zavřít formulář" }).click();
-  const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: title }) });
-  const interest = card.getByRole("button", { name: /Mám zájem/ });
-  await interest.click();
-  await expect(interest.getByLabel("1 zájemců")).toBeVisible();
-  await interest.click();
-  await expect(interest.getByLabel("0 zájemců")).toBeVisible();
-  await page.goto(manageUrl!);
-  page.once("dialog", (confirmation) => confirmation.accept());
-  await page.getByRole("button", { name: "Odstranit akci" }).click();
-
   await page.goto("/brno/mista?university=muni");
   const place = page.getByRole("article").filter({ hasText: "Menza Vinařská MUNI" });
   await place.getByRole("button").first().click();

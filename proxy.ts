@@ -22,6 +22,8 @@ const reservedTopLevelRoutes = new Set([
   "podminky",
   "partak",
   "pomoc",
+  "profil",
+  "profily",
   "soukromi",
   "ucet",
   "vut",

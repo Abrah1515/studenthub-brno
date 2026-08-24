@@ -10,7 +10,8 @@ Nezávislá PWA pro studenty všech brněnských vysokých škol. Spojuje ověř
 - povinný sekvenční onboarding města/školy/fakulty bez registrace, vědomé pokračování pro celé město a aktuální studijní kontext pod značkou v desktopové i mobilní navigaci;
 - Leaflet/OpenStreetMap mapu i plně použitelný seznam ověřených míst;
 - brigády s moderací, expirací a označením zvýraznění; modul nabídek zůstává v kódu a databázi, ale ve veřejném webu je výchozím produkčním příznakem vypnutý;
-- Studentskou burzu pro nabídku i poptávku učebnic, fyzických skript, vlastních poznámek a studijního vybavení: bez plateb přes StudentHub, s ověřením e-mailu, 30denní expirací, bezpečným správcovským odkazem, neveřejným e-mailovým relayem, nahlášením a až třemi fotografiemi překódovanými do WebP bez EXIF;
+- dobrovolný jednotný účet přes Supabase Auth (e-mail a heslo, volitelně Google OAuth), nastavení školy a profilu na `/nastaveni`, veřejné profily `/profil/<jméno>`, adresář `/profily`, blokování, hlášení, pozastavení a bezpečné odstranění účtu; prohlížení, onboarding, mapa, kalendář, oblíbené a Hlídač fungují bez účtu;
+- Studentskou burzu pro nabídku i poptávku učebnic, fyzických skript, vlastních poznámek a studijního vybavení: bez plateb přes StudentHub, s jednotným účtem a dokončeným profilem, 30denní expirací, neveřejným e-mailovým relayem, nahlášením a až třemi fotografiemi překódovanými do WebP bez EXIF; původní správcovské odkazy zůstávají pouze pro starší anonymní obsah;
 - historické technické žádosti zůstávají v databázi jako neveřejný administrativní archiv; veřejná cesta `/pomoc` vede na Burzu a API už nové technické žádosti nepřijímá;
 - oblíbené termíny a akce bez registrace, sekci `/hlidac`, interní upozornění, ztlumení vybraných kategorií push zpráv a dobrovolný Web Push s unikátním doručením a automatickým odstraněním neplatných odběrů;
 - skutečný obnovovaný ICS/Webcal odběr podle města, školy, fakulty a ročníku se stabilním UID, `SEQUENCE`, `LAST-MODIFIED` a podporou zrušených termínů;
@@ -65,6 +66,7 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `NEXT_PUBLIC_SUPABASE_URL` | klient/server | ano | URL Supabase projektu |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | klient/server | ano | veřejný anon klíč, chráněný RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | pouze server | ano | serverové formuláře, synchronizace a administrace; nikdy ne do klienta |
+| `GOOGLE_AUTH_ENABLED` | server | ne | `true` až po zapnutí Google provideru v Supabase a produkčním ověření callbacku; jinak je tlačítko poctivě neaktivní |
 | `SUPERADMIN_EMAIL` | pouze lokální CLI | při prvním účtu | skutečný e-mail pro jednorázovou pozvánku; nepřidávat do Vercelu ani repozitáře |
 | `CRON_SECRET` | pouze server | ano | Bearer autorizace obou cron endpointů |
 | `RATE_LIMIT_SALT` | pouze server | ano | pseudonymizace IP pro lokální rate limit |
@@ -109,7 +111,8 @@ pnpm dlx supabase db push
 4. Obsah `supabase/seed.sql` po obsahové kontrole spusťte jednorázově v Supabase SQL Editoru a ověřte počty i označení importovaných záznamů. V produkci nepoužívejte `db push --include-seed`; tato volba patří jen do čerstvého vývojového nebo stagingového prostředí.
 
 5. Z Project Settings → API zkopírujte URL, anon key a service role key do `.env.local`/Vercelu. Service role klíč nesmí mít prefix `NEXT_PUBLIC_` a nesmí být commitnutý.
-6. V Authentication → URL Configuration nastavte produkční Site URL a povolte přesný redirect `https://VAŠE-DOMÉNA/auth/callback`. Stejný callback dokončuje magic link, pozvánku i obnovu; administrátor pak nastaví heslo na `/admin/obnova`. Pro veřejné přihlášení nastavte vlastní SMTP, rate limity a šablony e-mailů.
+6. V Authentication → URL Configuration nastavte produkční Site URL a povolte přesný redirect `https://VAŠE-DOMÉNA/auth/callback`. Stejný callback dokončuje e-mailovou registraci, obnovu hesla, Google OAuth a administrátorskou pozvánku. Veřejný uživatel se přihlašuje e-mailem a heslem; nastavte vlastní SMTP, rate limity a české šablony potvrzení/obnovy.
+7. Pro Google OAuth zapněte v Authentication → Providers → Google provider, v Google Cloud přidejte callback Supabase uvedený v dashboardu a potom nastavte `GOOGLE_AUTH_ENABLED=true`. Nezapínejte příznak dříve, než je produkční callback skutečně ověřený.
 
 Migrace jsou pořadové a nedestruktivní:
 
@@ -140,7 +143,8 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608230025_watcher_muted_push.sql` – ztlumení kategorií pouze pro Web Push; důležité změny zůstávají v interním centru a zrušení termínu se eviduje jako kritická změna.
 - `202608230026_fajn_feed_hardening.sql` – doplňuje oficiální číselníková metadata brigád, strukturovaná varování a bezpečné archivování až po třetím úspěšném úplném snapshotu bez dané nabídky.
 - `202608230027_fajn_public_listing.sql` – nastavuje výhradně veřejný odkaz na brněnský výpis poskytovatele; tato stránka se nescrapuje a není zaměněna za tajný XML feed.
-- `202608230028_student_marketplace.sql` – oddělené tabulky Studentské burzy, ověření e-mailu a zahashované správcovské tokeny, privátní fotografie, zprávy, hlášení, audit moderace, perzistentní rate limit, 30denní expirace a uzavřená RLS bez přímého přístupu klienta. Migrace žádné technické žádosti nepřepisuje ani nemaže.
+- `202608230028_student_marketplace.sql` – historická per-inzerátová vrstva Studentské burzy se zahashovanými správcovskými tokeny, privátními fotografiemi, zprávami, hlášeními, auditem moderace, perzistentním rate limitem, 30denní expirací a uzavřenou RLS. Nové inzeráty už od migrace `202608240029_unified_user_profiles.sql` používají jednotný přihlášený profil; starší záznamy zůstávají spravovatelné původním bezpečným způsobem.
+- `202608240029_unified_user_profiles.sql` – dobrovolné veřejné profily, vlastnictví Burzy a komunitních akcí, bezpečně anonymizovaný starší obsah, soukromé avatary, blokace, hlášení, audit účtů a RLS podmíněná aktivním dokončeným profilem.
 
 ## První hlavní superadmin
 
@@ -167,7 +171,7 @@ Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-source
 
 V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 28 migrací, aplikuje 26 datových migrací a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, vytvoření/úpravu/soft delete komunitního příspěvku, komentáře, unikátní reakce, nejužitečnější odpověď, automatické skrytí po třech hlášeních, ztlumení push kategorií při zachování interního centra i úplný databázový tok Burzy: expiraci, automatické skrytí po třech hlášeních, perzistentní rate limit a zákaz přímého RLS čtení soukromých kontaktů. Čistá instalace obsahuje 16 ověřených veřejných akcí a přesně 36 ověřených míst, ale žádné falešné inzeráty. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 29 migrací, aplikuje datové migrace a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, veřejný grant profilu bez citlivých sloupců, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, komunitní tok i úplný databázový tok Burzy. Čistá instalace obsahuje jen ověřené veřejné zdroje a žádné falešné inzeráty. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
 Preference ročníku je anonymní a zůstává pouze v prohlížeči. Akademický cyklus se v časové zóně Praha překlápí 1. července; uložený ročník se zvýší nejvýše jednou za každý uplynulý cyklus. Po překročení šestého ročníku se volba bezpečně zruší a aplikace požádá o nový výběr. Ruční změna založí nový referenční cyklus. Událost se na ročník váže jen při jednoznačném údaji v oficiálním zdrojovém textu; společné nebo nejisté termíny zůstávají bez omezení.
 
@@ -177,7 +181,7 @@ Veřejné testovací XML lze ručně ověřit bez zápisu do databáze příkaze
 
 ## Komunitní kalendář „Co se děje“
 
-Veřejný přepínač na `/{mesto}/kalendar?view=community` odděluje neověřené komunitní akce od oficiálně zdrojovaných školních termínů. Akce se přidává bez účtu a publikuje ihned; server kontroluje budoucí termín, maximální délku, HTTPS odkazy, duplicity, honeypot a denní limit. Obrázek je volitelný, dekóduje se a znovu ukládá jako WebP v bucketu `community-event-images`. E-mail pořadatele a hash správcovského tokenu nejsou veřejné. Pokud je nastavený `RESEND_API_KEY`, autor dostane neveřejný odkaz e-mailem; jinak jej musí uložit z potvrzovací obrazovky. Tři nezávislá hlášení akci automaticky skryjí a cron ukončené akce archivuje.
+Veřejný přepínač na `/{mesto}/kalendar?view=community` odděluje komunitní akce od oficiálně zdrojovaných školních termínů. Prohlížení je anonymní; akci publikuje přihlášený uživatel s dokončeným profilem a spravuje ji v části „Moje příspěvky, nabídky a akce“. Server kontroluje budoucí termín, maximální délku, HTTPS odkazy, duplicity, honeypot a denní limit. Obrázek je volitelný, dekóduje se a znovu ukládá jako WebP v bucketu `community-event-images`. Tři nezávislá hlášení akci automaticky skryjí a cron ukončené akce archivuje. Původní anonymní akce zůstávají funkční a mají neutrální označení bez falešného autora.
 
 Události označené „Veřejný zdroj“ pocházejí z oficiálních veřejných kalendářů pořadatelů. Každý zdroj se kontroluje nejvýše přibližně jednou za devět hodin; selhání jednoho odkazu nezastaví ostatní. Neočekávaný MIME typ, PDF nebo změněný či nejednoznačný obsah se nikdy automaticky nepřepíše a přejde do stavu `needs_review`. Záznam může být archivován až po dvou úspěšných HTML kontrolách, které jednoznačně potvrdí jeho odstranění ze zdroje.
 
@@ -275,6 +279,7 @@ ALLOW_LOCAL_FILE_STORE=false
 ALLOW_VERIFIED_FALLBACK=false
 NEXT_PUBLIC_ADS_ENABLED=false
 NEXT_PUBLIC_OFFERS_ENABLED=false
+GOOGLE_AUTH_ENABLED=false
 FAJN_BRIGADY_FEED_ENABLED=false
 FAJN_BRIGADY_PERMISSION_CONFIRMED=false
 FAJN_BRIGADY_FEED_URL=
@@ -306,6 +311,7 @@ pnpm dlx vercel env add NEXT_PUBLIC_SITE_URL production
 pnpm dlx vercel env add NEXT_PUBLIC_SUPABASE_URL production
 pnpm dlx vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production
 pnpm dlx vercel env add SUPABASE_SERVICE_ROLE_KEY production
+pnpm dlx vercel env add GOOGLE_AUTH_ENABLED production
 pnpm dlx vercel env add CRON_SECRET production
 pnpm dlx vercel env add ADMIN_COOKIE_SECRET production
 pnpm dlx vercel env add RATE_LIMIT_SALT production
@@ -356,7 +362,7 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 - `lib/publication-feed.ts` – interní read-only výstup ověřeného veřejného obsahu bez PII;
 - `lib/sources/` a `lib/job-feed/` – registr, SSRF-safe fetch, akademické parsery a oddělený bezpečný smluvní import brigád;
 - `lib/external-content-providers.ts` – ve výchozím stavu vypnutá rozhraní budoucích smluvních feedů bez scrapování;
-- `lib/anonymous-owner.ts`, `lib/user-auth.ts`, `lib/buddy.ts` – vlastnický token žádostí, ověřené Supabase účty a expirace parťáků;
+- `lib/user-auth.ts`, `lib/profile-server.ts`, `lib/profile-types.ts` – jednotný účet, bezpečná veřejná identita, soukromé avatary a expirace parťáků; starší anonymní vlastnické tokeny zůstávají jen pro zpětnou kompatibilitu;
 - `scripts/invite-superadmin.mjs` – jednorázová bezpečná pozvánka a obnova hlavního správce bez hesla v kódu;
 - `lib/verified-data.ts` – kurátorovaný fallback ověřených veřejných záznamů;
 - `supabase/migrations/` a `supabase/seed.sql` – schéma, RLS a produkční startovní data;
@@ -367,4 +373,4 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 Logo assety `public/icon-192.png`, `public/icon-512.png` a `public/og.png` jsou zachované beze změny. Bitově shodné kopie pro konfigurovatelnou edici jsou v `public/brand/brno/`; maskable varianty mají bezpečný ořez a zachovávají proporce stejného brněnského symbolu. Žádné univerzitní ani fiktivní celostátní logo nebylo vytvořeno.
 ## Studentská komunita
 
-`/komunita` používá stávající Supabase magic-link účet. Veřejné API vrací pouze přezdívku a obsah; e-mail ani interní `author_id` neposílá. Příspěvky a komentáře se po ověření e-mailu publikují ihned, autor je může upravit a odstranit pomocí soft delete. Reakce a hlášení jsou unikátní pro uživatele a cíl. Výchozí limit tří nezávislých hlášení lze změnit v `/admin?section=community_forum`; automatické i ruční zásahy se zapisují do auditní historie. Obrázky se načtou jen jako JPEG/PNG/WebP do 5 MB, skutečně dekódují a znovu uloží jako WebP bez původních metadat.
+`/komunita`, Hledám parťáka, Burza a komunitní akce používají jeden dobrovolný Supabase účet. Veřejné API vrací bezpečný výřez profilu; e-mail, telefon, role ani interní `author_id` neposílá. Pro publikování, komentář, reakci nebo kontaktování je nutný potvrzený e-mail, aktivní účet, uživatelské jméno, přezdívka a přijetí pravidel. Autor spravuje všechen svůj obsah na `/nastaveni#profil`. Blokovaný autor se přihlášenému uživateli ve feedech nezobrazí. Starší nepřiřazené řádky zůstávají jako „Původní anonymní příspěvek“. Automatické i ruční zásahy se zapisují do auditní historie. Obrázky se dekódují a znovu ukládají jako WebP bez původních metadat.

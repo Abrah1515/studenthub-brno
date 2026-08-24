@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { allowRequest, requestFingerprint } from "@/lib/rate-limit";
 import { communityReactionSchema } from "@/lib/schemas";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
-import { getCurrentUser } from "@/lib/user-auth";
+import { getCurrentAccount } from "@/lib/user-auth";
 
 export async function POST(request: Request) {
-  if (!isSupabaseConfigured()) return NextResponse.json({ message: "Reakce vyžadují připojený Supabase Auth." }, { status: 503 }); const user = await getCurrentUser(); if (!user) return NextResponse.json({ message: "Nejprve ověřte e-mail přihlašovacím odkazem." }, { status: 401 });
+  if (!isSupabaseConfigured()) return NextResponse.json({ message: "Reakce vyžadují připojený Supabase Auth." }, { status: 503 }); const user = await getCurrentAccount(); if (!user) return NextResponse.json({ message: "Pro reakci se přihlaste." }, { status: 401 });
+  if (user.accountStatus !== "active") return NextResponse.json({ message: "Váš účet má komunitní funkce pozastavené." }, { status: 403 });
+  if (!user.complete) return NextResponse.json({ message: "Před reakcí doplňte profil a přijměte pravidla komunity.", profileRequired: true }, { status: 428 });
   if (!allowRequest(`community-reaction-ip:${requestFingerprint(request)}`, 80, 60 * 60 * 1000) || !allowRequest(`community-reaction-user:${user.id}`, 60, 60 * 60 * 1000)) return NextResponse.json({ message: "Limit reakcí byl vyčerpán." }, { status: 429 });
   const parsed = communityReactionSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Neplatná reakce." }, { status: 422 }); const client = createServiceClient(); const table = parsed.data.targetType === "post" ? "community_posts" : "community_comments";
   const { data: target } = await client.from(table).select("*").eq("id", parsed.data.targetId).maybeSingle(); if (!target || target.status !== "active") return NextResponse.json({ message: "Obsah není dostupný." }, { status: 404 });
