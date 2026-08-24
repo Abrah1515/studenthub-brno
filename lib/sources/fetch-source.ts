@@ -50,6 +50,9 @@ export async function fetchRegisteredSource(source: ContentSource, conditional: 
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(url, { headers, signal: controller.signal, cache: "no-store", redirect: "manual" });
+      // HTTP 304 patří podmíněnému GET a nemá Location. Musí se zpracovat před
+      // obecnou 3xx větví, jinak se platná odpověď chybně označí za přesměrování.
+      if (response.status === 304) return { status: 304, body: new Uint8Array(), contentType: "", etag: response.headers.get("etag"), lastModified: response.headers.get("last-modified"), finalUrl: url.href };
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location"); if (!location) throw new Error("Neplatné přesměrování zdroje.");
         const target = await validateSourceUrl(new URL(location, url).href, source);
@@ -57,7 +60,6 @@ export async function fetchRegisteredSource(source: ContentSource, conditional: 
         await assertRobotsAllowed(target, source);
         url = target; continue;
       }
-      if (response.status === 304) return { status: 304, body: new Uint8Array(), contentType: "", etag: response.headers.get("etag"), lastModified: response.headers.get("last-modified"), finalUrl: url.href };
       if (!response.ok) throw new Error(`Zdroj odpověděl HTTP ${response.status}.`);
       const declared = Number(response.headers.get("content-length") || 0); if (declared > maxBytes) throw new Error("Dokument překračuje povolenou velikost 5 MB.");
       const reader = response.body?.getReader(); const chunks: Uint8Array[] = []; let length = 0;

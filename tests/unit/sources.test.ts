@@ -139,6 +139,17 @@ describe("robots.txt", () => {
     await expect(fetchRegisteredSource(source)).rejects.toMatchObject({ issue: { code: "robots_unavailable", status: "needs_review" } });
     expect(requested).toEqual(["https://www.fit.vut.cz/robots.txt"]);
   });
+
+  it("zpracuje podmíněnou odpověď 304 před obecnými přesměrováními", async () => {
+    const requested: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input); requested.push(url);
+      if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nAllow: /", { status: 200, headers: { "content-type": "text/plain" } });
+      return new Response(null, { status: 304, headers: { etag: '"feed-v1"' } });
+    }));
+    await expect(fetchRegisteredSource(source, { etag: '"feed-v1"' })).resolves.toMatchObject({ status: 304, etag: '"feed-v1"', finalUrl: source.sourceUrl });
+    expect(requested).toEqual(["https://www.fit.vut.cz/robots.txt", source.sourceUrl]);
+  });
 });
 
 describe("časová normalizace Europe/Prague", () => {
