@@ -19,7 +19,7 @@ Nezávislá PWA pro studenty všech brněnských vysokých škol. Spojuje ověř
 - agregovaný zájem o komunitní akce s unikátností instalace, konzervativními štítky popularity a serverovým limitem;
 - sekci „Hledám parťáka“ pro ověřené Supabase účty s filtry, kapacitou, žádostmi o připojení, expirací, moderací a bezpečnostními doporučeními;
 - sekci `/komunita` s průběžně stránkovaným feedem, školními filtry, komentáři, reakcemi „Užitečné“, nejužitečnější odpovědí, obrázkem po bezpečné konverzi a moderací po nahlášení;
-- návrhy studentských spolků s fakultním rozsahem a serverovou validací;
+- komunitní akce přihlášených profilů s moderací a odděleným oprávněním důvěryhodného vydavatele;
 - administraci pro role `super_admin`, brněnský `admin`, městsky omezený `city_editor` a fakultně omezený `faculty_editor`;
 - registr zdrojů, synchronizační historii, snapshoty, frontu nejistých změn a kontrolu odkazů;
 - privacy-first návštěvnost 7/30/90 dnů pouze po opt-in, správu administrátorů hlavním superadminem, tři režimy motivu, SEO a bezpečnostní hlavičky;
@@ -156,6 +156,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608230027_fajn_public_listing.sql` – nastavuje výhradně veřejný odkaz na brněnský výpis poskytovatele; tato stránka se nescrapuje a není zaměněna za tajný XML feed.
 - `202608230028_student_marketplace.sql` – historická per-inzerátová vrstva Studentské burzy se zahashovanými správcovskými tokeny, privátními fotografiemi, zprávami, hlášeními, auditem moderace, perzistentním rate limitem, 30denní expirací a uzavřenou RLS. Nové inzeráty už od migrace `202608240029_unified_user_profiles.sql` používají jednotný přihlášený profil; starší záznamy zůstávají spravovatelné původním bezpečným způsobem.
 - `202608240029_unified_user_profiles.sql` – dobrovolné veřejné profily, vlastnictví Burzy a komunitních akcí, bezpečně anonymizovaný starší obsah, soukromé avatary, blokace, hlášení, audit účtů a RLS podmíněná aktivním dokončeným profilem.
+- `202608240030_trusted_event_publishers.sql` – neadministrátorské oprávnění `trusted_event_publisher`, jeho audit, stavy přiděleno/pozastaveno/odebráno, databázové rozhodnutí `pending` vs. `published` a vlastnické RLS komunitních akcí.
 
 ## První hlavní superadmin
 
@@ -176,13 +177,15 @@ Další role (`admin`, `city_editor`, `faculty_editor`) spravuje přihlášený 
 
 Administrace je na `/admin`. Bez platné serverově ověřené session přesměruje na `/admin/prihlaseni`.
 
+Pouze `super_admin` může v Administrace → Profily vyhledat účet podle uživatelského jména, zobrazovaného jména nebo neveřejného e-mailu a spravovat oprávnění „Přímé zveřejňování komunitních akcí“. Cílový profil musí být běžný aktivní uživatel s potvrzeným e-mailem, dokončeným profilem a přijatými pravidly. Oprávnění nemění roli, neotevírá `/admin` a každé přidělení, pozastavení, aktivace či odebrání vyžaduje interní důvod a zapisuje audit.
+
 ## Datové zdroje a synchronizace
 
 Kompletní tabulka všech fakult, URL, formátu a režimu je v [docs/data-sources.md](docs/data-sources.md).
 
 V současném registru se 18 fakultních zdrojů může publikovat automaticky a 9 se monitoruje v kontrolovaném režimu. Všech 27 fakult má dohledaný aktivní oficiální zdroj; žádný není ve stavu `not_found_monitored`. Hodnota `enabled=false` znamená výslovné administrátorské vypnutí monitoringu, nikoli požadavek na ruční schválení.
 
-`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 29 migrací, aplikuje datové migrace a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, veřejný grant profilu bez citlivých sloupců, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, komunitní tok i úplný databázový tok Burzy. Čistá instalace obsahuje jen ověřené veřejné zdroje a žádné falešné inzeráty. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
+`pnpm test` spouští kromě unit testů také izolovanou PostgreSQL integraci přes PGlite: kontroluje všech 30 migrací, aplikuje datové migrace a seed, zpracuje HTML/PDF fixtures, vytvoří veřejné události i review frontu a ověří RLS rolí `anon`, běžný uživatel, `faculty_editor`, `city_editor` a `super_admin`, publikační oprávnění a jeho audit, veřejný grant profilu bez citlivých sloupců, zákaz přímého analytického zápisu, kapacitu parťáků, soukromý kontaktní inbox, komunitní tok i úplný databázový tok Burzy. Čistá instalace obsahuje jen ověřené veřejné zdroje a žádné falešné inzeráty. Infrastrukturní migrace `202608110012` a `202608110014` pro `pg_cron`/`pg_net` mají samostatné regresní testy a ověřují se nad propojeným Supabase, protože PGlite tato hostovaná rozšíření neposkytuje.
 
 Preference ročníku je anonymní a zůstává pouze v prohlížeči. Akademický cyklus se v časové zóně Praha překlápí 1. července; uložený ročník se zvýší nejvýše jednou za každý uplynulý cyklus. Po překročení šestého ročníku se volba bezpečně zruší a aplikace požádá o nový výběr. Ruční změna založí nový referenční cyklus. Událost se na ročník váže jen při jednoznačném údaji v oficiálním zdrojovém textu; společné nebo nejisté termíny zůstávají bez omezení.
 
@@ -194,7 +197,7 @@ Ostrý smluvní feed lze před první synchronizací prověřit bez databázové
 
 ## Komunitní kalendář „Co se děje“
 
-Veřejný přepínač na `/{mesto}/kalendar?view=community` odděluje komunitní akce od oficiálně zdrojovaných školních termínů. Prohlížení je anonymní; akci publikuje přihlášený uživatel s dokončeným profilem a spravuje ji v části „Moje příspěvky, nabídky a akce“. Server kontroluje budoucí termín, maximální délku, HTTPS odkazy, duplicity, honeypot a denní limit. Obrázek je volitelný, dekóduje se a znovu ukládá jako WebP v bucketu `community-event-images`. Tři nezávislá hlášení akci automaticky skryjí a cron ukončené akce archivuje. Původní anonymní akce zůstávají funkční a mají neutrální označení bez falešného autora.
+Veřejný přepínač na `/{mesto}/kalendar?view=community` odděluje komunitní akce od oficiálně zdrojovaných školních termínů. Prohlížení je anonymní; přihlášený uživatel s dokončeným profilem akci odešle ke schválení a spravuje ji v části „Moje příspěvky, nabídky a akce“. Pouze profil s aktuálně aktivním oprávněním `trusted_event_publisher` ji zveřejní okamžitě. Odebrání oprávnění nemění staré publikované akce, ale všechny nové znovu čekají na moderaci. Server kontroluje budoucí termín, maximální délku, HTTPS odkazy, duplicity, honeypot a denní limit. Obrázek je volitelný, dekóduje se a znovu ukládá jako WebP v bucketu `community-event-images`. Tři nezávislá hlášení akci automaticky skryjí a cron ukončené akce archivuje. Původní anonymní akce zůstávají funkční a mají neutrální označení bez falešného autora. Veřejná sekce „Pro spolky“ a její formulář byly zrušeny; původní URL přesměruje na `/kontakt`, historické návrhy zůstávají jen v neveřejném administrativním archivu a organizátoři mohou napsat na `studenthubbrno@gmail.com`.
 
 Události označené „Veřejný zdroj“ pocházejí z oficiálních veřejných kalendářů pořadatelů. Každý zdroj se kontroluje nejvýše přibližně jednou za devět hodin; selhání jednoho odkazu nezastaví ostatní. Neočekávaný MIME typ, PDF nebo změněný či nejednoznačný obsah se nikdy automaticky nepřepíše a přejde do stavu `needs_review`. Záznam může být archivován až po dvou úspěšných HTML kontrolách, které jednoznačně potvrdí jeho odstranění ze zdroje.
 

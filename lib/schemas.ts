@@ -137,13 +137,6 @@ export const outboundClickSchema = z.object({
 
 export const pageViewSchema = z.object({ path: z.string().startsWith("/").max(300).refine((path) => !path.includes("?") && !path.includes("#"), "Cesta nesmí obsahovat query ani fragment."), cityId, universityId: z.string().max(50).nullable().optional(), facultyId: z.string().max(80).nullable().optional(), referralCode: z.string().regex(/^[a-z0-9-]{2,80}$/).nullable().optional(), sessionId: z.string().uuid(), referrerDomain: z.string().trim().toLowerCase().regex(/^[a-z0-9.-]+$/).max(253).nullable().optional() });
 
-export const contentSubmissionSchema = z.object({
-  organizationName: z.string().trim().min(2, "Uveďte název spolku.").max(140), organizationType: z.enum(["student_club", "student_team", "community"]),
-  universityId: z.enum(["muni", "vut", "mendelu", "vetuni", "jamu"]), facultyId: z.string().max(80).optional().or(z.literal("")),
-  contentType: z.enum(["event", "offer", "place", "job"]), title: z.string().trim().min(4).max(180), description: z.string().trim().min(30).max(2500),
-  sourceUrl: z.string().url("Zadejte veřejný odkaz.").optional().or(z.literal("")), contactEmail: z.string().email("Zadejte platný e-mail."), consent: z.boolean().refine(Boolean, "Potvrďte souhlas."), company: honeypot, cityId,
-}).superRefine((value, ctx) => { if (value.facultyId && !faculties.some((faculty) => faculty.id === value.facultyId && faculty.universityId === value.universityId)) ctx.addIssue({ code: "custom", path: ["facultyId"], message: "Fakulta nepatří k vybrané univerzitě." }); });
-
 export const savedItemSchema = z.object({
   targetType: z.enum(["academic_event", "community_event"]), targetId: z.string().uuid(),
   favorite: z.boolean().optional(), watched: z.boolean().optional(),
@@ -236,7 +229,6 @@ export const marketplaceReportSchema = z.object({ reason: z.enum(["fraud", "copy
 
 export type ServiceRequestInput = z.infer<typeof serviceRequestSchema>;
 export type JobSubmissionInput = z.infer<typeof jobSubmissionSchema>;
-export type ContentSubmissionInput = z.infer<typeof contentSubmissionSchema>;
 export type BuddyPostInput = z.infer<typeof buddyPostSchema>;
 export type ContactMessageInput = z.infer<typeof contactMessageSchema>;
 export type MarketplaceListingFormInput = z.input<typeof marketplaceListingSchema>;

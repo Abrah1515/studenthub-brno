@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buddyPostSchema, communityEventSchema, contactMessageSchema, contentSubmissionSchema, jobSubmissionSchema, pageViewSchema, reportSchema, serviceRequestSchema, serviceRequestUpdateSchema } from "@/lib/schemas";
+import { buddyPostSchema, communityEventSchema, contactMessageSchema, jobSubmissionSchema, pageViewSchema, reportSchema, serviceRequestSchema, serviceRequestUpdateSchema } from "@/lib/schemas";
 
 const validRequest = { publicTitle: "Pomoc se zálohou notebooku", publicAlias: "Honza", name: "Jan Novák", email: "jan@example.cz", phone: "", serviceType: "backup", description: "Potřebuji bezpečně zazálohovat celý notebook.", location: "Brno-střed", preferredDate: "2026-08-10", consent: true, publishConsent: true, company: "" };
 
@@ -26,12 +26,6 @@ describe("validace kontaktní zprávy", () => {
   const valid = { name: "Adam Novák", email: "adam@example.cz", subject: "Oprava údaje", message: "Na stránce místa je potřeba upravit provozní dobu.", company: "", cityId: "brno" };
   it("přijme úplnou zprávu", () => expect(contactMessageSchema.safeParse(valid).success).toBe(true));
   it("odmítne heslo v honeypotu a neplatný e-mail", () => { expect(contactMessageSchema.safeParse({ ...valid, company: "robot" }).success).toBe(false); expect(contactMessageSchema.safeParse({ ...valid, email: "neplatny" }).success).toBe(false); });
-});
-
-describe("validace komunitního obsahu", () => {
-  const valid = { organizationName: "Studentský spolek", organizationType: "student_club", universityId: "vut", facultyId: "vut-fekt", contentType: "event", title: "Veřejná technická přednáška", description: "Veřejná přednáška s ověřitelným programem a odkazem na pořadatele.", sourceUrl: "https://www.fekt.vut.cz/", contactEmail: "spolek@example.cz", consent: true, company: "" };
-  it("přijme VUT + FEKT a zachová obě ID", () => { const result = contentSubmissionSchema.safeParse(valid); expect(result.success).toBe(true); if (result.success) expect(result.data).toMatchObject({ universityId: "vut", facultyId: "vut-fekt" }); });
-  it("odmítne fakultu cizí univerzity a honeypot", () => { expect(contentSubmissionSchema.safeParse({ ...valid, universityId: "muni" }).success).toBe(false); expect(contentSubmissionSchema.safeParse({ ...valid, company: "bot" }).success).toBe(false); });
 });
 
 describe("validace veřejné komunitní akce", () => {

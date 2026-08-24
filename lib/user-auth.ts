@@ -25,6 +25,7 @@ export type AccountProfile = {
   showStudyProgram: boolean;
   showStudyYear: boolean;
   communityRulesAccepted: boolean;
+  trustedEventPublisher: boolean;
   complete: boolean;
 };
 
@@ -47,6 +48,7 @@ export async function getCurrentAccount(): Promise<AccountProfile | null> {
   const username = data.username ? String(data.username) : null;
   const displayName = String(data.display_name || "Student");
   const accepted = Boolean(data.community_rules_accepted_at);
+  const { data: publisherPermission } = await createServiceClient().from("profile_permissions").select("status").eq("profile_id", user.id).eq("permission", "trusted_event_publisher").eq("status", "active").maybeSingle();
   let avatarUrl = data.avatar_url ? String(data.avatar_url) : null;
   if (data.avatar_path) { const { data: signed } = await createServiceClient().storage.from("profile-avatars").createSignedUrl(String(data.avatar_path), 60 * 60); avatarUrl = signed?.signedUrl || avatarUrl; }
   return {
@@ -57,6 +59,6 @@ export async function getCurrentAccount(): Promise<AccountProfile | null> {
     interests: Array.isArray(data.interests) ? data.interests.map(String) : [], avatarPath: data.avatar_path ? String(data.avatar_path) : null,
     avatarUrl, profileVisibility: data.profile_visibility === "public" ? "public" : "private",
     showFaculty: data.show_faculty !== false, showStudyProgram: data.show_study_program !== false, showStudyYear: data.show_study_year !== false,
-    communityRulesAccepted: accepted, complete: status === "active" && Boolean(username && displayName.trim().length >= 2 && accepted),
+    communityRulesAccepted: accepted, trustedEventPublisher: status === "active" && data.role === "user" && Boolean(publisherPermission), complete: status === "active" && Boolean(username && displayName.trim().length >= 2 && accepted),
   };
 }

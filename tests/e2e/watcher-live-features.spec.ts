@@ -69,7 +69,6 @@ test("telefonní menu obsahuje jen doplňkové funkce v určeném pořadí", asy
     "Nainstalovat aplikaci",
     "Návod",
     "Nastavení vzhleduPodle zařízeníSvětlý režimTmavý režim",
-    "Pro spolky",
     "O projektu",
     "Kontakt",
     "Administrace",
