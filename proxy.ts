@@ -59,6 +59,15 @@ function cityNotFoundResponse() {
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
+  // Odstraněná OAuth cesta musí i na Vercelu vracet skutečné 404, ne HTML
+  // App Routeru s úspěšným stavem pro neznámý POST požadavek.
+  if (pathname === "/api/auth/google") {
+    return NextResponse.json(
+      { message: "Tato přihlašovací metoda není dostupná." },
+      { status: 404, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
   if (pathname.startsWith("/admin") && pathname !== "/admin/prihlaseni") {
     const hasDemo = Boolean(request.cookies.get("sh_admin"));
     const hasSupabase = request.cookies.getAll().some((cookie) => cookie.name.startsWith("sb-") && cookie.name.includes("auth-token"));
