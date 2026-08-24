@@ -17,7 +17,7 @@ test.beforeAll(async () => {
   const common = { provider_key: "fajn-brigady", city_id: "brno", work_type: "Brigáda", work_location_mode: "onsite", location: "Brno", status: "approved", verification_status: "verified", is_featured: false, is_demo: false, last_verified_at: "2026-08-23T10:00:00.000Z", created_at: "2026-08-23T10:00:00.000Z" };
   const jobs = [
     { ...common, id: randomUUID(), external_id: "990001", title: "E2E technická podpora", company_name: "Testovací tým", field: "IT", reward_min: 220, reward_max: 250, reward_currency: "CZK", reward_period: "hour", workload: "Zkrácený úvazek", description: "Bezpečně připravený integrační záznam s delším popisem pro kontrolu karty a detailu nabídky.", apply_url: "https://www.fajn-brigady.cz/brigady/brno/990001-e2e/", source_url: "https://www.fajn-brigady.cz/brigady/brno/990001-e2e/", position_label: "Programátor, webmaster, kodér", positions_count: 2, benefit_codes: ["3"], suitability_codes: ["3"], minimum_education_external_id: "3" },
-    { ...common, id: randomUUID(), external_id: "990002", title: "E2E pomoc v kuchyni", company_name: "Testovací provoz", field: "Gastro", workload: "Plný úvazek", description: "Připravený záznam bez uvedené odměny.", apply_url: "https://www.fajn-brigady.cz/brigady/brno/990002-e2e/", source_url: "https://www.fajn-brigady.cz/brigady/brno/990002-e2e/", benefit_codes: [], suitability_codes: [] },
+    { ...common, id: randomUUID(), external_id: "990002", title: "E2E pomoc v kuchyni", company_name: "Testovací provoz", field: "Gastro", location: "Brno-střed", workload: "Plný úvazek", description: "Připravený záznam bez uvedené odměny.", apply_url: "https://www.fajn-brigady.cz/brigady/brno/990002-e2e/", source_url: "https://www.fajn-brigady.cz/brigady/brno/990002-e2e/", benefit_codes: [], suitability_codes: [] },
     { ...common, id: randomUUID(), external_id: "990003", title: "E2E administrativní výpomoc", field: "Administrativa", reward_min: 30000, reward_currency: "CZK", reward_period: "month", workload: "Neuvedeno", description: "Připravený záznam s měsíční odměnou.", apply_url: "https://www.fajn-brigady.cz/brigady/brno/990003-e2e/", source_url: "https://www.fajn-brigady.cz/brigady/brno/990003-e2e/", benefit_codes: [], suitability_codes: [] },
   ];
   createdIds.push(...jobs.map((row) => String(row.id))); store.jobs.push(...jobs);
@@ -48,13 +48,15 @@ test("vykreslí bezpečné karty feedu a přesné odchozí CTA bez overflow", as
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 });
 
-test("filtruje vyhledávání, obor, rozsah a pouze hodinovou minimální odměnu", async ({ page }) => {
+test("filtruje text, obor, rozsah, lokalitu, typ odměny a pouze hodinovou sazbu", async ({ page }) => {
   const filterButton = page.getByRole("button", { name: /^Filtry/ }); if (await filterButton.isVisible()) await filterButton.click();
   await page.getByPlaceholder("Pozice, firma, lokalita…").fill("kuchyni"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await page.getByPlaceholder("Pozice, firma, lokalita…").fill("");
   await page.getByLabel("Obor").selectOption("IT"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await page.getByLabel("Obor").selectOption("Všechny");
   await page.getByLabel("Rozsah práce").selectOption("Plný úvazek"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await page.getByLabel("Rozsah práce").selectOption("Všechny");
+  await page.getByLabel("Lokalita").fill("Brno-střed"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await page.getByLabel("Lokalita").fill("");
+  await page.getByLabel("Typ odměny").selectOption("month"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await page.getByLabel("Typ odměny").selectOption("all");
   await page.getByLabel("Minimální hodinová odměna").fill("230"); await expect(page.getByRole("heading", { name: "E2E technická podpora" })).toHaveCount(0); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(2);
-  await page.getByRole("checkbox", { name: /bez srovnatelné hodinové sazby/ }).uncheck(); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(0);
+  await page.getByRole("checkbox", { name: /jiné typy odměny/ }).uncheck(); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(0);
 });
 
 test("administrace ukáže bezpečný stav konektoru bez neveřejné URL", async ({ page }) => {

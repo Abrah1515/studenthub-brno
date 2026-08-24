@@ -66,7 +66,7 @@ function locationFor(item: XmlRecord): { location?: string; rejection?: FajnReje
   if (knownOutsideBrnoCityCodes[city]) return { rejection: rejection(item, "outside_brno", `Lokalita ${knownOutsideBrnoCityCodes[city]} neleží v Brně ani v okrese Brno.`) };
   if (brnoCityCodes[city]) return { location: address || brnoCityCodes[city], cityExternalId: city };
   if (/\bbrno(?:[-\s]|$)/iu.test(address)) return { location: address, cityExternalId: city || undefined, warning: city ? `Inzerát ${externalId}: neznámý kód města ${city}; Brno bylo ověřeno z adresy.` : undefined };
-  if (!city && czechCountryCodes.has(country)) return { location: "Brno a okolí", warning: `Inzerát ${externalId}: přesná lokalita v brněnském feedu chybí; zveřejněno jako Brno a okolí.` };
+  if (!city && czechCountryCodes.has(country)) return { location: "Brno", warning: `Inzerát ${externalId}: přesná lokalita v brněnském feedu chybí; zveřejněno jako Brno.` };
   return { rejection: rejection(item, "unverified_location", "Lokalitu nelze bezpečně přiřadit k Brnu ani jeho okolí.") };
 }
 

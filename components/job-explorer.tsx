@@ -5,7 +5,7 @@ import { BriefcaseBusiness, CheckCircle2, ChevronDown, MapPin, Search, Send, X }
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import type { Job } from "@/lib/types";
+import type { Job, JobRewardUnit } from "@/lib/types";
 import { jobSubmissionSchema, type JobSubmissionInput } from "@/lib/schemas";
 import { useStudentPreference } from "@/lib/client-preferences";
 import { useModalDialog } from "@/lib/use-modal-dialog";
@@ -14,6 +14,7 @@ import { MobileFilterToolbar } from "@/components/mobile-filter-toolbar";
 
 const all = "Všechny";
 const dateFormatter = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "numeric", year: "numeric", timeZone: "Europe/Prague" });
+const rewardUnitLabels: Record<JobRewardUnit, string> = { hour: "Za hodinu", day: "Za den", shift: "Za směnu", month: "Za měsíc", agreement: "Dle domluvy", fixed: "Za úkol", volunteer: "Dobrovolnictví" };
 
 function JobProposal({ onClose }: { onClose: () => void }) {
   const [success, setSuccess] = useState(false); const [serverError, setServerError] = useState("");
@@ -29,19 +30,23 @@ function JobProposal({ onClose }: { onClose: () => void }) {
 function comparableHourlyReward(job: Job) { return job.rewardUnit === "hour" ? job.rewardMin ?? job.reward : undefined; }
 
 export function JobExplorer({ items }: { items: Job[] }) {
-  const [query, setQuery] = useState(""); const [field, setField] = useState(all); const [workload, setWorkload] = useState(all);
+  const [query, setQuery] = useState(""); const [field, setField] = useState(all); const [workType, setWorkType] = useState(all); const [workload, setWorkload] = useState(all); const [locality, setLocality] = useState(""); const [rewardUnit, setRewardUnit] = useState<"all" | "unspecified" | JobRewardUnit>("all");
   const [minReward, setMinReward] = useState(0); const [includeUnspecified, setIncludeUnspecified] = useState(true);
   const [sort, setSort] = useState<"verified" | "reward">("verified"); const [filtersOpen, setFiltersOpen] = useState(false); const [showProposal, setShowProposal] = useState(false);
   const preference = useStudentPreference();
+  const workTypeOptions = useMemo(() => [...new Set(items.map((job) => job.type))], [items]);
   const workloadOptions = useMemo(() => [...new Set(items.map((job) => job.workload).filter((value): value is string => Boolean(value)))], [items]);
-  const activeCount = [query.trim(), field !== all, workload !== all, minReward > 0, !includeUnspecified, sort !== "verified"].filter(Boolean).length;
+  const rewardUnitOptions = useMemo(() => [...new Set(items.map((job) => job.rewardUnit).filter((value): value is JobRewardUnit => Boolean(value)))], [items]);
+  const activeCount = [query.trim(), field !== all, workType !== all, workload !== all, locality.trim(), rewardUnit !== "all", minReward > 0, !includeUnspecified, sort !== "verified"].filter(Boolean).length;
   const filtered = useMemo(() => items.filter((job) => {
     if (job.status !== "approved" || (preference.universityId && job.universityIds?.length && !job.universityIds.includes(preference.universityId)) || (preference.facultyId && job.facultyIds?.length && !job.facultyIds.includes(preference.facultyId))) return false;
-    if (field !== all && job.field !== field) return false; if (workload !== all && job.workload !== workload) return false;
+    if (field !== all && job.field !== field) return false; if (workType !== all && job.type !== workType) return false; if (workload !== all && job.workload !== workload) return false;
+    if (locality.trim() && !job.location.toLocaleLowerCase("cs-CZ").includes(locality.trim().toLocaleLowerCase("cs-CZ"))) return false;
+    if (rewardUnit === "unspecified" ? job.rewardUnit : rewardUnit !== "all" && job.rewardUnit !== rewardUnit) return false;
     const hourly = comparableHourlyReward(job); if (minReward > 0 && (hourly == null ? !includeUnspecified : hourly < minReward)) return false;
     return `${job.title} ${job.company || ""} ${job.location} ${job.positionLabel || ""}`.toLocaleLowerCase("cs-CZ").includes(query.trim().toLocaleLowerCase("cs-CZ"));
-  }).sort((a, b) => sort === "reward" ? (comparableHourlyReward(b) ?? -1) - (comparableHourlyReward(a) ?? -1) : new Date(b.lastVerifiedAt).getTime() - new Date(a.lastVerifiedAt).getTime()), [items, field, workload, minReward, includeUnspecified, query, sort, preference]);
-  function resetFilters() { setQuery(""); setField(all); setWorkload(all); setMinReward(0); setIncludeUnspecified(true); setSort("verified"); }
+  }).sort((a, b) => sort === "reward" ? (comparableHourlyReward(b) ?? -1) - (comparableHourlyReward(a) ?? -1) : new Date(b.lastVerifiedAt).getTime() - new Date(a.lastVerifiedAt).getTime()), [items, field, workType, workload, locality, rewardUnit, minReward, includeUnspecified, query, sort, preference]);
+  function resetFilters() { setQuery(""); setField(all); setWorkType(all); setWorkload(all); setLocality(""); setRewardUnit("all"); setMinReward(0); setIncludeUnspecified(true); setSort("verified"); }
   function trackOutbound(job: Job) {
     if (!job.applyUrl) return;
     try {
@@ -53,10 +58,13 @@ export function JobExplorer({ items }: { items: Job[] }) {
     <section id="job-filter-controls" className={`filter-panel job-filters collapsible-filter-panel ${filtersOpen ? "is-open" : ""}`}>
       <label className="search-field"><span>Hledat brigádu</span><div><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pozice, firma, lokalita…" /></div></label>
       <label><span>Obor</span><div className="select-wrap"><select value={field} onChange={(event) => setField(event.target.value)}><option>{all}</option>{[...new Set(items.map((job) => job.field))].map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={16} /></div></label>
+      <label><span>Typ práce</span><div className="select-wrap"><select value={workType} onChange={(event) => setWorkType(event.target.value)}><option>{all}</option>{workTypeOptions.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={16} /></div></label>
       <label><span>Rozsah práce</span><div className="select-wrap"><select value={workload} onChange={(event) => setWorkload(event.target.value)}><option>{all}</option>{workloadOptions.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={16} /></div></label>
+      <label><span>Lokalita</span><input value={locality} onChange={(event) => setLocality(event.target.value)} placeholder="Např. Brno-střed" /></label>
+      <label><span>Typ odměny</span><div className="select-wrap"><select value={rewardUnit} onChange={(event) => setRewardUnit(event.target.value as "all" | "unspecified" | JobRewardUnit)}><option value="all">Všechny typy</option>{rewardUnitOptions.map((value) => <option key={value} value={value}>{rewardUnitLabels[value]}</option>)}<option value="unspecified">Neuvedeno</option></select><ChevronDown size={16} /></div></label>
       <label><span>Řazení</span><div className="select-wrap"><select value={sort} onChange={(event) => setSort(event.target.value as "verified" | "reward")}><option value="verified">Nejnověji ověřené</option><option value="reward">Nejvyšší hodinová odměna</option></select><ChevronDown size={16} /></div></label>
       <label><span>{minReward ? `Min. hodinová odměna: ${minReward} Kč` : "Bez minimální hodinové odměny"}</span><input aria-label="Minimální hodinová odměna" type="range" min="0" max="300" step="10" value={minReward} onChange={(event) => setMinReward(Number(event.target.value))} /></label>
-      <label className="checkbox-field job-unknown-reward"><input type="checkbox" checked={includeUnspecified} onChange={(event) => setIncludeUnspecified(event.target.checked)} /><span>Zahrnout nabídky bez srovnatelné hodinové sazby</span></label>
+      <label className="checkbox-field job-unknown-reward"><input type="checkbox" checked={includeUnspecified} onChange={(event) => setIncludeUnspecified(event.target.checked)} /><span>Zahrnout jiné typy odměny nebo neuvedenou sazbu</span></label>
     </section>
     <div className="result-toolbar"><div className="result-count"><strong>{filtered.length}</strong> {filtered.length === 1 ? "schválená brigáda" : "schválených brigád"}</div><button className="button button-secondary" onClick={() => setShowProposal(true)}>Navrhnout brigádu</button></div>
     <section className="job-list" aria-live="polite">{filtered.length === 0 ? <div className="empty-state"><BriefcaseBusiness size={28} /><h2>{items.length ? "Filtrům neodpovídá žádná brigáda" : "Zatím nemáme ověřené brigády"}</h2><p>{items.length ? "Zkuste změnit nebo resetovat filtry." : <>Firma může poslat nabídku ke schválení. Další inzeráty najdete také na <a href="https://www.fajn-brigady.cz/vysledek.html?s_sekce=1&amp;id_lokality=okres-3702" target="_blank" rel="noopener noreferrer">Fajn-brigády.cz</a>.</>}</p></div> : filtered.map((job) => {

@@ -15,7 +15,7 @@ describe("bezpečný parser Fajn XML", () => {
     const result = await parseFajnXml(await readFile("tests/fixtures/fajn-synthetic.xml"));
     expect(result).toMatchObject({ total: 2, rejected: 0 }); expect(result.jobs).toHaveLength(2);
     expect(result.jobs[0]).toMatchObject({ externalId: "900001", title: "Podpora studentské laboratoře", field: "IT", workType: "Brigáda", salaryMin: 180, salaryMax: 220, salaryCurrency: "CZK", salaryUnit: "hour", positionLabel: "Programátor, webmaster, kodér" });
-    expect(result.jobs[1]).toMatchObject({ title: "Pomoc pri podujatí", location: "Brno a okolí", salaryUnit: "agreement" });
+    expect(result.jobs[1]).toMatchObject({ title: "Pomoc pri podujatí", location: "Brno", salaryUnit: "agreement" });
   });
 
   it("na anonymizovaném tvaru oficiálního testu nic nepublikuje", async () => {
@@ -56,7 +56,7 @@ describe("bezpečný parser Fajn XML", () => {
     const foreign = await parseFajnXml(item("").replace("<id_statu>1", "<id_statu>2")); expect(foreign.rejections[0].code).toBe("outside_brno");
     const outside = await parseFajnXml(item("").replace("582786", "566985")); expect(outside.rejections[0].code).toBe("outside_brno");
     const unknown = await parseFajnXml(item("").replace("<id_statu>1</id_statu><adresa_pracoviste_id_mesta>582786</adresa_pracoviste_id_mesta>", "<id_statu>7</id_statu>")); expect(unknown.rejections[0].code).toBe("unverified_location");
-    const approximate = await parseFajnXml(item("").replace("<adresa_pracoviste_id_mesta>582786</adresa_pracoviste_id_mesta>", "")); expect(approximate.jobs[0].location).toBe("Brno a okolí");
+    const approximate = await parseFajnXml(item("").replace("<adresa_pracoviste_id_mesta>582786</adresa_pracoviste_id_mesta>", "")); expect(approximate.jobs[0].location).toBe("Brno");
     const address = await parseFajnXml(item(`<adresa_pracoviste_adresa>Brno-střed</adresa_pracoviste_adresa>`).replace("582786", "999999")); expect(address.jobs[0].location).toBe("Brno-střed");
   });
 

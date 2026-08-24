@@ -190,6 +190,8 @@ Konektor Fajn‑brigády je v čisté instalaci i produkčním vzoru vypnutý. N
 
 Veřejné testovací XML lze ručně ověřit bez zápisu do databáze příkazem `FAJN_LIVE_TEST=true pnpm test tests/integration/fajn-live.integration.test.ts` (v PowerShellu nejprve nastavte `$env:FAJN_LIVE_TEST="true"`). Běžné CI používá pouze anonymizované fixtures; živý test je bez proměnné přeskočený. Testovací nabídky se nikdy nepřenášejí na veřejný web.
 
+Ostrý smluvní feed lze před první synchronizací prověřit bez databázového zápisu nastavením serverové `FAJN_BRIGADY_FEED_URL` a spuštěním stejného testu s `FAJN_PRODUCTION_FEED_TEST=true`. Test vypíše jen souhrnné počty přijatých a odmítnutých položek, duplicit, chybějících polí a varování číselníků; nevypisuje kontakty, názvy inzerátů ani zdrojové XML.
+
 ## Komunitní kalendář „Co se děje“
 
 Veřejný přepínač na `/{mesto}/kalendar?view=community` odděluje komunitní akce od oficiálně zdrojovaných školních termínů. Prohlížení je anonymní; akci publikuje přihlášený uživatel s dokončeným profilem a spravuje ji v části „Moje příspěvky, nabídky a akce“. Server kontroluje budoucí termín, maximální délku, HTTPS odkazy, duplicity, honeypot a denní limit. Obrázek je volitelný, dekóduje se a znovu ukládá jako WebP v bucketu `community-event-images`. Tři nezávislá hlášení akci automaticky skryjí a cron ukončené akce archivuje. Původní anonymní akce zůstávají funkční a mají neutrální označení bez falešného autora.
