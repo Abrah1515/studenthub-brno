@@ -590,6 +590,17 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
 .join-list { display: grid; gap: 6px; }.join-list > div { padding: 8px; display: flex; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 7px; }.join-list p { margin: 0; color: var(--muted); font-size: 10px; }.join-list span { display: flex; gap: 4px; }.join-list .icon-button { width: 32px; height: 32px; }
 .safety-note { padding: 14px; display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--amber-soft); color: var(--amber); }.safety-note svg { flex: 0 0 auto; }.safety-note p { margin: 0; font-size: 11px; line-height: 1.5; }
 .buddy-form, .auth-card { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }.buddy-form h2, .auth-card h2 { margin-top: 0; }.auth-page { max-width: 720px; margin-inline: auto; }.auth-card { display: grid; gap: 12px; }.auth-card > p { margin: 0; color: var(--muted); font-size: 12px; }.auth-card label { display: grid; gap: 6px; }.loading-inline { min-height: 90px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); }
+.button-google { border-color: var(--line); background: var(--surface-2); color: var(--ink); }
+.auth-divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 10px; }
+.auth-divider::before, .auth-divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+.auth-confirmation-state { min-height: 390px; }
+.auth-confirmation-state > p { max-width: 520px; line-height: 1.55; overflow-wrap: anywhere; }
+.auth-confirmation-state > p strong { color: var(--ink); }
+.auth-email-tips { max-width: 520px; padding: 12px 14px; display: grid; gap: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); text-align: left; }
+.auth-email-tips strong { color: var(--ink); font-size: 11px; }
+.auth-email-tips span { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.auth-confirmation-actions { width: min(430px, 100%); display: grid; gap: 8px; }
+.auth-confirmation-actions .button { width: 100%; }
 
 /* Privacy-first administrátorská analytika */
 .period-switch { display: flex; gap: 5px; }.period-switch button { min-height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--muted); cursor: pointer; }.period-switch button.active { background: var(--accent); color: white; border-color: var(--accent); }

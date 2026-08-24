@@ -10,7 +10,7 @@ Nezávislá PWA pro studenty všech brněnských vysokých škol. Spojuje ověř
 - povinný sekvenční onboarding města/školy/fakulty bez registrace, vědomé pokračování pro celé město a aktuální studijní kontext pod značkou v desktopové i mobilní navigaci;
 - Leaflet/OpenStreetMap mapu i plně použitelný seznam ověřených míst;
 - brigády s moderací, expirací a označením zvýraznění; modul nabídek zůstává v kódu a databázi, ale ve veřejném webu je výchozím produkčním příznakem vypnutý;
-- dobrovolný jednotný účet přes Supabase Auth s e-mailem a heslem, nastavení školy a profilu na `/nastaveni`, veřejné profily `/profil/<jméno>`, adresář `/profily`, blokování, hlášení, pozastavení a bezpečné odstranění účtu; prohlížení, onboarding, mapa, kalendář, oblíbené a Hlídač fungují bez účtu;
+- dobrovolný jednotný účet přes Supabase Auth s potvrzeným e-mailem a heslem, bezpečným opětovným odesláním potvrzení a volitelným Google OAuth zobrazovaným jen po skutečné konfiguraci provideru; nastavení školy a profilu je na `/nastaveni`, veřejné profily `/profil/<jméno>` a adresář `/profily`; prohlížení, onboarding, mapa, kalendář, oblíbené a Hlídač fungují bez účtu;
 - Studentskou burzu pro nabídku i poptávku učebnic, fyzických skript, vlastních poznámek a studijního vybavení: bez plateb přes StudentHub, s jednotným účtem a dokončeným profilem, 30denní expirací, neveřejným e-mailovým relayem, nahlášením a až třemi fotografiemi překódovanými do WebP bez EXIF; původní správcovské odkazy zůstávají pouze pro starší anonymní obsah;
 - historické technické žádosti zůstávají v databázi jako neveřejný administrativní archiv; veřejná cesta `/pomoc` vede na Burzu a API už nové technické žádosti nepřijímá;
 - oblíbené termíny a akce bez registrace, sekci `/hlidac`, interní upozornění, ztlumení vybraných kategorií push zpráv a dobrovolný Web Push s unikátním doručením a automatickým odstraněním neplatných odběrů;
@@ -66,6 +66,7 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `NEXT_PUBLIC_SUPABASE_URL` | klient/server | ano | URL Supabase projektu |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | klient/server | ano | veřejný anon klíč, chráněný RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | pouze server | ano | serverové formuláře, synchronizace a administrace; nikdy ne do klienta |
+| `GOOGLE_AUTH_ENABLED` | pouze server | ne | release gate; `true` až po aktivaci Google provideru v Supabase, aplikace navíc ověřuje jeho veřejný stav |
 | `SUPERADMIN_EMAIL` | pouze lokální CLI | při prvním účtu | skutečný e-mail pro jednorázovou pozvánku; nepřidávat do Vercelu ani repozitáře |
 | `CRON_SECRET` | pouze server | ano | Bearer autorizace obou cron endpointů |
 | `RATE_LIMIT_SALT` | pouze server | ano | pseudonymizace IP pro lokální rate limit |
@@ -110,7 +111,19 @@ pnpm dlx supabase db push
 4. Obsah `supabase/seed.sql` po obsahové kontrole spusťte jednorázově v Supabase SQL Editoru a ověřte počty i označení importovaných záznamů. V produkci nepoužívejte `db push --include-seed`; tato volba patří jen do čerstvého vývojového nebo stagingového prostředí.
 
 5. Z Project Settings → API zkopírujte URL, anon key a service role key do `.env.local`/Vercelu. Service role klíč nesmí mít prefix `NEXT_PUBLIC_` a nesmí být commitnutý.
-6. V Authentication → URL Configuration nastavte produkční Site URL a povolte přesný redirect `https://VAŠE-DOMÉNA/auth/callback`. Callback dokončuje e-mailovou registraci, obnovu hesla a administrátorskou pozvánku. Veřejný uživatel se přihlašuje e-mailem a heslem; nastavte vlastní SMTP, rate limity a české šablony potvrzení/obnovy.
+6. V Authentication → URL Configuration nastavte produkční Site URL a povolte přesný redirect `https://VAŠE-DOMÉNA/auth/callback`. Pro lokální vývoj povolte také `http://localhost:3000/auth/callback` a `http://localhost:3000/admin/obnova`. Callback přes PKCE dokončuje e-mailovou registraci, obnovu hesla a OAuth relaci.
+
+### Produkční Auth, SMTP a Google OAuth
+
+Výchozí SMTP Supabase není veřejná produkční e-mailová služba: doručuje jen na adresy členů projektového týmu a má velmi nízký limit. Před veřejnou registrací nastavte vlastní SMTP výhradně v Supabase Dashboard → Authentication → Email → SMTP Settings:
+
+1. U poskytovatele (například Resend, Postmark nebo Brevo) ověřte vlastní odesílací doménu pomocí předepsaných DNS záznamů. Doménu `vercel.app` nelze použít jako vlastní odesílací doménu.
+2. Do Supabase vložte SMTP host, podporovaný TLS port, uživatelské jméno, heslo/API token, ověřenou adresu odesílatele a jméno `StudentHub Brno`. SMTP heslo nepatří do Vercelu, `.env`, klienta ani Gitu.
+3. V Email provideru ponechte `Confirm Email` zapnuté. Nastavte české šablony potvrzení, pozvánky a obnovy tak, aby používaly Supabase potvrzovací URL.
+4. V URL Configuration nastavte Site URL `https://studenthub-brno.vercel.app` a allowlist `https://studenthub-brno.vercel.app/auth/callback`, `https://studenthub-brno.vercel.app/admin/obnova`, `http://localhost:3000/auth/callback` a `http://localhost:3000/admin/obnova`. Při přidání vlastní domény doplňte její přesné callback URL a aktualizujte `NEXT_PUBLIC_SITE_URL`.
+5. Až potom otestujte novou adresu mimo tým projektu: registraci, skutečné doručení, potvrzení, profil, odhlášení/přihlášení, obnovu hesla a resend po 60 sekundách. Stav `201` nebo `202` sám doručení nedokazuje.
+
+Google přihlášení je připravené přes Supabase OAuth s PKCE, ale je dvojitě uzamčené. V Google Cloud vytvořte OAuth Web Client, jako autorizovaný redirect nastavte `https://<PROJECT_REF>.supabase.co/auth/v1/callback`, Client ID a Secret uložte pouze do Supabase Authentication → Providers → Google a provider aktivujte. Nakonec nastavte serverovou proměnnou Vercelu `GOOGLE_AUTH_ENABLED=true` a proveďte nový deployment. Tlačítko se zobrazí jen tehdy, když je zapnutý release gate a veřejné Supabase Auth settings zároveň potvrzují aktivní Google provider.
 
 Migrace jsou pořadové a nedestruktivní:
 
@@ -277,6 +290,7 @@ ALLOW_LOCAL_FILE_STORE=false
 ALLOW_VERIFIED_FALLBACK=false
 NEXT_PUBLIC_ADS_ENABLED=false
 NEXT_PUBLIC_OFFERS_ENABLED=false
+GOOGLE_AUTH_ENABLED=false
 FAJN_BRIGADY_FEED_ENABLED=false
 FAJN_BRIGADY_PERMISSION_CONFIRMED=false
 FAJN_BRIGADY_FEED_URL=
@@ -336,6 +350,8 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 - [ ] skutečné kontaktní e-maily přijímají poštu a mají správce;
 - [ ] migrace a seed proběhly na produkčním Supabase bez chyb;
 - [ ] první hlavní `super_admin` vznikl přes `pnpm admin:invite`; pozvánka, magic link, obnova a odhlášení fungují se skutečným SMTP;
+- [ ] vlastní SMTP používá ověřenou odesílací doménu, `Confirm Email` je zapnuté a doručení registrace, resend i obnovy bylo potvrzeno ve skutečné externí schránce;
+- [ ] Google tlačítko je skryté, nebo Google provider, PKCE callback a `GOOGLE_AUTH_ENABLED=true` prošly skutečným produkčním přihlášením;
 - [ ] případní `admin`, `city_editor`/`faculty_editor` mají shodný profil i App metadata a otestovaný rozsah;
 - [ ] service role, cron a rate-limit tajemství jsou pouze ve Vercelu a byla rotována;
 - [ ] VAPID pár je vygenerovaný, soukromý klíč je pouze ve Vercelu a push byl ověřen na fyzickém Androidu/iOS i desktopu;
