@@ -281,7 +281,6 @@ button { color: inherit; }
 .auth-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
 .auth-mode-switch button { min-height: 38px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-weight: 800; cursor: pointer; }
 .auth-mode-switch button.active { background: var(--surface); color: var(--accent-2); box-shadow: 0 1px 5px rgb(0 0 0 / 8%); }
-.button-google { width: 100%; }
 .profile-identity { min-width: 0; display: flex; align-items: center; gap: 9px; }
 .profile-identity > div { min-width: 0; display: grid; gap: 2px; }
 .profile-identity strong { display: block; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }

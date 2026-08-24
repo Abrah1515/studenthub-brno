@@ -14,7 +14,7 @@ export async function DELETE(request:Request){
     if(!parsed.data.password) return NextResponse.json({message:"Pro odstranění účtu znovu zadejte heslo."},{status:401}); const url=process.env.NEXT_PUBLIC_SUPABASE_URL; const anon=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; if(!url||!anon) return NextResponse.json({message:"Ověření identity není dostupné."},{status:503});
     const verifier=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}}); const {error}=await verifier.auth.signInWithPassword({email:user.email,password:parsed.data.password}); if(error) return NextResponse.json({message:"Heslo není správné."},{status:401}); await verifier.auth.signOut();
   } else {
-    const last=user.lastSignInAt?new Date(user.lastSignInAt).getTime():0; if(Date.now()-last>10*60*1000) return NextResponse.json({message:"Kvůli bezpečnosti se nejprve znovu přihlaste přes Google a odstranění zopakujte."},{status:401});
+    const last=user.lastSignInAt?new Date(user.lastSignInAt).getTime():0; if(Date.now()-last>10*60*1000) return NextResponse.json({message:"Kvůli bezpečnosti se nejprve znovu přihlaste přes svého poskytovatele a odstranění zopakujte."},{status:401});
   }
   const client=createServiceClient(); await removeProfileAvatar(profile); await client.from("account_moderation_history").insert({profile_id:profile.id,actor_id:profile.id,action:"account_deleted",reason:"Odstranění potvrzené vlastníkem účtu"});
   await Promise.all([

@@ -4,7 +4,7 @@ import { createServiceClient } from "@/lib/supabase-server";
 import { profileUpdateSchema } from "@/lib/schemas";
 import { allowRequest,requestFingerprint } from "@/lib/rate-limit";
 
-export async function GET(){ const profile=await getCurrentAccount(); return NextResponse.json({profile,googleEnabled:process.env.GOOGLE_AUTH_ENABLED==="true"},{headers:{"Cache-Control":"private, no-store"}}); }
+export async function GET(){ const profile=await getCurrentAccount(); return NextResponse.json({profile},{headers:{"Cache-Control":"private, no-store"}}); }
 
 export async function PATCH(request:Request){
   if(!allowRequest(`profile-update:${requestFingerprint(request)}`,20,60*60*1000)) return NextResponse.json({message:"Limit úprav profilu byl vyčerpán."},{status:429});

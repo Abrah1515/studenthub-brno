@@ -10,7 +10,7 @@ Nezávislá PWA pro studenty všech brněnských vysokých škol. Spojuje ověř
 - povinný sekvenční onboarding města/školy/fakulty bez registrace, vědomé pokračování pro celé město a aktuální studijní kontext pod značkou v desktopové i mobilní navigaci;
 - Leaflet/OpenStreetMap mapu i plně použitelný seznam ověřených míst;
 - brigády s moderací, expirací a označením zvýraznění; modul nabídek zůstává v kódu a databázi, ale ve veřejném webu je výchozím produkčním příznakem vypnutý;
-- dobrovolný jednotný účet přes Supabase Auth (e-mail a heslo, volitelně Google OAuth), nastavení školy a profilu na `/nastaveni`, veřejné profily `/profil/<jméno>`, adresář `/profily`, blokování, hlášení, pozastavení a bezpečné odstranění účtu; prohlížení, onboarding, mapa, kalendář, oblíbené a Hlídač fungují bez účtu;
+- dobrovolný jednotný účet přes Supabase Auth s e-mailem a heslem, nastavení školy a profilu na `/nastaveni`, veřejné profily `/profil/<jméno>`, adresář `/profily`, blokování, hlášení, pozastavení a bezpečné odstranění účtu; prohlížení, onboarding, mapa, kalendář, oblíbené a Hlídač fungují bez účtu;
 - Studentskou burzu pro nabídku i poptávku učebnic, fyzických skript, vlastních poznámek a studijního vybavení: bez plateb přes StudentHub, s jednotným účtem a dokončeným profilem, 30denní expirací, neveřejným e-mailovým relayem, nahlášením a až třemi fotografiemi překódovanými do WebP bez EXIF; původní správcovské odkazy zůstávají pouze pro starší anonymní obsah;
 - historické technické žádosti zůstávají v databázi jako neveřejný administrativní archiv; veřejná cesta `/pomoc` vede na Burzu a API už nové technické žádosti nepřijímá;
 - oblíbené termíny a akce bez registrace, sekci `/hlidac`, interní upozornění, ztlumení vybraných kategorií push zpráv a dobrovolný Web Push s unikátním doručením a automatickým odstraněním neplatných odběrů;
@@ -66,7 +66,6 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `NEXT_PUBLIC_SUPABASE_URL` | klient/server | ano | URL Supabase projektu |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | klient/server | ano | veřejný anon klíč, chráněný RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | pouze server | ano | serverové formuláře, synchronizace a administrace; nikdy ne do klienta |
-| `GOOGLE_AUTH_ENABLED` | server | ne | `true` až po zapnutí Google provideru v Supabase a produkčním ověření callbacku; jinak je tlačítko poctivě neaktivní |
 | `SUPERADMIN_EMAIL` | pouze lokální CLI | při prvním účtu | skutečný e-mail pro jednorázovou pozvánku; nepřidávat do Vercelu ani repozitáře |
 | `CRON_SECRET` | pouze server | ano | Bearer autorizace obou cron endpointů |
 | `RATE_LIMIT_SALT` | pouze server | ano | pseudonymizace IP pro lokální rate limit |
@@ -111,8 +110,7 @@ pnpm dlx supabase db push
 4. Obsah `supabase/seed.sql` po obsahové kontrole spusťte jednorázově v Supabase SQL Editoru a ověřte počty i označení importovaných záznamů. V produkci nepoužívejte `db push --include-seed`; tato volba patří jen do čerstvého vývojového nebo stagingového prostředí.
 
 5. Z Project Settings → API zkopírujte URL, anon key a service role key do `.env.local`/Vercelu. Service role klíč nesmí mít prefix `NEXT_PUBLIC_` a nesmí být commitnutý.
-6. V Authentication → URL Configuration nastavte produkční Site URL a povolte přesný redirect `https://VAŠE-DOMÉNA/auth/callback`. Stejný callback dokončuje e-mailovou registraci, obnovu hesla, Google OAuth a administrátorskou pozvánku. Veřejný uživatel se přihlašuje e-mailem a heslem; nastavte vlastní SMTP, rate limity a české šablony potvrzení/obnovy.
-7. Pro Google OAuth zapněte v Authentication → Providers → Google provider, v Google Cloud přidejte callback Supabase uvedený v dashboardu a potom nastavte `GOOGLE_AUTH_ENABLED=true`. Nezapínejte příznak dříve, než je produkční callback skutečně ověřený.
+6. V Authentication → URL Configuration nastavte produkční Site URL a povolte přesný redirect `https://VAŠE-DOMÉNA/auth/callback`. Callback dokončuje e-mailovou registraci, obnovu hesla a administrátorskou pozvánku. Veřejný uživatel se přihlašuje e-mailem a heslem; nastavte vlastní SMTP, rate limity a české šablony potvrzení/obnovy.
 
 Migrace jsou pořadové a nedestruktivní:
 
@@ -279,7 +277,6 @@ ALLOW_LOCAL_FILE_STORE=false
 ALLOW_VERIFIED_FALLBACK=false
 NEXT_PUBLIC_ADS_ENABLED=false
 NEXT_PUBLIC_OFFERS_ENABLED=false
-GOOGLE_AUTH_ENABLED=false
 FAJN_BRIGADY_FEED_ENABLED=false
 FAJN_BRIGADY_PERMISSION_CONFIRMED=false
 FAJN_BRIGADY_FEED_URL=
@@ -311,7 +308,6 @@ pnpm dlx vercel env add NEXT_PUBLIC_SITE_URL production
 pnpm dlx vercel env add NEXT_PUBLIC_SUPABASE_URL production
 pnpm dlx vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production
 pnpm dlx vercel env add SUPABASE_SERVICE_ROLE_KEY production
-pnpm dlx vercel env add GOOGLE_AUTH_ENABLED production
 pnpm dlx vercel env add CRON_SECRET production
 pnpm dlx vercel env add ADMIN_COOKIE_SECRET production
 pnpm dlx vercel env add RATE_LIMIT_SALT production
