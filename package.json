@@ -20,6 +20,7 @@
     "check:links": "node --experimental-strip-types scripts/check-links.mjs",
     "check:pwa": "node scripts/check-pwa.mjs",
     "admin:audit": "node scripts/audit-superadmin.mjs",
+    "admin:inspect": "node scripts/inspect-superadmin.mjs",
     "admin:invite": "node scripts/invite-superadmin.mjs",
     "admin:recover": "node scripts/invite-superadmin.mjs --recover",
     "admin:transfer": "node scripts/transfer-superadmin.mjs"
