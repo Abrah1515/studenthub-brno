@@ -51,7 +51,7 @@ test("výběr místa propojí seznam s mapou, funguje klávesnicí a přežije p
   await expect(page.getByLabel("Hledat místo nebo adresu")).toHaveValue("Bohunice"); await expect(page.getByText("Knihovna univerzitního kampusu MUNI", { exact: true })).toBeVisible();
   const cards = page.locator("article.place-card"); await expect(cards.first()).toBeVisible();
   const firstName = (await cards.first().locator("strong").first().textContent())!; await cards.first().locator("button.place-card-main").click();
-  await expect(cards.first()).toHaveClass(/selected/); const firstMarker = page.getByRole("button", { name: `Vybrat místo ${firstName}` }); await expect(firstMarker).toHaveAttribute("fill", "#f9c74f");
+  await expect(cards.first()).toHaveClass(/selected/); const firstMarker = page.getByRole("button", { name: `Vybrat místo ${firstName}` }); await expect(firstMarker).toHaveClass(/selected/);
   const map = page.locator(".leaflet-host"); const box = await map.boundingBox(); expect(box).toBeTruthy(); if (box) { await page.mouse.move(box.x + box.width * .55, box.y + box.height * .55); await page.mouse.down(); await page.mouse.move(box.x + box.width * .35, box.y + box.height * .45, { steps: 4 }); await page.mouse.up(); }
   await expect(cards.first()).toHaveClass(/selected/);
   const secondMarker = page.locator('.leaflet-interactive[role="button"]').nth(1); if (await secondMarker.count()) { await secondMarker.focus(); await page.keyboard.press("Enter"); await expect(cards.nth(1)).toHaveClass(/selected/); }

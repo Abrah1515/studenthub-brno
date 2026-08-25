@@ -1,0 +1,33 @@
+import { randomUUID } from "node:crypto";
+import { NextResponse } from "next/server";
+import { duplicatePlaces, cleanPlaceText, removePlacePhotos, sanitizeAndUploadPlacePhoto, signedPlacePhotos } from "@/lib/place-community-server";
+import { allowRequest, requestFingerprint } from "@/lib/rate-limit";
+import { placeSuggestionSchema } from "@/lib/schemas";
+import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
+import { getCurrentAccount } from "@/lib/user-auth";
+
+export const runtime="nodejs";
+function bool(value:FormDataEntryValue|null){return value==="true"||value==="on"||value==="1";}
+
+export async function GET(){
+  const account=await getCurrentAccount(); if(!account)return NextResponse.json({message:"Přihlaste se."},{status:401}); const client=createServiceClient();
+  const {data:items,error}=await client.from("place_submissions").select("*").eq("author_id",account.id).order("created_at",{ascending:false}).limit(100); if(error)return NextResponse.json({message:"Návrhy se nepodařilo načíst."},{status:500}); const ids=(items||[]).map((item)=>String(item.id));
+  const [{data:photoRows},{data:historyRows}]=await Promise.all([ids.length?client.from("place_submission_photos").select("id,submission_id,storage_path,width,height,sort_order").in("submission_id",ids).order("sort_order"):Promise.resolve({data:[]}),ids.length?client.from("place_submission_history").select("id,submission_id,action,reason,created_at").in("submission_id",ids).order("created_at",{ascending:false}):Promise.resolve({data:[]})]);
+  const photos=await signedPlacePhotos((photoRows||[]) as Record<string,unknown>[]); return NextResponse.json({items:(items||[]).map((item)=>({...item,photos:photos.filter((photo)=>photo.submission_id===item.id),history:(historyRows||[]).filter((history)=>history.submission_id===item.id)}))},{headers:{"Cache-Control":"private, no-store"}});
+}
+
+export async function POST(request:Request){
+  if(!isSupabaseConfigured())return NextResponse.json({message:"Odeslání návrhu vyžaduje produkční databázi."},{status:503}); const account=await getCurrentAccount(); if(!account)return NextResponse.json({message:"Pro návrh místa se přihlaste.",loginRequired:true},{status:401});
+  if(account.accountStatus!=="active")return NextResponse.json({message:"Váš účet má publikování pozastavené."},{status:403}); if(!account.complete)return NextResponse.json({message:"Nejprve dokončete profil a přijměte pravidla komunity.",profileRequired:true},{status:428});
+  if(!allowRequest(`place-suggestion-ip:${requestFingerprint(request)}`,8,24*60*60*1000)||!allowRequest(`place-suggestion-user:${account.id}`,5,24*60*60*1000))return NextResponse.json({message:"Denní limit návrhů byl vyčerpán."},{status:429});
+  const form=await request.formData().catch(()=>null); if(!form)return NextResponse.json({message:"Formulář se nepodařilo přečíst."},{status:422}); const parsed=placeSuggestionSchema.safeParse({submissionType:form.get("submissionType")||"new",targetPlaceId:form.get("targetPlaceId")||"",name:form.get("name"),category:form.get("category"),address:form.get("address"),latitude:form.get("latitude"),longitude:form.get("longitude"),locationConfirmed:bool(form.get("locationConfirmed")),description:form.get("description"),usefulnessReason:form.get("usefulnessReason"),sourceUrl:form.get("sourceUrl"),openingHours:form.get("openingHours")||"",priceLevel:form.get("priceLevel")||"",accessConditions:form.get("accessConditions")||"",studySuitable:bool(form.get("studySuitable")),wifiAvailable:bool(form.get("wifiAvailable")),outletsAvailable:bool(form.get("outletsAvailable")),accessibility:form.get("accessibility")||"",consent:bool(form.get("consent")),photoRights:bool(form.get("photoRights")),company:form.get("company")||"",cityId:form.get("cityId")||"brno"});
+  if(!parsed.success)return NextResponse.json({message:"Zkontrolujte povinné údaje.",issues:parsed.error.flatten().fieldErrors},{status:422}); const value=parsed.data; const files=form.getAll("photos").filter((item):item is File=>item instanceof File&&item.size>0); if(files.length>5)return NextResponse.json({message:"Nahrajte nejvýše 5 fotografií."},{status:422});
+  const matches=await duplicatePlaces({name:value.name,address:value.address,latitude:value.latitude,longitude:value.longitude,sourceUrl:value.sourceUrl},value.cityId||"brno"); if(matches.length&&!bool(form.get("duplicateAcknowledged"))&&value.submissionType==="new")return NextResponse.json({message:"Našli jsme podobná existující místa. Nejdřív je zkontrolujte.",duplicates:matches},{status:409});
+  const id=randomUUID(); const client=createServiceClient(); const uploaded:Record<string,unknown>[]=[];
+  try{
+    const now=new Date().toISOString(); const {error}=await client.from("place_submissions").insert({id,author_id:account.id,city_id:value.cityId||"brno",submission_type:value.submissionType,target_place_id:value.targetPlaceId||null,name:cleanPlaceText(value.name),category:value.category,address:cleanPlaceText(value.address),latitude:value.latitude,longitude:value.longitude,location_confirmed_at:now,description:cleanPlaceText(value.description,true),usefulness_reason:cleanPlaceText(value.usefulnessReason,true),source_url:value.sourceUrl,opening_hours:value.openingHours||null,price_level:value.priceLevel||null,access_conditions:value.accessConditions?cleanPlaceText(value.accessConditions,true):null,study_suitable:value.studySuitable,wifi_available:value.wifiAvailable,outlets_available:value.outletsAvailable,accessibility:value.accessibility||null,status:"pending",duplicate_of_place_id:matches[0]?.id||null,author_consent_at:now,photo_rights_confirmed_at:now,submitted_at:now}); if(error)throw error;
+    for(let index=0;index<files.length;index+=1)uploaded.push(await sanitizeAndUploadPlacePhoto(files[index],id,index)); if(uploaded.length){const photoInsert=await client.from("place_submission_photos").insert(uploaded);if(photoInsert.error)throw photoInsert.error;}
+    await client.from("place_submission_history").insert({submission_id:id,actor_id:account.id,action:"submitted",snapshot:{name:value.name,category:value.category,address:value.address,duplicateCandidates:matches.map((match)=>match.id)}});
+    return NextResponse.json({id,status:"pending",message:"Návrh je bezpečně uložený a čeká na kontrolu moderátora."},{status:201});
+  }catch(error){await removePlacePhotos(uploaded.map((photo)=>photo.storage_path));await client.from("place_submissions").delete().eq("id",id);console.error("place_suggestion_save_failed",{userId:account.id,error:error instanceof Error?error.message:"unknown"});return NextResponse.json({message:"Návrh se nepodařilo bezpečně uložit."},{status:422});}
+}

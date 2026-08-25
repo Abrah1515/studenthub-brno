@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { faculties } from "@/lib/universities";
 import { communityCategories } from "@/lib/community-types";
+import { placeCategoryCodes, placeTraitCodes } from "@/lib/place-community";
 
 const honeypot = z.string().max(0, "Spam byl rozpoznán.").optional();
 const cityId = z.string().regex(/^[a-z0-9-]{2,80}$/).optional();
@@ -46,7 +47,8 @@ export const serviceRequestUpdateSchema = serviceRequestObject.pick({ publicTitl
 
 export const reportSchema = z.object({ targetType: z.enum(["service_request", "buddy_post", "community_event"]), targetId: z.string().uuid(), reason: z.enum(["spam", "harassment", "illegal", "privacy", "outdated", "other"]), detail: z.string().trim().max(800).default(""), cityId });
 
-const safeHttpsUrl = z.string().url("Zadejte platný odkaz.").refine((value) => { try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; } catch { return false; } }, "Odkaz musí používat bezpečné HTTPS.");
+const unsafeLinkHosts=new Set(["bit.ly","tinyurl.com","t.co","goo.gl","cutt.ly","rb.gy"]);
+const safeHttpsUrl = z.string().max(2000).url("Zadejte platný odkaz.").refine((value) => { try { const url = new URL(value); const host=url.hostname.toLowerCase().replace(/\.$/,""); const ipLike=/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)||host.includes(":"); return url.protocol === "https:" && !url.username && !url.password && (!url.port||url.port==="443") && host.includes(".") && host!=="localhost" && !host.endsWith(".localhost") && !host.endsWith(".local") && !ipLike && !unsafeLinkHosts.has(host); } catch { return false; } }, "Odkaz musí být přímé bezpečné HTTPS na veřejné doméně, ne zkracovač nebo lokální adresa.");
 
 const communityEventFields = z.object({
   title: z.string().trim().min(4, "Doplňte název akce.").max(140),
@@ -170,6 +172,22 @@ export const placeLiveReportSchema = z.object({
   proximityBand: z.enum(["near", "unknown"]).optional().default("unknown"),
 });
 
+export const placeSuggestionSchema = z.object({
+  submissionType: z.enum(["new","correction"]).default("new"), targetPlaceId: z.string().uuid().optional().or(z.literal("")),
+  name: z.string().trim().min(2,"Doplňte název místa.").max(160), category: z.enum(placeCategoryCodes),
+  address: z.string().trim().min(3,"Doplňte adresu.").max(240), latitude: z.coerce.number().min(-90).max(90), longitude: z.coerce.number().min(-180).max(180),
+  locationConfirmed: z.boolean().refine(Boolean,"Potvrďte bod na mapě."), description: z.string().trim().min(20,"Popis musí mít alespoň 20 znaků.").max(2000),
+  usefulnessReason: z.string().trim().min(10,"Stručně vysvětlete přínos pro studenty.").max(1000), sourceUrl: safeHttpsUrl,
+  openingHours: z.string().trim().max(600).optional().or(z.literal("")), priceLevel: z.enum(["free","low","medium","high","varies"]).optional().or(z.literal("")),
+  accessConditions: z.string().trim().max(800).optional().or(z.literal("")), studySuitable: z.boolean().optional(), wifiAvailable: z.boolean().optional(), outletsAvailable: z.boolean().optional(),
+  accessibility: z.enum(["accessible","limited","unknown"]).optional().or(z.literal("")), consent: z.boolean().refine(Boolean,"Potvrďte pravdivost údajů a jejich zveřejnění."),
+  photoRights: z.boolean().refine(Boolean,"Potvrďte práva k nahraným fotografiím."), company: honeypot, cityId,
+}).superRefine((value,ctx)=>{ if(value.submissionType==="correction"&&!value.targetPlaceId) ctx.addIssue({code:"custom",path:["targetPlaceId"],message:"Oprava musí odkazovat na existující místo."}); if(value.submissionType==="new"&&value.targetPlaceId) ctx.addIssue({code:"custom",path:["targetPlaceId"],message:"Nové místo nesmí měnit existující záznam."}); });
+
+export const placeCommentSchema = z.object({ body:z.string().trim().min(2,"Napište alespoň krátkou zkušenost.").max(600,"Zkušenost může mít nejvýše 600 znaků."), traits:z.array(z.enum(placeTraitCodes)).max(placeTraitCodes.length).default([]), company:honeypot });
+export const placeCommentUpdateSchema = placeCommentSchema.pick({body:true,traits:true});
+export const placeCommentReportSchema = z.object({ reason:z.enum(["spam","harassment","privacy","unsafe_link","false_information","other"]),detail:z.string().trim().max(800).default("") });
+
 const marketplaceScope = z.object({
   universityId: z.string().trim().max(50).optional().or(z.literal("")),
   facultyId: z.string().trim().max(80).optional().or(z.literal("")),
@@ -233,3 +251,5 @@ export type BuddyPostInput = z.infer<typeof buddyPostSchema>;
 export type ContactMessageInput = z.infer<typeof contactMessageSchema>;
 export type MarketplaceListingFormInput = z.input<typeof marketplaceListingSchema>;
 export type MarketplaceListingInput = z.infer<typeof marketplaceListingSchema>;
+export type PlaceSuggestionFormInput = z.input<typeof placeSuggestionSchema>;
+export type PlaceSuggestionInput = z.infer<typeof placeSuggestionSchema>;

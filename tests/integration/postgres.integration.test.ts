@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(30);
+      expect(files).toHaveLength(31);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -67,6 +67,31 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         update public.profiles set role='super_admin', city_id=null where id='71111111-1111-4111-8111-111111111113';
         update public.profiles set username='trusted_student',display_name='Trusted Student',community_rules_accepted_at=now(),account_status='active',is_blocked=false where id='71111111-1111-4111-8111-111111111114';
       `);
+
+      await db.exec(`
+        insert into public.place_submissions(id,author_id,city_id,name,category,address,latitude,longitude,location_confirmed_at,description,usefulness_reason,source_url,status,author_consent_at,photo_rights_confirmed_at,submitted_at)
+        values ('75111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111114','brno','Integrační komunitní místo','coworking','Integrační 1, Brno',49.200001,16.600001,now(),'Veřejné místo vložené pro integrační test komunitního schvalování.','Ověřuje moderaci, RLS a zkušenosti studentů.','https://example.com/place','pending',now(),now(),now());
+        insert into public.place_submission_history(submission_id,actor_id,action,snapshot)
+        values ('75111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111114','submitted','{"test":true}');
+        insert into public.places(id,city_id,name,category,description,address,latitude,longitude,website_url,status,is_demo,source_url,last_verified_at,verification_status,origin,community_submission_id,community_approved_by,community_approved_at)
+        values ('75222222-2222-4222-8222-222222222222','brno','Integrační komunitní místo','coworking','Schválený veřejný popis.','Integrační 1, Brno',49.200001,16.600001,'https://example.com/place','approved',false,'https://example.com/place',now(),'verified','community','75111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111113',now());
+        update public.place_submissions set status='approved',published_place_id='75222222-2222-4222-8222-222222222222',reviewed_at=now(),reviewed_by='71111111-1111-4111-8111-111111111113' where id='75111111-1111-4111-8111-111111111111';
+        insert into public.place_comments(id,place_id,author_id,body) values
+          ('75333333-3333-4333-8333-333333333331','75222222-2222-4222-8222-222222222222','71111111-1111-4111-8111-111111111111','První veřejná zkušenost bez kontaktů.'),
+          ('75333333-3333-4333-8333-333333333332','75222222-2222-4222-8222-222222222222','71111111-1111-4111-8111-111111111112','Druhá nezávislá zkušenost ke stejnému místu.'),
+          ('75333333-3333-4333-8333-333333333333','75222222-2222-4222-8222-222222222222','71111111-1111-4111-8111-111111111113','Třetí nezávislá zkušenost potvrzuje vlastnost.');
+        insert into public.place_comment_traits(comment_id,trait) values
+          ('75333333-3333-4333-8333-333333333331','good_wifi'),('75333333-3333-4333-8333-333333333332','good_wifi'),('75333333-3333-4333-8333-333333333333','good_wifi');
+        insert into public.place_comment_helpful(comment_id,profile_id) values
+          ('75333333-3333-4333-8333-333333333331','71111111-1111-4111-8111-111111111112'),('75333333-3333-4333-8333-333333333331','71111111-1111-4111-8111-111111111113');
+        insert into public.place_comment_reports(comment_id,reporter_id,reason) values
+          ('75333333-3333-4333-8333-333333333332','71111111-1111-4111-8111-111111111111','false_information'),
+          ('75333333-3333-4333-8333-333333333332','71111111-1111-4111-8111-111111111113','spam'),
+          ('75333333-3333-4333-8333-333333333332','71111111-1111-4111-8111-111111111114','other');
+      `);
+      expect((await db.query<{ origin:string }>("select origin from public.places where id='75222222-2222-4222-8222-222222222222'")).rows[0].origin).toBe("community");
+      expect((await db.query<{ helpful_count:number }>("select helpful_count from public.place_comments where id='75333333-3333-4333-8333-333333333331'")).rows[0].helpful_count).toBe(2);
+      expect((await db.query<{ status:string;report_count:number }>("select status,report_count from public.place_comments where id='75333333-3333-4333-8333-333333333332'")).rows[0]).toEqual({status:"hidden",report_count:3});
 
       await db.exec(`
         insert into public.community_events(id,author_id,city_id,title,category,starts_at,venue,description,is_free,author_email,management_token_hash,duplicate_fingerprint,status)
@@ -224,6 +249,10 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await expect(db.query("select * from public.marketplace_reports")).rejects.toThrow();
       await expect(db.query("select * from public.profile_permissions")).rejects.toThrow();
       await expect(db.query("select * from public.profile_permission_audit")).rejects.toThrow();
+      expect((await db.query<{origin:string}>("select origin from public.places where id='75222222-2222-4222-8222-222222222222'")).rows).toEqual([{origin:"community"}]);
+      expect((await db.query<{body:string}>("select body from public.place_comments where place_id='75222222-2222-4222-8222-222222222222' order by created_at,id")).rows).toHaveLength(2);
+      await expect(db.query("select author_id from public.place_comments")).rejects.toThrow();
+      await expect(db.query("select * from public.place_submissions")).rejects.toThrow();
       expect((await db.query<{ approximate_location: string }>("select approximate_location from public.buddy_posts")).rows).toEqual([{ approximate_location: "Veřejná knihovna" }]);
       expect((await db.query<{ body: string }>("select body from public.community_posts order by created_at,id")).rows).toEqual([{ body: "Upravený text vlastní otázky pro integrační ověření." }]);
       await expect(db.query("select author_id from public.community_posts")).rejects.toThrow();
@@ -244,6 +273,8 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111114"]); await db.exec("set role authenticated");
       expect((await db.query<{ is_super_admin: boolean }>("select public.is_super_admin()")).rows[0].is_super_admin).toBe(false);
+      expect((await db.query("select id,status from public.place_submissions where id='75111111-1111-4111-8111-111111111111'")).rows).toHaveLength(1);
+      await expect(db.query("insert into public.place_comments(place_id,author_id,body) values ('75222222-2222-4222-8222-222222222222','71111111-1111-4111-8111-111111111114','Pokus obejít serverovou validaci komentáře.')")).rejects.toThrow();
       expect((await db.query("update public.community_events set description='Vlastní povolená úprava komunitní akce.' where id='94111111-1111-4111-8111-111111111112' returning id,status")).rows).toEqual([{ id: "94111111-1111-4111-8111-111111111112", status: "pending" }]);
       expect((await db.query("update public.community_events set description='Cizí zakázaná úprava.' where id='93111111-1111-4111-8111-111111111111' returning id")).rows).toHaveLength(0);
       await expect(db.query("update public.community_events set author_id='71111111-1111-4111-8111-111111111112' where id='94111111-1111-4111-8111-111111111112'")).rejects.toThrow();
@@ -265,6 +296,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query("update public.academic_events set description='Upraveno městem' where title='RLS FIT' returning id")).rows).toHaveLength(1);
       expect((await db.query("select distinct academic_event_id from public.academic_event_changes")).rows).toHaveLength(2);
       expect((await db.query("select id from public.place_live_reports")).rows).toHaveLength(1);
+      expect((await db.query("select id from public.place_submissions where city_id='brno'")).rows).toHaveLength(1);
       expect((await db.query("select id from public.service_requests where id='81111111-1111-4111-8111-111111111111'")).rows).toHaveLength(1); expect((await db.query("select author_email from public.community_events where source_type='community'")).rows).toHaveLength(5); await db.exec("reset role");
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111113"]); await db.exec("set role authenticated");
