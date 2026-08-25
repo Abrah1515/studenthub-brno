@@ -1,5 +1,6 @@
-const orderColumnOverrides: Readonly<Record<string, string>> = {
+﻿const orderColumnOverrides: Readonly<Record<string, string>> = {
   page_views: "viewed_at",
+  outbound_clicks: "clicked_at",
   link_checks: "checked_at",
   place_live_reports: "reported_at",
 };
@@ -7,3 +8,4 @@ const orderColumnOverrides: Readonly<Record<string, string>> = {
 export function recordOrderColumn(table: string) {
   return orderColumnOverrides[table] || "created_at";
 }
+
