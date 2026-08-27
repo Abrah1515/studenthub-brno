@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
+import { createChatRealtimeTopic } from "@/lib/chat-realtime";
 
 export const chatUnreadEvent = "studenthub-chat-unread";
 
@@ -19,7 +20,7 @@ export function ChatBadge({ compact = false }: { compact?: boolean }) {
     const timer = window.setInterval(() => document.visibilityState === "visible" && void refresh(), 30000);
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const client = url && key ? createBrowserClient(url, key) : null;
-    const channel = client?.channel("chat-unread").on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, refresh).subscribe();
+    const channel = client?.channel(createChatRealtimeTopic("unread")).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, refresh).subscribe();
     return () => { window.removeEventListener(chatUnreadEvent, update); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", visible); window.clearInterval(timer); if (client && channel) void client.removeChannel(channel); };
   }, [refresh]);
   if (!count) return null;

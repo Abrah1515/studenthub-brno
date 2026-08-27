@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { chatConversationActionSchema, chatMessageReportSchema, chatMessageSchema, chatStartSchema } from "@/lib/schemas";
+import { createChatRealtimeTopic } from "@/lib/chat-realtime";
 
 const migration = readFileSync("supabase/migrations/202608260032_private_chat.sql", "utf8");
 const bootstrapRoute = readFileSync("app/api/chat/bootstrap/route.ts", "utf8");
@@ -35,5 +36,12 @@ describe("soukromý chat", () => {
   it("anonymní navigace nečeká na vzdálené ověření neexistující session", () => {
     expect(bootstrapRoute).toContain("sb-[^=;]+-auth-token");
     expect(bootstrapRoute.indexOf("auth-token")).toBeLessThan(bootstrapRoute.indexOf("getCurrentAccount()"));
+  });
+
+  it("každý realtime odběr dostane vlastní kanál i při více badge komponentách", () => {
+    const first = createChatRealtimeTopic("unread");
+    const second = createChatRealtimeTopic("unread");
+    expect(first).not.toBe(second);
+    expect(first).toMatch(/^studenthub-chat-unread-[a-f0-9-]{36}$/);
   });
 });

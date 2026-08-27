@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ChatConversation, ChatMessage } from "@/lib/chat-types";
 import { chatUnreadEvent } from "@/components/chat-badge";
+import { createChatRealtimeTopic } from "@/lib/chat-realtime";
 
 const reportReasons = [
   ["harassment", "Obtěžování"], ["spam", "Spam"], ["fraud", "Podvod"], ["unsafe_meeting", "Nebezpečné setkání"], ["prohibited_sale", "Zakázaný prodej"], ["other", "Jiný důvod"],
@@ -27,7 +28,7 @@ export function ChatThread({ conversationId, dock = false, onClose }: { conversa
   }, [conversationId]);
   useEffect(() => { void refresh(true); const focused = () => document.visibilityState === "visible" && void refresh(); window.addEventListener("focus", focused); window.addEventListener("online", focused); document.addEventListener("visibilitychange", focused); const timer = window.setInterval(focused, 20000);
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; const client = url && key ? createBrowserClient(url, key) : null;
-    const channel = client?.channel(`chat-${conversationId}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh(true)).on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh()).subscribe();
+    const channel = client?.channel(createChatRealtimeTopic(conversationId)).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh(true)).on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh()).subscribe();
     return () => { window.removeEventListener("focus", focused); window.removeEventListener("online", focused); document.removeEventListener("visibilitychange", focused); window.clearInterval(timer); if (client && channel) void client.removeChannel(channel); };
   }, [conversationId, refresh]);
   async function loadOlder() { if (!cursor) return; const response = await fetch(`/api/chat/conversations/${conversationId}/messages?before=${encodeURIComponent(cursor)}`, { cache: "no-store" }); if (!response.ok) return; const body = await response.json(); setMessages((current) => [...(body.items || []), ...current]); setCursor(body.nextCursor || null); }
