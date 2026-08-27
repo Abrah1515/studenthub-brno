@@ -12,7 +12,7 @@ export function ChatComposerCard({ target, onClose, dock = false }: { target: Ch
     setBusy(true);
     const response = await fetch("/api/chat/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...target, message, clientNonce: crypto.randomUUID() }) }).catch(() => null);
     const body = await response?.json().catch(() => ({})); setBusy(false);
-    if (!response?.ok) { if (response?.status === 401) router.push(`/ucet?next=${encodeURIComponent(location.pathname)}`); else if (response?.status === 428) router.push("/nastaveni"); else setError(body?.message || "Žádost se nepodařilo odeslat."); return; }
+    if (!response?.ok) { if (response?.status === 401) router.push(`/ucet/prihlaseni?next=${encodeURIComponent(location.pathname)}`); else if (response?.status === 428) router.push("/nastaveni"); else setError(body?.message || "Žádost se nepodařilo odeslat."); return; }
     const id = body.conversation?.id; if (!id) return;
     if (dock) window.dispatchEvent(new CustomEvent("studenthub-open-chat", { detail: { id } })); else router.replace(`/chat/${id}`);
   }

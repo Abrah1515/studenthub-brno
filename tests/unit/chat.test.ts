@@ -5,6 +5,7 @@ import { createChatRealtimeTopic } from "@/lib/chat-realtime";
 
 const migration = readFileSync("supabase/migrations/202608260032_private_chat.sql", "utf8");
 const bootstrapRoute = readFileSync("app/api/chat/bootstrap/route.ts", "utf8");
+const chatLoginLinks = `${readFileSync("components/chat-inbox.tsx", "utf8")}\n${readFileSync("components/chat-composer-card.tsx", "utf8")}`;
 
 describe("soukromý chat", () => {
   it("validuje kontext, nonce a délku textu", () => {
@@ -43,5 +44,10 @@ describe("soukromý chat", () => {
     const second = createChatRealtimeTopic("unread");
     expect(first).not.toBe(second);
     expect(first).toMatch(/^studenthub-chat-unread-[a-f0-9-]{36}$/);
+  });
+
+  it("anonymní chat vede na existující přihlašovací stránku a zachová návrat", () => {
+    expect(chatLoginLinks).toContain("/ucet/prihlaseni?next=");
+    expect(chatLoginLinks).not.toMatch(/\/ucet\?next=/);
   });
 });
