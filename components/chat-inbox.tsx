@@ -13,7 +13,17 @@ export function ChatInbox() {
   const router = useRouter();
   const params = useSearchParams(); const compose = params.get("compose"); const target = compose ? { contextType: compose as "profile" | "buddy_post" | "marketplace_listing", contextId: params.get("contextId") || undefined, recipientUsername: params.get("to") || undefined, label: params.get("label") || undefined } : null;
   const [tab, setTab] = useState<"messages" | "requests" | "archived">("messages"); const [items, setItems] = useState<ChatConversation[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  const refresh = useCallback(async () => { setLoading(true); const response = await fetch(`/api/chat/conversations?tab=${tab}`, { cache: "no-store" }).catch(() => null); setLoading(false); if (!response?.ok) { setError(response?.status === 401 ? "Pro soukromé zprávy se nejprve přihlaste." : "Konverzace se nepodařilo načíst."); return; } setItems((await response.json()).items || []); setError(""); }, [tab]);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const bootstrap = await fetch("/api/chat/bootstrap", { cache: "no-store" }).catch(() => null);
+    if (!bootstrap?.ok) { setLoading(false); setError("Konverzace se nepodařilo načíst."); return; }
+    const session = await bootstrap.json();
+    if (!session.authenticated) { setItems([]); setLoading(false); setError("Pro soukromé zprávy se nejprve přihlaste."); return; }
+    const response = await fetch(`/api/chat/conversations?tab=${tab}`, { cache: "no-store" }).catch(() => null);
+    setLoading(false);
+    if (!response?.ok) { setError(response?.status === 401 ? "Přihlášení vypršelo. Přihlaste se znovu." : "Konverzace se nepodařilo načíst."); return; }
+    setItems((await response.json()).items || []); setError("");
+  }, [tab]);
   useEffect(() => { void refresh(); }, [refresh]);
   return <div className="chat-page"><div className="page-heading"><div><p className="eyebrow">Soukromé zprávy</p><h1>Chat</h1><p>Konverzace jsou viditelné jen jejich účastníkům. StudentHub nepoužívá end-to-end šifrování.</p></div><button className="button button-secondary" onClick={refresh}><RefreshCw size={16} />Obnovit</button></div>{target && <ChatComposerCard target={target} onClose={() => router.replace("/chat")} />}
     <div className="chat-tabs" role="tablist" aria-label="Typ konverzací"><button role="tab" aria-selected={tab === "messages"} className={tab === "messages" ? "active" : ""} onClick={() => setTab("messages")}>Zprávy</button><button role="tab" aria-selected={tab === "requests"} className={tab === "requests" ? "active" : ""} onClick={() => setTab("requests")}>Žádosti</button><button role="tab" aria-selected={tab === "archived"} className={tab === "archived" ? "active" : ""} onClick={() => setTab("archived")}><Archive size={15} />Archiv</button></div>
