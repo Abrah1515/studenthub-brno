@@ -193,7 +193,7 @@ test("PWA manifest, ikony a service worker jsou dostupné a necachují dynamick�
   await page.reload();
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   const cacheAudit = await page.evaluate(async () => ({ keys: await caches.keys(), dynamic: Boolean(await caches.match("/brno")), admin: Boolean(await caches.match("/admin")), api: Boolean(await caches.match("/api/service-requests")) }));
-  expect(cacheAudit.keys).toEqual(["studenthub-static-v5"]); expect(cacheAudit.dynamic).toBe(false); expect(cacheAudit.admin).toBe(false); expect(cacheAudit.api).toBe(false);
+  expect(cacheAudit.keys).toEqual(["studenthub-static-v6"]); expect(cacheAudit.dynamic).toBe(false); expect(cacheAudit.admin).toBe(false); expect(cacheAudit.api).toBe(false);
 });
 
 test("instalační nabídka zavře mobilní menu, drží focus a je nad mapou", async ({ page }, testInfo) => {

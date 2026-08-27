@@ -10,13 +10,13 @@ import { getCurrentAccount, getCurrentUser } from "@/lib/user-auth";
 import { legacyProfileIdentity, publicIdentityForRows } from "@/lib/profile-server";
 
 export async function GET(request: Request) {
-  await expireBuddyPosts(); const url = new URL(request.url); const scope = url.searchParams.get("scope") || "public"; const user = scope === "mine" ? await getCurrentUser() : null;
+  await expireBuddyPosts(); const url = new URL(request.url); const scope = url.searchParams.get("scope") || "public"; const user = await getCurrentUser();
   if (scope === "mine" && !user) return NextResponse.json({ message: "Přihlaste se ke svému účtu." }, { status: 401 });
   const [posts, joins] = await Promise.all([listRecords("buddy_posts"), scope === "mine" ? listRecords("buddy_join_requests") : Promise.resolve([])]);
   const blocked = user ? new Set((await createServiceClient().from("profile_blocks").select("blocked_id").eq("blocker_id",user.id)).data?.map((row)=>String(row.blocked_id)) || []) : new Set<string>();
   const visible = scope === "mine" ? posts.filter((post) => post.owner_id === user!.id) : posts.filter((post) => !blocked.has(String(post.owner_id||"")) && post.moderation_status === "approved" && post.status === "active" && new Date(String(post.expires_at)).getTime() >= Date.now());
   const identities=await publicIdentityForRows(visible.map((post)=>post.owner_id),user?.id);
-  return NextResponse.json({ items: visible.map((post) => ({ id: post.id, activityType: post.activity_type, approximateLocation: post.approximate_location, startsAt: post.starts_at, description: post.description, maxParticipants: post.max_participants, status: post.status, moderationStatus: scope === "mine" ? post.moderation_status : undefined, author:post.owner_id?identities.get(String(post.owner_id))||legacyProfileIdentity:legacyProfileIdentity, joinCount: joins.filter((join) => join.post_id === post.id && join.status === "accepted").length, joinRequests: scope === "mine" ? joins.filter((join) => join.post_id === post.id).map((join) => ({ id: join.id, status: join.status, message: join.message, requesterId: join.requester_id })) : undefined })) });
+  return NextResponse.json({ items: visible.map((post) => ({ id: post.id, activityType: post.activity_type, approximateLocation: post.approximate_location, startsAt: post.starts_at, description: post.description, maxParticipants: post.max_participants, status: post.status, moderationStatus: scope === "mine" ? post.moderation_status : undefined, owned:Boolean(user&&post.owner_id===user.id), hasProfileAuthor:Boolean(post.owner_id), author:post.owner_id?identities.get(String(post.owner_id))||legacyProfileIdentity:legacyProfileIdentity, joinCount: joins.filter((join) => join.post_id === post.id && join.status === "accepted").length, joinRequests: scope === "mine" ? joins.filter((join) => join.post_id === post.id).map((join) => ({ id: join.id, status: join.status, message: join.message, requesterId: join.requester_id })) : undefined })) });
 }
 
 export async function POST(request: Request) {

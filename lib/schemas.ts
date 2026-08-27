@@ -17,6 +17,7 @@ export const profileUpdateSchema = z.object({
   studyProgram: z.string().trim().max(140).optional().or(z.literal("")), studyYear: z.coerce.number().int().min(1).max(6).nullable().optional(),
   interests: z.array(z.string().trim().min(1).max(40)).max(12).default([]), profileVisibility: z.enum(["public","private"]).default("public"),
   showFaculty: z.boolean().default(true), showStudyProgram: z.boolean().default(true), showStudyYear: z.boolean().default(true),
+  allowChatRequests: z.boolean().default(true),
   communityRulesAccepted: z.boolean().refine(Boolean,"Pro veřejné akce je nutný souhlas s pravidly komunity."),
 }).superRefine((value,ctx)=>validCommunityScope(value,ctx));
 export const profileReportSchema = z.object({ reason:z.enum(["spam","harassment","hate","privacy","fraud","impersonation","other"]),detail:z.string().trim().max(800).default("") });
@@ -187,6 +188,19 @@ export const placeSuggestionSchema = z.object({
 export const placeCommentSchema = z.object({ body:z.string().trim().min(2,"Napište alespoň krátkou zkušenost.").max(600,"Zkušenost může mít nejvýše 600 znaků."), traits:z.array(z.enum(placeTraitCodes)).max(placeTraitCodes.length).default([]), company:honeypot });
 export const placeCommentUpdateSchema = placeCommentSchema.pick({body:true,traits:true});
 export const placeCommentReportSchema = z.object({ reason:z.enum(["spam","harassment","privacy","unsafe_link","false_information","other"]),detail:z.string().trim().max(800).default("") });
+
+export const chatContextTypes = ["profile","buddy_post","marketplace_listing"] as const;
+export const chatStartSchema = z.object({
+  contextType:z.enum(chatContextTypes), contextId:z.string().uuid().optional(), recipientUsername:z.string().trim().toLowerCase().max(30).optional(),
+  message:z.string().trim().min(1,"Napište zprávu.").max(2000,"Zpráva může mít nejvýše 2 000 znaků."), clientNonce:z.string().uuid(),
+}).superRefine((value,ctx)=>{if(value.contextType==="profile"&&!value.recipientUsername)ctx.addIssue({code:"custom",path:["recipientUsername"],message:"Chybí příjemce."});if(value.contextType!=="profile"&&!value.contextId)ctx.addIssue({code:"custom",path:["contextId"],message:"Chybí původní obsah."});});
+export const chatMessageSchema = z.object({ message:z.string().trim().min(1,"Napište zprávu.").max(2000,"Zpráva může mít nejvýše 2 000 znaků."),clientNonce:z.string().uuid() });
+export const chatConversationActionSchema = z.discriminatedUnion("action",[
+  z.object({action:z.literal("accept")}),z.object({action:z.literal("decline")}),z.object({action:z.literal("read"),messageId:z.string().uuid().optional()}),
+  z.object({action:z.literal("archive")}),z.object({action:z.literal("unarchive")}),z.object({action:z.literal("mute"),until:z.string().datetime({offset:true}).nullable()}),
+  z.object({action:z.literal("leave")}),z.object({action:z.literal("block")}),
+]);
+export const chatMessageReportSchema = z.object({reason:z.enum(["harassment","spam","fraud","unsafe_meeting","prohibited_sale","other"]),detail:z.string().trim().max(800).default("")});
 
 const marketplaceScope = z.object({
   universityId: z.string().trim().max(50).optional().or(z.literal("")),

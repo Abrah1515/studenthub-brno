@@ -1,4 +1,4 @@
-const STATIC_CACHE = "studenthub-static-v5";
+const STATIC_CACHE = "studenthub-static-v6";
 const OFFLINE_PAGE = "/offline.html";
 const PRECACHE = [
   OFFLINE_PAGE,
@@ -7,7 +7,7 @@ const PRECACHE = [
   "/brand/brno/icon-maskable-192.png",
   "/brand/brno/icon-maskable-512.png",
 ];
-const PRIVATE_PREFIXES = ["/admin", "/api", "/auth", "/ucet", "/partak/moje"];
+const PRIVATE_PREFIXES = ["/admin", "/api", "/auth", "/ucet", "/partak/moje", "/chat"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));

@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(31);
+      expect(files).toHaveLength(32);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -232,6 +232,25 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query<{ previous_status: string; new_status: string }>("select previous_status,new_status from public.marketplace_history where listing_id='c1111111-1111-4111-8111-111111111112' and event_type='expired'")).rows[0]).toEqual({ previous_status: "sold", new_status: "expired" });
       expect((await db.query<{ consume_marketplace_rate_limit: boolean }>("select public.consume_marketplace_rate_limit(repeat('7',24),'create',1,3600)")).rows[0].consume_marketplace_rate_limit).toBe(true);
       expect((await db.query<{ consume_marketplace_rate_limit: boolean }>("select public.consume_marketplace_rate_limit(repeat('7',24),'create',1,3600)")).rows[0].consume_marketplace_rate_limit).toBe(false);
+
+      await db.exec("update public.profiles set username='chat_target',display_name='Chat Target',community_rules_accepted_at=now(),account_status='active',allow_chat_requests=true where id='71111111-1111-4111-8111-111111111111'");
+      await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111114"]); await db.exec("set role authenticated");
+      const chatRequest = await db.query<{ start_chat_request: string }>("select public.start_chat_request($1::uuid,'buddy_post',$2::uuid,$3,$4::uuid)", ["71111111-1111-4111-8111-111111111111", "91111111-1111-4111-8111-111111111111", "Ahoj, ozývám se kvůli společnému učení.", "d1111111-1111-4111-8111-111111111111"]);
+      const chatId = chatRequest.rows[0].start_chat_request;
+      await expect(db.query("select public.send_chat_message($1::uuid,$2,$3::uuid)", [chatId, "Druhá zpráva před přijetím nesmí projít.", "d1111111-1111-4111-8111-111111111112"])).rejects.toThrow(/one_message_only/i);
+      expect((await db.query("select id from public.chat_conversations where id=$1", [chatId])).rows).toHaveLength(1);
+      await db.exec("reset role");
+      await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111111"]); await db.exec("set role authenticated");
+      await db.query("select public.send_chat_message($1::uuid,$2,$3::uuid)", [chatId, "Ahoj, odpovědí žádost přijímám.", "d1111111-1111-4111-8111-111111111113"]);
+      expect((await db.query<{ status: string }>("select status from public.chat_conversations where id=$1", [chatId])).rows[0].status).toBe("active");
+      await db.exec("insert into public.profile_blocks(blocker_id,blocked_id) values ('71111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111114')");
+      expect((await db.query<{ status: string }>("select status from public.chat_conversations where id=$1", [chatId])).rows[0].status).toBe("restricted");
+      await expect(db.query("select public.send_chat_message($1::uuid,$2,$3::uuid)", [chatId, "Blokovaná zpráva nesmí projít.", "d1111111-1111-4111-8111-111111111114"])).rejects.toThrow(/blocked/i);
+      await db.exec("delete from public.profile_blocks where blocker_id='71111111-1111-4111-8111-111111111111' and blocked_id='71111111-1111-4111-8111-111111111114'; reset role");
+      await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111112"]); await db.exec("set role authenticated");
+      expect((await db.query("select id from public.chat_conversations where id=$1", [chatId])).rows).toHaveLength(0);
+      expect((await db.query("select id from public.chat_messages where conversation_id=$1", [chatId])).rows).toHaveLength(0);
+      await db.exec("reset role");
 
       await db.exec("set role anon");
       const publicEvents = await db.query<{ title: string }>("select title from public.academic_events where title like 'Integration %' order by title");

@@ -23,7 +23,8 @@
     "admin:inspect": "node scripts/inspect-superadmin.mjs",
     "admin:invite": "node scripts/invite-superadmin.mjs",
     "admin:recover": "node scripts/invite-superadmin.mjs --recover",
-    "admin:transfer": "node scripts/transfer-superadmin.mjs"
+    "admin:transfer": "node scripts/transfer-superadmin.mjs",
+    "smoke:chat:production": "node scripts/smoke-chat-production.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "5.6.0",

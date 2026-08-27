@@ -7,6 +7,7 @@ const reservedTopLevelRoutes = new Set([
   "auth",
   "brand",
   "brigady",
+  "chat",
   "cookies",
   "hlidac",
   "kalendar",

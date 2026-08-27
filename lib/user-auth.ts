@@ -25,6 +25,7 @@ export type AccountProfile = {
   showStudyProgram: boolean;
   showStudyYear: boolean;
   communityRulesAccepted: boolean;
+  allowChatRequests: boolean;
   trustedEventPublisher: boolean;
   complete: boolean;
 };
@@ -59,6 +60,6 @@ export async function getCurrentAccount(): Promise<AccountProfile | null> {
     interests: Array.isArray(data.interests) ? data.interests.map(String) : [], avatarPath: data.avatar_path ? String(data.avatar_path) : null,
     avatarUrl, profileVisibility: data.profile_visibility === "public" ? "public" : "private",
     showFaculty: data.show_faculty !== false, showStudyProgram: data.show_study_program !== false, showStudyYear: data.show_study_year !== false,
-    communityRulesAccepted: accepted, trustedEventPublisher: status === "active" && data.role === "user" && Boolean(publisherPermission), complete: status === "active" && Boolean(username && displayName.trim().length >= 2 && accepted),
+    communityRulesAccepted: accepted, allowChatRequests: data.allow_chat_requests !== false, trustedEventPublisher: status === "active" && data.role === "user" && Boolean(publisherPermission), complete: status === "active" && Boolean(username && displayName.trim().length >= 2 && accepted),
   };
 }

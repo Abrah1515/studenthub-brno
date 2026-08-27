@@ -11,16 +11,17 @@ import { adminSectionAllowed, adminSectionsForRole, isAdminSection, type AdminSe
 import { MarketplaceAdminPanel } from "@/components/marketplace-admin-panel";
 import { PlaceCommunityAdminPanel } from "@/components/place-community-admin-panel";
 import { ProfileAdminPanel } from "@/components/profile-admin-panel";
+import { ChatAdminPanel } from "@/components/chat-admin-panel";
 
 type Row = Record<string, unknown>;
-type DataKey = "profiles" | "profile_reports" | "account_moderation_history" | "profile_permissions" | "profile_permission_audit" | "cities" | "academic_events" | "community_events" | "places" | "place_live_reports" | "moderation_actions" | "offers" | "jobs" | "marketplace_listings" | "marketplace_reports" | "marketplace_history" | "marketplace_moderation_actions" | "marketplace_abuse_blocks" | "service_requests" | "submissions" | "content_sources" | "source_review_queue" | "outbound_clicks" | "page_views" | "source_sync_runs" | "link_checks" | "content_publication_events" | "buddy_posts" | "buddy_join_requests" | "content_reports" | "contact_messages" | "academic_event_conflicts" | "community_profiles" | "community_posts" | "community_comments" | "community_reports" | "community_moderation_history" | "community_moderation_settings";
+type DataKey = "profiles" | "profile_reports" | "account_moderation_history" | "profile_permissions" | "profile_permission_audit" | "cities" | "academic_events" | "community_events" | "places" | "place_live_reports" | "moderation_actions" | "offers" | "jobs" | "marketplace_listings" | "marketplace_reports" | "marketplace_history" | "marketplace_moderation_actions" | "marketplace_abuse_blocks" | "service_requests" | "submissions" | "content_sources" | "source_review_queue" | "outbound_clicks" | "page_views" | "source_sync_runs" | "link_checks" | "content_publication_events" | "buddy_posts" | "buddy_join_requests" | "content_reports" | "contact_messages" | "academic_event_conflicts" | "community_profiles" | "community_posts" | "community_comments" | "community_reports" | "community_moderation_history" | "community_moderation_settings" | "chat_reports";
 type ExternalProviderStatus = { id: string; enabled: boolean; permissionConfirmed: boolean; maxCheckIntervalHours: number; statusReason: string };
 type Operations = { installations: number; activePushSubscriptions: number; activeCalendarSubscriptions: number; unreadNotifications: number; pendingPush: number; sentPush: number; failedPush: number; freshPlaceReports: number; suspiciousPlaceReports: number; academicChanges: number; moderationActions: number };
 type Data = Record<DataKey, Row[]> & { _meta: { dataSource: string; verifiedFallback: boolean; externalProviders: ExternalProviderStatus[]; operations: Operations } };
 const emptyOperations: Operations = { installations: 0, activePushSubscriptions: 0, activeCalendarSubscriptions: 0, unreadNotifications: 0, pendingPush: 0, sentPush: 0, failedPush: 0, freshPlaceReports: 0, suspiciousPlaceReports: 0, academicChanges: 0, moderationActions: 0 };
-const empty: Data = { _meta: { dataSource: "loading", verifiedFallback: false, externalProviders: [], operations: emptyOperations }, profiles: [], profile_reports: [], account_moderation_history: [], profile_permissions: [], profile_permission_audit: [], cities: [], academic_events: [], community_events: [], places: [], place_live_reports: [], moderation_actions: [], offers: [], jobs: [], marketplace_listings: [], marketplace_reports: [], marketplace_history: [], marketplace_moderation_actions: [], marketplace_abuse_blocks: [], service_requests: [], submissions: [], outbound_clicks: [], page_views: [], content_sources: [], source_sync_runs: [], source_review_queue: [], link_checks: [], content_publication_events: [], buddy_posts: [], buddy_join_requests: [], content_reports: [], contact_messages: [], academic_event_conflicts: [], community_profiles: [], community_posts: [], community_comments: [], community_reports: [], community_moderation_history: [], community_moderation_settings: [] };
+const empty: Data = { _meta: { dataSource: "loading", verifiedFallback: false, externalProviders: [], operations: emptyOperations }, profiles: [], profile_reports: [], account_moderation_history: [], profile_permissions: [], profile_permission_audit: [], cities: [], academic_events: [], community_events: [], places: [], place_live_reports: [], moderation_actions: [], offers: [], jobs: [], marketplace_listings: [], marketplace_reports: [], marketplace_history: [], marketplace_moderation_actions: [], marketplace_abuse_blocks: [], service_requests: [], submissions: [], outbound_clicks: [], page_views: [], content_sources: [], source_sync_runs: [], source_review_queue: [], link_checks: [], content_publication_events: [], buddy_posts: [], buddy_join_requests: [], content_reports: [], contact_messages: [], academic_event_conflicts: [], community_profiles: [], community_posts: [], community_comments: [], community_reports: [], community_moderation_history: [], community_moderation_settings: [], chat_reports: [] };
 const resources = [{ key: "academic_events", label: "Školní termíny", icon: CalendarDays }, { key: "community_events", label: "Co se děje", icon: CalendarDays }, { key: "places", label: "Místa", icon: MapPin }, { key: "offers", label: "Nabídky", icon: Handshake }, { key: "jobs", label: "Brigády", icon: BriefcaseBusiness }] as const;
-const navigation = [{ key: "cities", label: "Města", icon: Building2 }, { key: "content_sources", label: "Datové zdroje", icon: Database }, ...resources, { key: "marketplace", label: "Studentská burza", icon: ShoppingBag }, { key: "live_reports", label: "Živý stav míst", icon: Activity }, { key: "community_forum", label: "Komunita", icon: MessageCircle }, { key: "profiles", label: "Profily", icon: UserCog }, { key: "service_requests", label: "Archiv technické pomoci", icon: Eye }, { key: "buddy_posts", label: "Parťáci", icon: Users }, { key: "contact_messages", label: "Kontaktní zprávy", icon: Eye }, { key: "content_reports", label: "Hlášení", icon: ShieldCheck }, { key: "academic_event_conflicts", label: "Konflikty zdrojů", icon: BadgeCheck }, { key: "analytics", label: "Návštěvnost", icon: BarChart3 }, { key: "admin_users", label: "Správci", icon: UserCog }, { key: "submissions", label: "Archiv návrhů", icon: ShieldCheck }, { key: "source_review_queue", label: "Kontrola změn", icon: BadgeCheck }] satisfies Array<{ key: AdminSection; label: string; icon: typeof Database }>;
+const navigation = [{ key: "cities", label: "Města", icon: Building2 }, { key: "content_sources", label: "Datové zdroje", icon: Database }, ...resources, { key: "marketplace", label: "Studentská burza", icon: ShoppingBag }, { key: "live_reports", label: "Živý stav míst", icon: Activity }, { key: "community_forum", label: "Komunita", icon: MessageCircle }, { key: "chat_reports", label: "Hlášení chatu", icon: MessageCircle }, { key: "profiles", label: "Profily", icon: UserCog }, { key: "service_requests", label: "Archiv technické pomoci", icon: Eye }, { key: "buddy_posts", label: "Parťáci", icon: Users }, { key: "contact_messages", label: "Kontaktní zprávy", icon: Eye }, { key: "content_reports", label: "Hlášení", icon: ShieldCheck }, { key: "academic_event_conflicts", label: "Konflikty zdrojů", icon: BadgeCheck }, { key: "analytics", label: "Návštěvnost", icon: BarChart3 }, { key: "admin_users", label: "Správci", icon: UserCog }, { key: "submissions", label: "Archiv návrhů", icon: ShieldCheck }, { key: "source_review_queue", label: "Kontrola změn", icon: BadgeCheck }] satisfies Array<{ key: AdminSection; label: string; icon: typeof Database }>;
 const analyticsReferenceTime = Date.now();
 function labelFor(row: Row) { return String(row.title || row.name || row.company_name || row.companyName || row.id || "Záznam"); }
 function sourceValue(row: Row, camel: string, snake: string) { return row[snake] ?? row[camel]; }
@@ -37,7 +38,7 @@ export function AdminDashboard({ adminEmail, mode, role, initialSection }: { adm
   const visibleNavigation = navigation.filter((item) => visibleSections.has(item.key));
   return <div className="admin-shell"><aside className="admin-sidebar"><Link href="/" className="brand"><span className="brand-mark" aria-hidden="true"><Image src={brand.assets.icon192} alt="" width={38} height={38} /></span><span><strong>StudentHub</strong><small>Administrace</small></span></Link><nav aria-label="Sekce administrace">{visibleNavigation.map(({ key, label, icon: Icon }) => <Link key={key} href={`/admin?section=${key}`} className={active === key ? "active" : ""} aria-current={active === key ? "page" : undefined}><Icon size={18} />{label}</Link>)}</nav><div className="admin-account"><small>{mode === "local" ? "LOKÁLNÍ TEST" : role === "super_admin" ? "HLAVNÍ SUPERADMIN" : "SUPABASE AUTH"}</small><strong>{adminEmail}</strong><button onClick={logout}><LogOut size={16} />Odhlásit</button></div></aside>
     <main className="admin-content"><header className="admin-top"><div><span className="eyebrow">Chráněná zóna · {role === "faculty_editor" ? "fakultní editor" : "administrátor"}</span><h1>Správa StudentHub</h1></div><div className="admin-top-actions"><button className="button button-secondary" onClick={load}><RefreshCcw size={17} />Obnovit</button><button className="button button-secondary admin-mobile-logout" onClick={logout}><LogOut size={17} />Odhlásit</button></div></header><label className="admin-mobile-section"><span>Aktivní sekce</span><select value={active} onChange={(event) => router.push(`/admin?section=${event.target.value}`)}>{visibleNavigation.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>{data._meta.verifiedFallback && <div className="admin-data-note" role="status"><Database size={18} /><p><strong>Lokální ověřený fallback.</strong> Administrace zobrazuje stejné kurátorované události a místa jako veřejný web. Tyto řádky jsou jen pro čtení; produkce používá výhradně Supabase.</p></div>}<div className="admin-data-note" role="status"><Database size={18} /><p><strong>Smluvní feedy:</strong> {data._meta.externalProviders.length ? data._meta.externalProviders.map((provider) => `${provider.id}: ${provider.statusReason}`).join(" · ") : "načítám stav…"}</p></div><section className="admin-stats">{stats.map(({ label, value, icon: Icon }) => <article key={label}><Icon size={19} /><span>{label}</span><strong>{value}</strong></article>)}</section>{error && <div className="error-state" role="alert">{error}</div>}{notice && <div className="success-message" role="status">{notice}</div>}
-      {active === "cities" ? <CitiesPanel rows={data.cities} sources={data.content_sources} content={[...data.academic_events, ...data.community_events, ...data.places, ...data.offers, ...data.jobs]} role={role} mutate={mutate} /> : active === "content_sources" ? <SourcesPanel rows={data.content_sources} runs={data.source_sync_runs} content={[...data.academic_events, ...data.jobs]} role={role} onApi={api} /> : active === "source_review_queue" ? <ReviewPanel rows={data.source_review_queue} onApi={api} /> : active === "marketplace" ? <MarketplaceAdminPanel listings={data.marketplace_listings} reports={data.marketplace_reports} history={data.marketplace_history} actions={data.marketplace_moderation_actions} blocks={data.marketplace_abuse_blocks} role={role} onApi={api} /> : active === "live_reports" ? <PlaceLiveReportsPanel rows={data.place_live_reports} places={data.places} actions={data.moderation_actions} mutate={mutate} /> : active === "community_forum" ? <CommunityAdminPanel posts={data.community_posts} comments={data.community_comments} reports={data.community_reports} history={data.community_moderation_history} settings={data.community_moderation_settings} onApi={api} /> : active === "profiles" ? <ProfileAdminPanel profiles={data.profiles} reports={data.profile_reports} history={data.account_moderation_history} permissions={data.profile_permissions} permissionHistory={data.profile_permission_audit} onApi={api} /> : active === "service_requests" ? <ModerationPanel title="Archiv technické pomoci" description="Historické technické žádosti zůstávají zachované jako soukromý archiv. Nové žádosti se už přes veřejný web nepřijímají a záznamy se nikdy nemění na inzeráty burzy." rows={data.service_requests} resource="service_requests" mutate={mutate} exportCsv /> : active === "buddy_posts" ? <ModerationPanel title="Hledám parťáka" description="Ověřené příspěvky jsou veřejné ihned; správce zasahuje jen po hlášení nebo při porušení pravidel." rows={data.buddy_posts} resource="buddy_posts" mutate={mutate} /> : active === "contact_messages" ? <ContactMessagesPanel rows={data.contact_messages} mutate={mutate} /> : active === "content_reports" ? <ReportsPanel rows={data.content_reports} mutate={mutate} /> : active === "academic_event_conflicts" ? <ConflictsPanel rows={data.academic_event_conflicts} mutate={mutate} /> : active === "analytics" ? <AnalyticsPanel rows={data.page_views} /> : active === "admin_users" && role === "super_admin" ? <AdminUsersPanel /> : active === "submissions" ? <Submissions rows={data.submissions} /> : <section className="admin-panel"><div className="admin-section-head"><div><h2>{resources.find((item) => item.key === active)?.label}</h2><p>Schválení, zvýraznění, archivace a odstranění obsahu.</p></div></div><AdminTable rows={data[active as DataKey]} resource={active} onMutate={mutate} /></section>}
+      {active === "cities" ? <CitiesPanel rows={data.cities} sources={data.content_sources} content={[...data.academic_events, ...data.community_events, ...data.places, ...data.offers, ...data.jobs]} role={role} mutate={mutate} /> : active === "content_sources" ? <SourcesPanel rows={data.content_sources} runs={data.source_sync_runs} content={[...data.academic_events, ...data.jobs]} role={role} onApi={api} /> : active === "source_review_queue" ? <ReviewPanel rows={data.source_review_queue} sources={data.content_sources} onApi={api} /> : active === "marketplace" ? <MarketplaceAdminPanel listings={data.marketplace_listings} reports={data.marketplace_reports} history={data.marketplace_history} actions={data.marketplace_moderation_actions} blocks={data.marketplace_abuse_blocks} role={role} onApi={api} /> : active === "live_reports" ? <PlaceLiveReportsPanel rows={data.place_live_reports} places={data.places} actions={data.moderation_actions} mutate={mutate} /> : active === "community_forum" ? <CommunityAdminPanel posts={data.community_posts} comments={data.community_comments} reports={data.community_reports} history={data.community_moderation_history} settings={data.community_moderation_settings} onApi={api} /> : active === "profiles" ? <ProfileAdminPanel profiles={data.profiles} reports={data.profile_reports} history={data.account_moderation_history} permissions={data.profile_permissions} permissionHistory={data.profile_permission_audit} onApi={api} /> : active === "service_requests" ? <ModerationPanel title="Archiv technické pomoci" description="Historické technické žádosti zůstávají zachované jako soukromý archiv. Nové žádosti se už přes veřejný web nepřijímají a záznamy se nikdy nemění na inzeráty burzy." rows={data.service_requests} resource="service_requests" mutate={mutate} exportCsv /> : active === "buddy_posts" ? <ModerationPanel title="Hledám parťáka" description="Ověřené příspěvky jsou veřejné ihned; správce zasahuje jen po hlášení nebo při porušení pravidel." rows={data.buddy_posts} resource="buddy_posts" mutate={mutate} /> : active === "contact_messages" ? <ContactMessagesPanel rows={data.contact_messages} mutate={mutate} /> : active === "content_reports" ? <ReportsPanel rows={data.content_reports} mutate={mutate} /> : active === "academic_event_conflicts" ? <ConflictsPanel rows={data.academic_event_conflicts} mutate={mutate} /> : active === "analytics" ? <AnalyticsPanel rows={data.page_views} /> : active === "admin_users" && role === "super_admin" ? <AdminUsersPanel /> : active === "submissions" ? <Submissions rows={data.submissions} /> : <section className="admin-panel"><div className="admin-section-head"><div><h2>{resources.find((item) => item.key === active)?.label}</h2><p>Schválení, zvýraznění, archivace a odstranění obsahu.</p></div></div><AdminTable rows={data[active as DataKey]} resource={active} onMutate={mutate} /></section>}
       {active === "places" && <PlaceCommunityAdminPanel places={data.places} role={role} />}
       {loading && <div className="admin-loading">Načítám data…</div>}
     </main></div>;
@@ -57,7 +58,470 @@ function SourcesPanel({ rows, runs, content, role, onApi }: { rows: Row[]; runs:
     return <article role="row" key={id}><div><strong>{isJobFeed ? "BRNO" : String(row.universityId || row.university_id || "").toUpperCase()}</strong><span>{isJobFeed ? "Brigády" : faculty?.name || facultyId}</span></div><div><a href={String(sourceValue(row, "sourceUrl", "source_url"))} target="_blank" rel="noopener noreferrer">{isJobFeed ? "Veřejná stránka poskytovatele" : "Oficiální zdroj"}</a><small>{String(row.format)} · {String(row.parserKey || row.parser_key)}</small>{!isJobFeed && <small>{String(row.academicYear || row.academic_year || "rok zjišťuje parser")}</small>}{!isJobFeed && Boolean(row.last_final_url) && <small>Finální URL: {String(row.last_final_url)}</small>}{Boolean(row.last_content_type) && <small>MIME: {String(row.last_content_type)}</small>}</div><div><strong>{count} {isJobFeed ? "aktivních nabídek" : "událostí"}</strong><small>Poslední pokus: {String(row.last_checked_at || "zatím neproběhl")}</small><small>Poslední úspěch: {String(row.last_success_at || "zatím neproběhl")}</small><small>Další kontrola: {String(row.next_check_at || "nenaplánována")}</small>{Boolean(blockReason) && <small className="source-block-reason">Blokováno: {blockReason}</small>}</div><div><span className={`source-status source-${mode}`}>{modeLabel}</span><small>Poslední stav: {status}</small><small>{failures} chyb · jistota {Math.round(Number(row.confidence || 0) * 100)} %</small>{isJobFeed && <small>{String(row.connector_status_reason || "Čeká na ostrý XML feed.")}</small>}{lastRun && <small>Poslední běh: {String(lastRun.status)} · načteno {String(lastRun.loaded_count ?? lastRun.discovered_count ?? 0)}, vloženo {String(lastRun.inserted_count ?? 0)}, změněno {String(lastRun.updated_count ?? 0)}, beze změny {String(lastRun.unchanged_count ?? 0)}, archivováno {String(lastRun.archived_count ?? 0)}, odmítnuto {String(lastRun.rejected_count ?? 0)}, varování {String(lastRun.warning_count ?? warnings.length)}</small>}{warnings.length > 0 && <small className="source-block-reason">{warnings.slice(0, 2).join(" ")}</small>}{isJobFeed && sourceRuns.length > 0 && <details className="admin-audit-log"><summary>Poslední běhy synchronizace</summary>{sourceRuns.map((run) => <small key={String(run.id)}>• {String(run.started_at)} · {String(run.status)} · {String(run.loaded_count ?? run.discovered_count ?? 0)} načteno / {String(run.rejected_count ?? 0)} odmítnuto</small>)}</details>}</div><div className="source-actions">{role === "super_admin" && <button className="button button-secondary" disabled={!enabled || !connectorEnabled} onClick={() => onApi(`/api/admin/sources/${id}/sync`, { method: "POST" })}><RefreshCcw size={15} />Synchronizovat</button>}<button className="button button-secondary" onClick={() => onApi(`/api/admin/sources/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled: !enabled }) })}>{enabled ? "Vypnout" : "Zapnout"}</button></div></article>;
   })}</div></section>;
 }
-function ReviewPanel({ rows, onApi }: { rows: Row[]; onApi: (url: string, options?: RequestInit) => Promise<boolean> }) { const pending = rows.filter((row) => row.status === "pending"); async function editAndApprove(row: Row) { const events = [...((((row.proposed_payload as Row | undefined)?.events as Row[] | undefined) || []))]; if (!events.length) return; const title = window.prompt("Ověřený název události", String(events[0].title || "")); if (!title) return; const startAt = window.prompt("Ověřené datum a čas v ISO 8601", String(events[0].startAt || "")); if (!startAt || Number.isNaN(new Date(startAt).getTime())) return; events[0] = { ...events[0], title, startAt }; await onApi(`/api/admin/reviews/${row.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "approved", events, note: "Ručně upraveno před schválením." }) }); } return <section className="admin-panel"><div className="admin-section-head"><div><h2>Změny čekající na kontrolu</h2><p>PDF, OCR a nejisté změny se nikdy nepublikují automaticky.</p></div></div><div className="approval-list">{pending.length === 0 ? <p className="muted">Žádné změny nečekají na kontrolu.</p> : pending.map((row) => { const event = (((row.proposed_payload as Row | undefined)?.events as Row[] | undefined)?.[0]); return <article key={String(row.id)}><div><span className="tag">{String(row.reason || "ruční kontrola")}</span><h3>{String(event?.title || row.source_document_title || row.id)}</h3><dl className="review-details"><div><dt>Škola / fakulta</dt><dd>{String(event?.universityId || "—")} · {String(event?.facultyId || "—")}</dd></div><div><dt>Navržený termín</dt><dd>{String(event?.startAt || "nenalezen")}</dd></div><div><dt>Zdrojový dokument</dt><dd>{String(row.source_document_title || event?.sourceDocumentTitle || "oficiální zdroj")}</dd></div><div><dt>Jistota</dt><dd>{Math.round(Number(row.confidence || event?.confidence || 0) * 100)} %</dd></div></dl><details><summary>Původní text a návrh</summary><pre>{String(row.source_text || event?.originalText || "Textová vrstva není dostupná.")}</pre></details></div><div><button className="button button-primary" onClick={() => onApi(`/api/admin/reviews/${row.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "approved" }) })}><BadgeCheck size={16} />Schválit</button><button className="button button-secondary" onClick={() => editAndApprove(row)}>Upravit a schválit</button><button className="button button-secondary" onClick={() => onApi(`/api/admin/reviews/${row.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "rejected" }) })}><XCircle size={16} />Zamítnout</button></div></article>; })}</div></section>; }
+function ReviewPanel({ rows, sources, onApi }: { rows: Row[]; sources: Row[]; onApi: (url: string, options?: RequestInit) => Promise<boolean> }) {
+  const pending = rows.filter((row) => row.status === "pending");
+
+  function eventsFor(row: Row): Row[] {
+    const payload = row.proposed_payload as Row | undefined;
+    return Array.isArray(payload?.events)
+      ? payload.events as Row[]
+      : [];
+  }
+
+  function decisionsFor(row: Row): Row[] {
+    const payload = row.proposed_payload as Row | undefined;
+    return Array.isArray(payload?.decisions)
+      ? payload.decisions as Row[]
+      : [];
+  }
+
+  function eventEndScore(event: Row) {
+    const start = new Date(
+      String(event.startAt || "")
+    ).getTime();
+
+    const end = event.endAt
+      ? new Date(String(event.endAt)).getTime()
+      : start;
+
+    if (
+      Number.isFinite(end) &&
+      Number.isFinite(start) &&
+      end >= start
+    ) {
+      return end;
+    }
+
+    return Number.isFinite(start) ? start : 0;
+  }
+
+  function uniqueEvents(events: Row[]) {
+    const unique = new Map<string, Row>();
+
+    events.forEach((event, index) => {
+      const externalId = String(
+        event.externalId || ""
+      ).trim();
+
+      const key =
+        externalId ||
+        [
+          String(event.title || ""),
+          String(event.startAt || ""),
+          String(event.sourceHash || ""),
+          String(index),
+        ].join("|");
+
+      const existing = unique.get(key);
+
+      if (
+        !existing ||
+        eventEndScore(event) >=
+          eventEndScore(existing)
+      ) {
+        unique.set(key, event);
+      }
+    });
+
+    return [...unique.values()];
+  }
+
+  function formatDate(value: unknown) {
+    if (!value) return "Datum nebylo rozpoznáno";
+
+    const date = new Date(String(value));
+
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+
+    return new Intl.DateTimeFormat("cs-CZ", {
+      dateStyle: "medium",
+      timeZone: "Europe/Prague",
+    }).format(date);
+  }
+
+  return (
+    <section className="admin-panel">
+      <div className="admin-section-head">
+        <div>
+          <h2>Změny čekající na kontrolu</h2>
+          <p>
+            Návrhy z automatického zpracování můžeš
+            schválit všechny najednou nebo je rozbalit
+            a rozhodnout o každém zvlášť.
+          </p>
+        </div>
+      </div>
+
+      <div className="approval-list">
+        {pending.length === 0 ? (
+          <p className="muted">
+            Žádné změny nečekají na kontrolu.
+          </p>
+        ) : (
+          pending.map((row) => {
+            const rawEvents = eventsFor(row);
+            const events = uniqueEvents(rawEvents);
+            const decisions = decisionsFor(row);
+
+            const firstEvent = events[0];
+
+            const source = sources.find(
+              (item) =>
+                String(item.id) ===
+                String(row.source_id)
+            );
+
+            const fallbackSourceUrl = String(
+              source?.source_url ||
+              source?.sourceUrl ||
+              ""
+            );
+
+            const mainSourceUrl = String(
+              firstEvent?.sourceUrl ||
+              fallbackSourceUrl ||
+              ""
+            );
+
+            return (
+              <article key={String(row.id)}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <span className="tag">
+                    {String(
+                      row.reason ||
+                      "ruční kontrola"
+                    )}
+                  </span>
+
+                  <h3>
+                    {String(
+                      firstEvent?.title ||
+                      row.source_document_title ||
+                      row.id
+                    )}
+                  </h3>
+
+                  <dl className="review-details">
+                    <div>
+                      <dt>Škola / fakulta</dt>
+                      <dd>
+                        {String(
+                          firstEvent?.universityId ||
+                          "—"
+                        )}{" "}
+                        ·{" "}
+                        {String(
+                          firstEvent?.facultyId ||
+                          source?.faculty_id ||
+                          "—"
+                        )}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Zbývá rozhodnout</dt>
+                      <dd>
+                        {events.length}{" "}
+                        {events.length === 1
+                          ? "návrh"
+                          : "návrhů"}
+                      </dd>
+                    </div>
+
+                    {rawEvents.length !== events.length && (
+                      <div>
+                        <dt>Načtené položky</dt>
+                        <dd>
+                          {rawEvents.length} položek ·{" "}
+                          {events.length} unikátních
+                        </dd>
+                      </div>
+                    )}
+
+                    {decisions.length > 0 && (
+                      <div>
+                        <dt>Již vyřízeno</dt>
+                        <dd>
+                          {decisions.length}{" "}
+                          {decisions.length === 1
+                            ? "rozhodnutí"
+                            : "rozhodnutí"}
+                        </dd>
+                      </div>
+                    )}
+
+                    <div>
+                      <dt>Jistota</dt>
+                      <dd>
+                        {Math.round(
+                          Number(
+                            row.confidence ||
+                            firstEvent?.confidence ||
+                            0
+                          ) * 100
+                        )}{" "}
+                        %
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Původní zdroj</dt>
+                      <dd>
+                        {mainSourceUrl ? (
+                          <a
+                            href={mainSourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Otevřít původní zdroj ↗
+                          </a>
+                        ) : (
+                          "Zdrojový odkaz není k dispozici"
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {events.length > 0 && (
+                    <details
+                      style={{
+                        marginTop: "1rem",
+                        width: "100%",
+                      }}
+                    >
+                      <summary
+                        style={{
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          padding: "0.5rem 0",
+                        }}
+                      >
+                        Rozbalit a rozhodnout jednotlivě
+                        {" "}
+                        ({events.length})
+                      </summary>
+
+                      <div
+                        style={{
+                          marginTop: "0.75rem",
+                        }}
+                      >
+                        {events.map((event, index) => {
+                          const externalId = String(
+                            event.externalId || ""
+                          ).trim();
+
+                          const eventSourceUrl = String(
+                            event.sourceUrl ||
+                            fallbackSourceUrl ||
+                            ""
+                          );
+
+                          return (
+                            <div
+                              key={
+                                externalId ||
+                                `${String(event.title)}-${index}`
+                              }
+                              style={{
+                                padding: "1rem 0",
+                                borderTop:
+                                  "1px solid rgba(127,127,127,0.25)",
+                              }}
+                            >
+                              <strong>
+                                {index + 1}.{" "}
+                                {String(
+                                  event.title ||
+                                  "Bez názvu"
+                                )}
+                              </strong>
+
+                              <p
+                                className="muted"
+                                style={{
+                                  margin:
+                                    "0.4rem 0 0.75rem",
+                                }}
+                              >
+                                {formatDate(
+                                  event.startAt
+                                )}
+
+                                {event.endAt
+                                  ? ` – ${formatDate(
+                                      event.endAt
+                                    )}`
+                                  : ""}
+                              </p>
+
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: "0.5rem",
+                                  alignItems: "center",
+                                }}
+                              >
+                                {eventSourceUrl && (
+                                  <a
+                                    className="button button-secondary"
+                                    href={eventSourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    Otevřít zdroj ↗
+                                  </a>
+                                )}
+
+                                <button
+                                  className="button button-primary"
+                                  disabled={!externalId}
+                                  title={
+                                    externalId
+                                      ? "Schválit pouze tento návrh"
+                                      : "Návrhu chybí identifikátor"
+                                  }
+                                  onClick={() =>
+                                    onApi(
+                                      `/api/admin/reviews/${row.id}`,
+                                      {
+                                        method: "PATCH",
+                                        headers: {
+                                          "content-type":
+                                            "application/json",
+                                        },
+                                        body: JSON.stringify({
+                                          status:
+                                            "approved",
+                                          eventExternalId:
+                                            externalId,
+                                        }),
+                                      }
+                                    )
+                                  }
+                                >
+                                  <BadgeCheck size={16} />
+                                  Schválit
+                                </button>
+
+                                <button
+                                  className="button button-secondary"
+                                  disabled={!externalId}
+                                  title={
+                                    externalId
+                                      ? "Zamítnout pouze tento návrh"
+                                      : "Návrhu chybí identifikátor"
+                                  }
+                                  onClick={() =>
+                                    onApi(
+                                      `/api/admin/reviews/${row.id}`,
+                                      {
+                                        method: "PATCH",
+                                        headers: {
+                                          "content-type":
+                                            "application/json",
+                                        },
+                                        body: JSON.stringify({
+                                          status:
+                                            "rejected",
+                                          eventExternalId:
+                                            externalId,
+                                        }),
+                                      }
+                                    )
+                                  }
+                                >
+                                  <XCircle size={16} />
+                                  Zamítnout
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  )}
+
+                  {rawEvents.length === 0 && (
+                    <details>
+                      <summary>
+                        Zobrazit původní hlášení
+                      </summary>
+                      <pre>
+                        {String(
+                          row.source_text ||
+                          "Zdroj neobsahuje konkrétní návrhy událostí."
+                        )}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <button
+                    className="button button-primary"
+                    onClick={() =>
+                      onApi(
+                        `/api/admin/reviews/${row.id}`,
+                        {
+                          method: "PATCH",
+                          headers: {
+                            "content-type":
+                              "application/json",
+                          },
+                          body: JSON.stringify({
+                            status: "approved",
+                          }),
+                        }
+                      )
+                    }
+                  >
+                    <BadgeCheck size={16} />
+
+                    {events.length > 0
+                      ? `Schválit vše (${events.length})`
+                      : "Označit jako vyřešené"}
+                  </button>
+
+                  <button
+                    className="button button-secondary"
+                    onClick={() =>
+                      onApi(
+                        `/api/admin/reviews/${row.id}`,
+                        {
+                          method: "PATCH",
+                          headers: {
+                            "content-type":
+                              "application/json",
+                          },
+                          body: JSON.stringify({
+                            status: "rejected",
+                          }),
+                        }
+                      )
+                    }
+                  >
+                    <XCircle size={16} />
+                    Zamítnout vše
+                  </button>
+                </div>
+              </article>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
 function Submissions({ rows }: { rows: Row[] }) { return <section className="admin-panel"><div className="admin-section-head"><div><h2>Archiv starších návrhů</h2><p>Historické návrhy z odstraněného veřejného formuláře zůstávají pouze v neveřejném administrativním archivu. Nové návrhy se zde už nevytvářejí.</p></div></div><div className="approval-list">{rows.length === 0 ? <p className="muted">Archiv je prázdný.</p> : rows.map((row) => <article key={String(row.id)}><div><span className="tag">{String(row.status || "archiv")}</span><h3>{labelFor((row.content as Row) || row)}</h3><p>{JSON.stringify(row.content)}</p><small>{String(row.submitter_contact || "kontakt neuveden")} · {String(row.created_at || "")}</small></div></article>)}</div></section>; }
 
 function ModerationPanel({ title, description, rows, resource, mutate, exportCsv = false }: { title: string; description: string; rows: Row[]; resource: string; mutate: (resource: string, method: string, body?: Row, id?: string) => Promise<boolean>; exportCsv?: boolean }) {
@@ -117,6 +581,7 @@ function AdminTable({ rows: sourceRows, resource, privateRows = false, onMutate 
   async function editLabel(row: Row) { const key = row.name ? "name" : "title"; const value = window.prompt("Upravit název", String(row[key] || "")); if (value?.trim()) await onMutate?.(resource, "PATCH", { id: row.id, [key]: value.trim() }); }
   const canFeature = resource === "offers" || resource === "jobs";
   const canArchive = ["academic_events", "community_events", "places", "offers", "jobs"].includes(resource);
+  if (resource === "chat_reports") return <ChatAdminPanel />;
   if (!rows.length) return <div className="empty-state"><p>Žádné záznamy.</p></div>;
   return <div className="admin-table"><div className="admin-table-row admin-table-head"><span>Záznam</span><span>Stav / kontakt</span><span>Akce</span></div>{rows.map((row) => <div className="admin-table-row" key={String(row.id)}><div><strong>{labelFor(row)}</strong><small>{String(row.category || row.type || row.created_at || "")}</small>{privateRows && <p>{String(row.description || "")}</p>}</div><div><span>{privateRows ? `${String(row.email || "")} ${String(row.phone || "")}` : row.read_only ? "Ověřený fallback · jen čtení" : String(row.status || (row.is_featured ? "Zvýrazněno" : "Aktivní"))}</span></div><div>{!privateRows && !row.read_only && onMutate && <>{resource === "community_events" && row.status === "pending" && <button className="button button-primary" onClick={() => onMutate(resource, "PATCH", { id: row.id, status: "published" })}><BadgeCheck size={15} />Schválit</button>}<button className="button button-secondary" onClick={() => editLabel(row)}>Upravit</button>{canFeature && <button className="icon-button" title="Přepnout zvýraznění" onClick={() => onMutate(resource, "PATCH", { id: row.id, is_featured: !row.is_featured })}><Star size={16} fill={row.is_featured ? "currentColor" : "none"} /></button>}{canArchive && row.status !== "archived" && <button className="button button-secondary" onClick={() => onMutate(resource, "PATCH", { id: row.id, status: "archived" })}>Archivovat</button>}<button className="icon-button danger" title="Odstranit" onClick={() => { if (window.confirm("Opravdu odstranit tento záznam?")) onMutate(resource, "DELETE", undefined, String(row.id)); }}><Trash2 size={16} /></button></>}</div></div>)}</div>;
 }

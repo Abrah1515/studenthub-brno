@@ -40,6 +40,8 @@ export type MarketplaceListing = {
   handoffLocation?: string;
   publicAlias: string;
   author: PublicProfileIdentity;
+  owned?: boolean;
+  chatAvailable?: boolean;
   status: MarketplacePublicStatus;
   publishedAt: string;
   expiresAt: string;

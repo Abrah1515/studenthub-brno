@@ -22,6 +22,8 @@ export default function robots(): MetadataRoute.Robots {
         "/akce/sprava",
         "/nastaveni",
         "/hlidac",
+        "/chat",
+        "/chat/",
       ],
     },
     sitemap: `${base}/sitemap.xml`,

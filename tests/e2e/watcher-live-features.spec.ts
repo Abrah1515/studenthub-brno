@@ -64,6 +64,7 @@ test("telefonní menu obsahuje jen doplňkové funkce v určeném pořadí", asy
   await expect(menu).toBeVisible();
   const labels = await menu.getByRole("navigation", { name: "Doplňkové funkce" }).locator(":scope > *").allTextContents();
   expect(labels.map((value) => value.replace(/\s+/g, " ").trim())).toEqual([
+    "Chat",
     "Hlídač",
     "Moje škola a profil",
     "Nainstalovat aplikaci",

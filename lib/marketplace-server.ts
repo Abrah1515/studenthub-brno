@@ -95,7 +95,7 @@ async function photosWithSignedUrls(rows: Record<string, unknown>[]) {
   const signed = new Map((data || []).map((item) => [item.path, item.signedUrl || undefined])); return rows.map((row): Record<string, unknown> & { signedUrl?: string } => ({ ...row, signedUrl: signed.get(String(row.storage_path)) }));
 }
 
-export async function getPublicMarketplaceListings(cityId = "brno", viewerId?: string) {
+export async function getPublicMarketplaceListings(cityId = "brno", viewerId?: string): Promise<MarketplaceListing[]> {
   const now = Date.now(); const rows = await listRecords("marketplace_listings");
   const stale = rows.filter((row) => ["active", "reserved", "sold"].includes(String(row.status)) && row.expires_at && new Date(String(row.expires_at)).getTime() <= now);
   await Promise.all(stale.map((row) => updateRecord("marketplace_listings", String(row.id), { status: "expired" }).catch(() => null)));
@@ -103,7 +103,8 @@ export async function getPublicMarketplaceListings(cityId = "brno", viewerId?: s
   if (viewerId) { const { data: blocks } = await createServiceClient().from("profile_blocks").select("blocked_id").eq("blocker_id", viewerId); const blocked = new Set((blocks || []).map((row) => String(row.blocked_id))); visible = visible.filter((row) => !blocked.has(String(row.seller_id || ""))); }
   const ids = new Set(visible.map((row) => String(row.id))); const photoRows = (await listRecords("marketplace_listing_photos")).filter((row) => ids.has(String(row.listing_id))); const signedPhotos = await photosWithSignedUrls(photoRows);
   const identities = await publicIdentityForRows(visible.map((row) => row.seller_id), viewerId);
-  return (await Promise.all(visible.map(async (row) => { const item = publicMarketplaceListing(row, signedPhotos.filter((photo) => photo.listing_id === row.id)); return item ? { ...item, author: row.seller_id ? identities.get(String(row.seller_id)) || legacyProfileIdentity : legacyProfileIdentity } : null; }))).filter((item): item is MarketplaceListing => Boolean(item));
+  const enriched = await Promise.all(visible.map(async (row) => { const item = publicMarketplaceListing(row, signedPhotos.filter((photo) => photo.listing_id === row.id)); return item ? { ...item, owned: Boolean(viewerId && row.seller_id === viewerId), chatAvailable: Boolean(row.seller_id && row.seller_id !== viewerId && ["active", "reserved"].includes(String(row.status))), author: row.seller_id ? identities.get(String(row.seller_id)) || legacyProfileIdentity : legacyProfileIdentity } : null; }));
+  return enriched.filter((item): item is NonNullable<typeof item> => item !== null);
 }
 
 export async function getPublicMarketplaceListing(id: string) { return (await getPublicMarketplaceListings()).find((item) => item.id === id) || null; }
