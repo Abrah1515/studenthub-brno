@@ -35,6 +35,9 @@ test("seznam, žádost, odpověď a messengerové rozložení fungují bez overf
   await page.getByLabel("Zpráva").fill("Ano, napiš mi prosím navrhovaný čas.");
   await page.getByRole("button", { name: "Odeslat zprávu" }).click();
   await expect(page.getByText("Ano, napiš mi prosím navrhovaný čas.")).toBeVisible();
+  await page.locator('summary[aria-label="Akce konverzace"]').click();
+  await expect(page.getByRole("button", { name: "Opustit konverzaci" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Archivovat" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
   await expect(page.locator(".chat-editor")).toBeVisible();
 });
