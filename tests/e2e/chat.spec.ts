@@ -49,7 +49,8 @@ test("desktop drží právě jedno minimalizovatelné chatovací okno", async ({
   await page.evaluate((id) => window.dispatchEvent(new CustomEvent("studenthub-open-chat", { detail: { id } })), conversationId);
   await expect(page.locator(".chat-dock")).toHaveCount(1);
   await expect(page.locator(".chat-dock")).toHaveCSS("width", "360px");
-  await page.getByRole("button", { name: "Minimalizovat chat" }).click();
+  await page.getByRole("link", { name: "Studentská burza" }).first().click();
+  await expect(page).toHaveURL(/\/brno\/burza$/);
   await expect(page.getByRole("button", { name: "Otevřít chat" })).toBeVisible();
   await page.getByRole("button", { name: "Otevřít chat" }).click();
   await page.keyboard.press("Escape");

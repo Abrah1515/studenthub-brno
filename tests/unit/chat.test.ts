@@ -58,5 +58,7 @@ describe("soukromý chat", () => {
     expect(chatDock).toContain('aria-modal="false"');
     expect(chatDock).not.toContain('event.key !== "Tab"');
     expect(chatDock).toContain("chatDockPrioritySurfaceSelector");
+    expect(chatDock).toContain("minimized: true");
+    expect(chatDock).toContain("lastPath.current === pathname");
   });
 });

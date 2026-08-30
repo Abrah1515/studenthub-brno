@@ -1,6 +1,7 @@
 "use client";
 
 import { MessageCircle, Minus, X } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ChatComposerCard } from "@/components/chat-composer-card";
 import { ChatThread } from "@/components/chat-thread";
@@ -11,15 +12,17 @@ const storageKey = "studenthub-chat-dock-v1";
 export const chatDockPrioritySurfaceSelector = '[aria-modal="true"],.community-comment-form,.community-inline-edit,.community-compose-dialog,.place-suggestion-dialog,.place-comment-form,.marketplace-form,.buddy-form';
 
 export function ChatDock() {
+  const pathname = usePathname(); const lastPath = useRef(pathname);
   const [state, setState] = useState<DockState | null>(null); const [priorityActive, setPriorityActive] = useState(false); const previousFocus = useRef<HTMLElement | null>(null); const dockRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    try { const saved = sessionStorage.getItem(storageKey); if (saved && !matchMedia("(max-width: 860px)").matches) setState(JSON.parse(saved)); } catch {}
+    try { const saved = sessionStorage.getItem(storageKey); if (saved && !matchMedia("(max-width: 860px)").matches) setState({ ...JSON.parse(saved), minimized: true }); } catch {}
     const compose = (event: Event) => { if (matchMedia("(max-width: 860px)").matches) return; previousFocus.current = document.activeElement as HTMLElement; setState({ target: (event as CustomEvent<ChatComposerTarget>).detail }); };
     const open = (event: Event) => { previousFocus.current = document.activeElement as HTMLElement; setState({ id: (event as CustomEvent<{ id: string }>).detail.id }); };
     document.documentElement.dataset.chatDockReady = "true";
     window.addEventListener(openChatComposerEvent, compose); window.addEventListener("studenthub-open-chat", open);
     return () => { delete document.documentElement.dataset.chatDockReady; window.removeEventListener(openChatComposerEvent, compose); window.removeEventListener("studenthub-open-chat", open); };
   }, []);
+  useEffect(() => { if (lastPath.current === pathname) return; lastPath.current = pathname; setState((current) => current && !current.minimized ? { ...current, minimized: true } : current); }, [pathname]);
   useEffect(() => { if (state) sessionStorage.setItem(storageKey, JSON.stringify(state)); else sessionStorage.removeItem(storageKey); }, [state]);
   useEffect(() => {
     if (!state || state.minimized) return;
