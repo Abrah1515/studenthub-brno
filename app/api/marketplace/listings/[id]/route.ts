@@ -20,7 +20,9 @@ export async function GET(request: Request, context: Context) {
 }
 
 export async function PATCH(request: Request, context: Context) {
-  if (!await consumeMarketplaceLimit(request, "manage", 30, 60 * 60)) return NextResponse.json({ message: "Limit úprav byl vyčerpán." }, { status: 429 });
+  const manageLimit = await consumeMarketplaceLimit(request, "manage", 30, 60 * 60);
+  if (manageLimit.status === "error") { console.error("marketplace_rate_limit_failed", { action: "manage", code: manageLimit.code }); return NextResponse.json({ message: "Ochranu proti spamu se nepodařilo ověřit." }, { status: 503 }); }
+  if (manageLimit.status === "limited") return NextResponse.json({ message: "Limit úprav byl vyčerpán." }, { status: 429 });
   const id = (await context.params).id; const row = await ownedOrLegacy(id, request); if (!row) return NextResponse.json({ message: "Inzerát nebyl nalezen nebo vám nepatří." }, { status: 404 });
   if (["deleted", "rejected", "pending_verification", "hidden"].includes(String(row.status))) return NextResponse.json({ message: row.status === "hidden" ? "Inzerát skryl správce a nelze jej tímto odkazem obnovit." : "Tento inzerát už nelze upravit." }, { status: 409 });
   const parsed = marketplaceListingUpdateSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte změny.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
@@ -46,7 +48,9 @@ export async function PATCH(request: Request, context: Context) {
 }
 
 export async function DELETE(request: Request, context: Context) {
-  if (!await consumeMarketplaceLimit(request, "delete", 5, 60 * 60)) return NextResponse.json({ message: "Limit operací byl vyčerpán." }, { status: 429 });
+  const deleteLimit = await consumeMarketplaceLimit(request, "delete", 5, 60 * 60);
+  if (deleteLimit.status === "error") { console.error("marketplace_rate_limit_failed", { action: "delete", code: deleteLimit.code }); return NextResponse.json({ message: "Ochranu proti spamu se nepodařilo ověřit." }, { status: 503 }); }
+  if (deleteLimit.status === "limited") return NextResponse.json({ message: "Limit operací byl vyčerpán." }, { status: 429 });
   const id = (await context.params).id; const row = await ownedOrLegacy(id, request); if (!row) return NextResponse.json({ message: "Inzerát nebyl nalezen nebo vám nepatří." }, { status: 404 });
   const photos = (await listRecords("marketplace_listing_photos")).filter((photo) => photo.listing_id === id); await removeMarketplacePhotos(photos.map((photo) => photo.storage_path)); for (const photo of photos) await deleteRecord("marketplace_listing_photos", String(photo.id));
   await updateRecord("marketplace_listings", id, { status: "deleted", deleted_at: new Date().toISOString(), seller_email: `deleted+${id}@invalid.local`, verification_token_hash: null }); await recordMarketplaceHistory(id, "deleted", row.status, "deleted", "seller");

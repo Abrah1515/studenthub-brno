@@ -6,6 +6,8 @@ import { createChatRealtimeTopic } from "@/lib/chat-realtime";
 const migration = readFileSync("supabase/migrations/202608260032_private_chat.sql", "utf8");
 const bootstrapRoute = readFileSync("app/api/chat/bootstrap/route.ts", "utf8");
 const chatLoginLinks = `${readFileSync("components/chat-inbox.tsx", "utf8")}\n${readFileSync("components/chat-composer-card.tsx", "utf8")}`;
+const chatDock = readFileSync("components/chat-dock.tsx", "utf8");
+const siteShell = readFileSync("components/site-shell.tsx", "utf8");
 
 describe("soukromý chat", () => {
   it("validuje kontext, nonce a délku textu", () => {
@@ -49,5 +51,12 @@ describe("soukromý chat", () => {
   it("anonymní chat vede na existující přihlašovací stránku a zachová návrat", () => {
     expect(chatLoginLinks).toContain("/ucet/prihlaseni?next=");
     expect(chatLoginLinks).not.toMatch(/\/ucet\?next=/);
+  });
+
+  it("na samostatných chatových routách dock vůbec nevykreslí a nemá nepravý modální focus trap", () => {
+    expect(siteShell).toContain('!pathname.startsWith("/chat") && <ChatDock />');
+    expect(chatDock).toContain('aria-modal="false"');
+    expect(chatDock).not.toContain('event.key !== "Tab"');
+    expect(chatDock).toContain("chatDockPrioritySurfaceSelector");
   });
 });

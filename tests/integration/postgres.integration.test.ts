@@ -230,8 +230,9 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query<{ expire_marketplace_listings: number }>("select public.expire_marketplace_listings()")).rows[0].expire_marketplace_listings).toBe(1);
       expect((await db.query<{ status: string }>("select status from public.marketplace_listings where id='c1111111-1111-4111-8111-111111111112'")).rows[0].status).toBe("expired");
       expect((await db.query<{ previous_status: string; new_status: string }>("select previous_status,new_status from public.marketplace_history where listing_id='c1111111-1111-4111-8111-111111111112' and event_type='expired'")).rows[0]).toEqual({ previous_status: "sold", new_status: "expired" });
-      expect((await db.query<{ consume_marketplace_rate_limit: boolean }>("select public.consume_marketplace_rate_limit(repeat('7',24),'create',1,3600)")).rows[0].consume_marketplace_rate_limit).toBe(true);
-      expect((await db.query<{ consume_marketplace_rate_limit: boolean }>("select public.consume_marketplace_rate_limit(repeat('7',24),'create',1,3600)")).rows[0].consume_marketplace_rate_limit).toBe(false);
+      for (let attempt = 1; attempt <= 3; attempt += 1) expect((await db.query<{ consume_marketplace_rate_limit: boolean }>("select public.consume_marketplace_rate_limit(repeat('7',24),'create',3,3600)")).rows[0].consume_marketplace_rate_limit).toBe(true);
+      expect((await db.query<{ consume_marketplace_rate_limit: boolean }>("select public.consume_marketplace_rate_limit(repeat('7',24),'create',3,3600)")).rows[0].consume_marketplace_rate_limit).toBe(false);
+      expect((await db.query<{ consume_marketplace_rate_limit: boolean }>("select public.consume_marketplace_rate_limit(repeat('8',24),'create',3,3600)")).rows[0].consume_marketplace_rate_limit).toBe(true);
 
       await db.exec("update public.profiles set username='chat_target',display_name='Chat Target',community_rules_accepted_at=now(),account_status='active',allow_chat_requests=true where id='71111111-1111-4111-8111-111111111111'");
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111114"]); await db.exec("set role authenticated");

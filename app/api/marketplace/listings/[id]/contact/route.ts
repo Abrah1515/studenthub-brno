@@ -12,7 +12,9 @@ export async function POST(request: Request, context: Context) {
   if (account.accountStatus !== "active") return NextResponse.json({ message: "Váš účet má komunitní funkce pozastavené." }, { status: 403 });
   if (!account.complete) return NextResponse.json({ message: "Před kontaktováním doplňte profil a přijměte pravidla komunity.", profileRequired: true }, { status: 428 });
   if (!marketplaceEmailConfigured() && process.env.DEMO_MODE !== "true") return NextResponse.json({ message: "Kontaktování je dočasně nedostupné, protože není nastavena produkční e-mailová brána." }, { status: 503 });
-  if (!await consumeMarketplaceLimit(request, "contact", 8, 24 * 60 * 60)) return NextResponse.json({ message: "Limit zpráv byl vyčerpán. Zkuste to později." }, { status: 429 });
+  const contactLimit = await consumeMarketplaceLimit(request, "contact", 8, 24 * 60 * 60);
+  if (contactLimit.status === "error") { console.error("marketplace_rate_limit_failed", { action: "contact", code: contactLimit.code }); return NextResponse.json({ message: "Ochranu proti spamu se nepodařilo ověřit." }, { status: 503 }); }
+  if (contactLimit.status === "limited") return NextResponse.json({ message: "Limit zpráv byl vyčerpán. Zkuste to později." }, { status: 429 });
   const parsed = marketplaceContactSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte zprávu.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
   const id = (await context.params).id; const listing = (await listRecords("marketplace_listings")).find((row) => String(row.id) === id && ["active", "reserved"].includes(String(row.status)) && new Date(String(row.expires_at)).getTime() > Date.now());
   if (!listing) return NextResponse.json({ message: "Inzerát už není dostupný." }, { status: 404 });

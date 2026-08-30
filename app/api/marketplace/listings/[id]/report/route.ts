@@ -8,7 +8,9 @@ import { isSupabaseConfigured } from "@/lib/supabase-server";
 type Context = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, context: Context) {
-  if (!await consumeMarketplaceLimit(request, "report", 10, 24 * 60 * 60)) return NextResponse.json({ message: "Limit hlášení byl vyčerpán." }, { status: 429 });
+  const reportLimit = await consumeMarketplaceLimit(request, "report", 10, 24 * 60 * 60);
+  if (reportLimit.status === "error") { console.error("marketplace_rate_limit_failed", { action: "report", code: reportLimit.code }); return NextResponse.json({ message: "Ochranu proti spamu se nepodařilo ověřit." }, { status: 503 }); }
+  if (reportLimit.status === "limited") return NextResponse.json({ message: "Limit hlášení byl vyčerpán." }, { status: 429 });
   const parsed = marketplaceReportSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte hlášení.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
   const id = (await context.params).id; const listing = (await listRecords("marketplace_listings")).find((row) => String(row.id) === id && ["active", "reserved", "sold", "hidden"].includes(String(row.status)));
   if (!listing) return NextResponse.json({ message: "Inzerát nebyl nalezen." }, { status: 404 });

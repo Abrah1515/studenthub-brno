@@ -53,11 +53,24 @@ export async function relayMarketplaceContact(input: { sellerEmail: string; buye
   return sendMarketplaceEmail({ to: input.sellerEmail, replyTo: input.buyerEmail, subject: `[StudentHub Burza] Zájem o: ${input.title}`, text: `Na váš inzerát ve Studentské burze přišla zpráva.\n\nE-mail zájemce: ${input.buyerEmail}\n\n${input.message}\n\nOdpovězte přímo na tento e-mail. StudentHub není stranou obchodu, nepřijímá platby a negarantuje předání.` });
 }
 
-export async function consumeMarketplaceLimit(request: Request, action: string, limit: number, windowSeconds: number) {
-  const fingerprint = requestFingerprint(request);
-  if (!isSupabaseConfigured()) return allowRequest(`marketplace:${action}:${fingerprint}`, limit, windowSeconds * 1000);
-  const { data, error } = await createServiceClient().rpc("consume_marketplace_rate_limit", { p_key_hash: fingerprint, p_action: action, p_limit: limit, p_window_seconds: windowSeconds });
-  return !error && data === true;
+export type MarketplaceLimitDecision =
+  | { status: "allowed" }
+  | { status: "limited" }
+  | { status: "error"; code: string };
+
+export function marketplaceRateLimitKey(request: Request, accountId?: string) {
+  const identity = accountId?.trim().toLowerCase();
+  const scope = identity ? `account:${identity}` : `network:${requestFingerprint(request)}`;
+  return marketplaceHash(`marketplace:${scope}`).slice(0, 24);
+}
+
+export async function consumeMarketplaceLimit(request: Request, action: string, limit: number, windowSeconds: number, accountId?: string): Promise<MarketplaceLimitDecision> {
+  const keyHash = marketplaceRateLimitKey(request, accountId);
+  if (!/^[a-f0-9]{24}$/.test(keyHash) || !/^[a-z][a-z0-9_-]{1,39}$/.test(action)) return { status: "error", code: "invalid_parameters" };
+  if (!isSupabaseConfigured()) return { status: allowRequest(`marketplace:${action}:${keyHash}`, limit, windowSeconds * 1000) ? "allowed" : "limited" };
+  const { data, error } = await createServiceClient().rpc("consume_marketplace_rate_limit", { p_key_hash: keyHash, p_action: action, p_limit: limit, p_window_seconds: windowSeconds });
+  if (error) return { status: "error", code: error.code || "rpc_failed" };
+  return { status: data === true ? "allowed" : "limited" };
 }
 
 function actualImageMime(bytes: Buffer) {

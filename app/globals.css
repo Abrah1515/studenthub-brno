@@ -798,3 +798,7 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
 .chat-admin-list blockquote { margin: 12px 0; padding: 10px; overflow-wrap: anywhere; border-left: 3px solid var(--danger); background: var(--surface); }
 .chat-admin-list details p { display: grid; margin: 6px 0; padding: 7px; overflow-wrap: anywhere; background: var(--surface); }
 .chat-admin-list details small { color: var(--muted); }
+
+.place-picker-marker { border: 0 !important; background: transparent !important; }
+.place-picker-marker > span { position: relative; width: 34px; height: 34px; display: block; border: 3px solid var(--surface); border-radius: 50% 50% 50% 8px; background: var(--accent); box-shadow: 0 5px 14px rgb(2 12 8 / 36%); transform: rotate(-45deg); }
+.place-picker-marker > span::after { content: ""; position: absolute; inset: 8px; border: 2px solid var(--surface); border-radius: 50%; background: color-mix(in srgb, var(--accent) 58%, var(--surface)); }
