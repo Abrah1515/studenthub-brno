@@ -99,7 +99,7 @@ async function runMatrix(iteration) {
     const adminLogin = await productionLogin(accounts.admin.email, accounts.admin.secret); accounts.admin.jar = adminLogin.jar; expectStatus("admin", "produkční přihlášení", adminLogin.status, 200);
     for (const name of ["city_editor", "faculty_editor"]) { accounts[name].jar = await accountCookie(accounts[name].email, accounts[name].secret); record(name, "Supabase Auth relace", "vytvořena", accounts[name].jar.size ? "vytvořena" : "chybí", accounts[name].jar.size > 0); }
     const userLogin = await productionLogin(accounts.user.email, accounts.user.secret); expectStatus("user", "odmítnutí admin přihlášení", userLogin.status, 401);
-    const userJar = await accountCookie(accounts.user.email, accounts.user.secret); const userAdminPage = await call(userJar, "/admin"); record("user", "serverová ochrana administrace", "redirect na přihlášení", `${userAdminPage.status} ${userAdminPage.headers.get("location") || ""}`, [307, 308].includes(userAdminPage.status) && String(userAdminPage.headers.get("location") || "").includes("/admin/prihlaseni"));
+    const userJar = await accountCookie(accounts.user.email, accounts.user.secret); const userAdminPage = await call(userJar, "/admin"); const userDashboardRendered = typeof userAdminPage.body === "string" && userAdminPage.body.includes("Správa StudentHub"); record("user", "serverová ochrana administrace", "redirect bez admin dashboardu", `${userAdminPage.status}, dashboard=${userDashboardRendered}`, ([307, 308].includes(userAdminPage.status) || userAdminPage.status === 200) && !userDashboardRendered);
     const anonymousAdmin = await call(null, "/api/admin/data"); expectStatus("anonymous", "admin API bez relace", anonymousAdmin.status, 401);
 
     const placeRows = [
@@ -178,7 +178,12 @@ async function runMatrix(iteration) {
       const freshData = await call(freshJar, "/api/admin/data");
       if (step.role === "user") expectStatus("role_transition", "nová user session bez administrace", freshData.status, 401);
       else { expectStatus("role_transition", `nová session ${step.role}`, freshData.status, 200); if (step.role === "admin") staleAdminJar = freshJar; }
-      if (step.role === "faculty_editor" && staleAdminJar) expectStatus("role_transition", "stará admin session po snížení", (await call(staleAdminJar, "/api/admin/data")).status, 401);
+      if (step.role === "faculty_editor" && staleAdminJar) {
+        const downgradedData = await call(staleAdminJar, "/api/admin/data");
+        record("role_transition", "stará admin session převezme nižší scope", "faculty_editor bez citlivých dat", `${downgradedData.status}, analytics=${downgradedData.body?.page_views?.length || 0}`, downgradedData.status === 200 && !(downgradedData.body?.page_views?.length || downgradedData.body?.contact_messages?.length || downgradedData.body?.service_requests?.length));
+        expectStatus("role_transition", "stará admin session nespravuje role", (await call(staleAdminJar, "/api/admin/users")).status, 403);
+      }
+      if (step.role === "user" && staleAdminJar) expectStatus("role_transition", "stará session po odebrání role", (await call(staleAdminJar, "/api/admin/data")).status, 401);
     }
 
     const recovery = await call(superJar, "/api/admin/users", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: accounts.user.id, action: "recovery", email: accounts.user.email }) }); record("super_admin", "produkční SMTP obnova", "200 nebo pravdivá SMTP chyba", String(recovery.status), recovery.status === 200 || (recovery.status === 400 && /odeslat|smtp/i.test(String(recovery.body?.message || ""))), String(recovery.body?.message || ""));
