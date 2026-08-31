@@ -10,7 +10,7 @@ async function environment() {
 }
 
 const env = { ...await environment(), ...process.env };
-const baseUrl = String(env.NEXT_PUBLIC_SITE_URL || "https://studenthub-brno.vercel.app").replace(/\/$/, "");
+const baseUrl = String(process.env.PRODUCTION_AUDIT_URL || "https://studenthub-brno.vercel.app").replace(/\/$/, "");
 if (baseUrl !== "https://studenthub-brno.vercel.app") throw new Error("Produkční matici lze spustit pouze proti oficiální URL.");
 if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("Chybí lokální produkční Supabase tajemství.");
 const service = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
