@@ -28,6 +28,11 @@ describe("regrese produkční administrace", () => {
     expect(page).toContain("notFound()");
   });
 
+  it("záhlaví pravdivě rozlišuje všechny administrátorské role", () => {
+    const dashboard = readFileSync("components/admin-dashboard.tsx", "utf8");
+    for (const label of ["hlavní superadministrátor", "administrátor města", "městský editor", "fakultní editor"]) expect(dashboard).toContain(label);
+  });
+
   it("migrace chrání jediného superadmina, citlivá městská data a městský chat", () => {
     const migration = readFileSync("supabase/migrations/202608310033_admin_role_scope_hardening.sql", "utf8");
     for (const marker of ["profiles_single_super_admin_idx", "cannot_demote_only_superadmin", "profiles_admin_scope_required", "can_manage_sensitive_city", "chat_conversations alter column city_id set not null", "scoped moderators read chat action audit"]) expect(migration).toContain(marker);
