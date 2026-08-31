@@ -160,6 +160,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608240030_trusted_event_publishers.sql` – neadministrátorské oprávnění `trusted_event_publisher`, jeho audit, stavy přiděleno/pozastaveno/odebráno, databázové rozhodnutí `pending` vs. `published` a vlastnické RLS komunitních akcí.
 - `202608250031_community_places.sql` – 12 veřejných kategorií míst, neveřejná fronta návrhů a fotografií, deduplikace přes aliasy/adresu/souřadnice/web, moderátorská historie, komunitní původ, zkušenosti, užitečnost, agregované vlastnosti, hlášení, přesná sloupcová oprávnění a RLS bez zveřejnění autora návrhu.
 - `202608260032_private_chat.sql` – soukromé konverzace dvou profilů, samostatná členství a stav přečtení, textové zprávy, žádosti a 30denní cooldown, databázová blokace druhé úvodní zprávy, Realtime, hlášení, omezený moderátorský audit, perzistentní rate limit a RLS pouze pro účastníky.
+- `202608310033_admin_role_scope_hardening.sql` – audit změn rolí, povinný městský/fakultní rozsah, ochrana jediného superadmina, oddělení citlivých městských dat od role `city_editor` a městský scope chatové moderace v API i RLS.
 
 ## První hlavní superadmin
 

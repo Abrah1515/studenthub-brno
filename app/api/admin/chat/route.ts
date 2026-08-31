@@ -2,25 +2,30 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminUser } from "@/lib/admin-auth";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
+import { adminSectionAllowed } from "@/lib/admin-sections";
 
 const actionSchema = z.object({ reportId: z.string().uuid(), action: z.enum(["dismiss_report", "hide_message", "restrict_chat", "suspend_profile", "restore_message", "restore_chat"]), reason: z.string().trim().min(3).max(1000) });
 
 async function authorized() {
   const admin = await getAdminUser();
   if (!admin) return { response: NextResponse.json({ message: "Nepřihlášeno." }, { status: 401 }) };
-  if (admin.role === "faculty_editor") return { response: NextResponse.json({ message: "Fakultní editor nemá přístup k soukromým hlášením." }, { status: 403 }) };
+  if (!adminSectionAllowed("chat_reports", admin.role)) return { response: NextResponse.json({ message: "Hlášení chatu nejsou pro vaši roli dostupná." }, { status: 403 }) };
   if (!isSupabaseConfigured()) return { response: NextResponse.json({ message: "Moderace chatu vyžaduje produkční databázi." }, { status: 503 }) };
   return { admin, service: createServiceClient() };
 }
 
 export async function GET() {
-  const scope = await authorized(); if ("response" in scope) return scope.response; const { service } = scope;
-  const [{ data: reports }, { count: requested }, { count: active }, { count: totalReports }, { data: actions }] = await Promise.all([
-    service.from("chat_message_reports").select("*").order("created_at", { ascending: false }).limit(100),
-    service.from("chat_conversations").select("id", { count: "exact", head: true }).eq("status", "requested"),
-    service.from("chat_conversations").select("id", { count: "exact", head: true }).eq("status", "active"),
-    service.from("chat_message_reports").select("id", { count: "exact", head: true }),
-    service.from("chat_moderation_actions").select("*").order("created_at", { ascending: false }).limit(100),
+  const scope = await authorized(); if ("response" in scope) return scope.response; const { admin, service } = scope;
+  let conversationQuery = service.from("chat_conversations").select("id,status").order("last_message_at", { ascending: false }).limit(5000);
+  if (admin.role !== "super_admin") conversationQuery = conversationQuery.eq("city_id", admin.cityId || "");
+  const { data: conversations, error: conversationError } = await conversationQuery;
+  if (conversationError) return NextResponse.json({ message: "Městský rozsah chatu nelze bezpečně ověřit." }, { status: 503 });
+  const conversationIds = (conversations || []).map((row) => String(row.id));
+  const { data: scopedMessages } = conversationIds.length ? await service.from("chat_messages").select("id").in("conversation_id", conversationIds).limit(10000) : { data: [] };
+  const messageIds = (scopedMessages || []).map((row) => String(row.id));
+  const [{ data: reports }, { data: actions }] = await Promise.all([
+    messageIds.length ? service.from("chat_message_reports").select("*").in("message_id", messageIds).order("created_at", { ascending: false }).limit(100) : Promise.resolve({ data: [] }),
+    conversationIds.length ? service.from("chat_moderation_actions").select("*").in("conversation_id", conversationIds).order("created_at", { ascending: false }).limit(100) : Promise.resolve({ data: [] }),
   ]);
   const items = await Promise.all((reports || []).map(async (report) => {
     const { data: message } = await service.from("chat_messages").select("id,conversation_id,sender_id,body,status,created_at").eq("id", report.message_id).maybeSingle();
@@ -28,16 +33,18 @@ export async function GET() {
     const { data: context } = await service.from("chat_messages").select("id,sender_id,body,status,created_at").eq("conversation_id", message.conversation_id).order("created_at", { ascending: false }).limit(5);
     return { ...report, message, context: (context || []).reverse() };
   }));
-  return NextResponse.json({ statistics: { requested: requested || 0, active: active || 0, reports: totalReports || 0 }, items, actions: actions || [] }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ statistics: { requested: (conversations || []).filter((row) => row.status === "requested").length, active: (conversations || []).filter((row) => row.status === "active").length, reports: reports?.length || 0 }, items, actions: actions || [] }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function PATCH(request: Request) {
   const scope = await authorized(); if ("response" in scope) return scope.response; const { admin, service } = scope;
   const parsed = actionSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte moderátorskou akci a interní důvod." }, { status: 422 });
+  if (parsed.data.action === "suspend_profile" && !["super_admin", "admin"].includes(admin.role)) return NextResponse.json({ message: "Účet může pozastavit pouze administrátor." }, { status: 403 });
   const { data: report } = await service.from("chat_message_reports").select("*").eq("id", parsed.data.reportId).maybeSingle(); if (!report) return NextResponse.json({ message: "Hlášení nebylo nalezeno." }, { status: 404 });
   const { data: message } = await service.from("chat_messages").select("id,conversation_id,sender_id,status").eq("id", report.message_id).maybeSingle(); if (!message) return NextResponse.json({ message: "Nahlášená zpráva nebyla nalezena." }, { status: 404 });
-  const { data: conversation } = await service.from("chat_conversations").select("status,status_before_restriction").eq("id", message.conversation_id).maybeSingle();
+  const { data: conversation } = await service.from("chat_conversations").select("status,status_before_restriction,city_id").eq("id", message.conversation_id).maybeSingle();
   if (!conversation) return NextResponse.json({ message: "Konverzace nebyla nalezena." }, { status: 404 });
+  if (admin.role !== "super_admin" && (!admin.cityId || conversation.city_id !== admin.cityId)) return NextResponse.json({ message: "Konverzace není v rozsahu tohoto správce." }, { status: 403 });
   const action = parsed.data.action; const now = new Date().toISOString(); let error: { message: string } | null = null;
   if (action === "dismiss_report") error = (await service.from("chat_message_reports").update({ status: "dismissed", reviewed_by: admin.id, reviewed_at: now }).eq("id", report.id)).error;
   else if (action === "hide_message" || action === "restore_message") error = (await service.from("chat_messages").update({ status: action === "hide_message" ? "hidden" : "active", hidden_at: action === "hide_message" ? now : null }).eq("id", message.id)).error;

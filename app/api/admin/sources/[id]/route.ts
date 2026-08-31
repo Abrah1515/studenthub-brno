@@ -3,8 +3,10 @@ import { getAdminUser } from "@/lib/admin-auth";
 import { sourceById } from "@/lib/sources/registry";
 import { updateRecord } from "@/lib/data-store";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
+import { adminSectionAllowed } from "@/lib/admin-sections";
 
-async function canManageSource(user: NonNullable<Awaited<ReturnType<typeof getAdminUser>>>, source: NonNullable<ReturnType<typeof sourceById>>) {
+type ScopedSource = { id: string; cityId: string | null; universityId: string | null; facultyId: string | null };
+async function canManageSource(user: NonNullable<Awaited<ReturnType<typeof getAdminUser>>>, source: ScopedSource) {
   if (user.role === "super_admin") return true;
   if (user.role === "faculty_editor") return Boolean(user.facultyId) && user.facultyId === source.facultyId;
   if (!user.cityId) return false;
@@ -18,7 +20,15 @@ async function canManageSource(user: NonNullable<Awaited<ReturnType<typeof getAd
 type Context = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, context: Context) {
   const user = await getAdminUser(); if (!user) return NextResponse.json({ message: "Nepřihlášeno." }, { status: 401 });
-  const source = sourceById((await context.params).id); if (!source) return NextResponse.json({ message: "Zdroj nebyl nalezen." }, { status: 404 });
+  if (!adminSectionAllowed("content_sources", user.role)) return NextResponse.json({ message: "Datové zdroje nejsou pro vaši roli dostupné." }, { status: 403 });
+  const id = (await context.params).id;
+  const registrySource = sourceById(id);
+  let source: ScopedSource | null = registrySource ? { id: registrySource.id, cityId: registrySource.cityId || null, universityId: registrySource.universityId || null, facultyId: registrySource.facultyId || null } : null;
+  if (!source && isSupabaseConfigured()) {
+    const { data } = await createServiceClient().from("content_sources").select("id,city_id,university_id,faculty_id").eq("id", id).maybeSingle();
+    if (data) source = { id: String(data.id), cityId: data.city_id, universityId: data.university_id, facultyId: data.faculty_id };
+  }
+  if (!source) return NextResponse.json({ message: "Zdroj nebyl nalezen." }, { status: 404 });
   if (!await canManageSource(user, source)) return NextResponse.json({ message: "Zdroj není v rozsahu editora." }, { status: 403 });
   const body = await request.json() as { enabled?: boolean };
   if (typeof body.enabled !== "boolean") return NextResponse.json({ message: "Neplatná hodnota." }, { status: 422 });

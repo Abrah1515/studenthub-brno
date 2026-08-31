@@ -4,6 +4,7 @@ import { updateRecord } from "@/lib/data-store";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 import { normalizedEventToRow } from "@/lib/sources/sync";
 import type { NormalizedEvent } from "@/lib/sources/types";
+import { adminSectionAllowed } from "@/lib/admin-sections";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -99,6 +100,7 @@ export async function PATCH(request: Request, context: Context) {
       { status: 401 }
     );
   }
+  if (!adminSectionAllowed("source_review_queue", user.role)) return NextResponse.json({ message: "Kontrola změn není pro vaši roli dostupná." }, { status: 403 });
 
   const body = await request.json() as {
     status?: "approved" | "rejected";
@@ -148,7 +150,7 @@ export async function PATCH(request: Request, context: Context) {
 
       const { data: review, error } = await client
         .from("source_review_queue")
-        .select("*,content_sources(faculty_id)")
+        .select("*,content_sources(faculty_id,city_id,university_id)")
         .eq("id", id)
         .single();
 
@@ -160,6 +162,7 @@ export async function PATCH(request: Request, context: Context) {
             | { faculty_id?: string }
             | null
         )?.faculty_id;
+      const sourceScope = review.content_sources as { faculty_id?: string | null; city_id?: string | null; university_id?: string | null } | null;
 
       if (
         user.role === "faculty_editor" &&
@@ -169,6 +172,14 @@ export async function PATCH(request: Request, context: Context) {
           { message: "Změna není v rozsahu editora." },
           { status: 403 }
         );
+      }
+      if (user.role !== "super_admin" && user.role !== "faculty_editor") {
+        let inCity = Boolean(user.cityId && sourceScope?.city_id === user.cityId);
+        if (!inCity && user.cityId && sourceScope?.university_id) {
+          const { data: cityLink } = await client.from("university_cities").select("university_id").eq("university_id", sourceScope.university_id).eq("city_id", user.cityId).maybeSingle();
+          inCity = Boolean(cityLink);
+        }
+        if (!inCity) return NextResponse.json({ message: "Změna není v rozsahu editora." }, { status: 403 });
       }
 
       const rawPayload = review.proposed_payload;

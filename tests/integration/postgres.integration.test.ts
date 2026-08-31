@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(32);
+      expect(files).toHaveLength(33);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -67,6 +67,9 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         update public.profiles set role='super_admin', city_id=null where id='71111111-1111-4111-8111-111111111113';
         update public.profiles set username='trusted_student',display_name='Trusted Student',community_rules_accepted_at=now(),account_status='active',is_blocked=false where id='71111111-1111-4111-8111-111111111114';
       `);
+      await expect(db.exec("update public.profiles set city_id=null where id='71111111-1111-4111-8111-111111111112'")).rejects.toThrow(/profiles_admin_scope_required/i);
+      await expect(db.exec("update public.profiles set faculty_id=null where id='71111111-1111-4111-8111-111111111111'")).rejects.toThrow(/profiles_admin_scope_required/i);
+      await expect(db.exec("update public.profiles set role='admin' where id='71111111-1111-4111-8111-111111111113'")).rejects.toThrow(/cannot_demote_only_superadmin/i);
 
       await db.exec(`
         insert into public.place_submissions(id,author_id,city_id,name,category,address,latitude,longitude,location_confirmed_at,description,usefulness_reason,source_url,status,author_consent_at,photo_rights_confirmed_at,submitted_at)
@@ -317,7 +320,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query("select distinct academic_event_id from public.academic_event_changes")).rows).toHaveLength(2);
       expect((await db.query("select id from public.place_live_reports")).rows).toHaveLength(1);
       expect((await db.query("select id from public.place_submissions where city_id='brno'")).rows).toHaveLength(1);
-      expect((await db.query("select id from public.service_requests where id='81111111-1111-4111-8111-111111111111'")).rows).toHaveLength(1); expect((await db.query("select author_email from public.community_events where source_type='community'")).rows).toHaveLength(5); await db.exec("reset role");
+      expect((await db.query("select id from public.service_requests where id='81111111-1111-4111-8111-111111111111'")).rows).toHaveLength(0); expect((await db.query("select author_email from public.community_events where source_type='community'")).rows).toHaveLength(5); await db.exec("reset role");
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111113"]); await db.exec("set role authenticated");
       expect((await db.query<{ title: string }>("select title from public.academic_events where title like 'RLS %' order by title")).rows.map((row) => row.title)).toEqual(["RLS FEKT", "RLS FIT"]);
