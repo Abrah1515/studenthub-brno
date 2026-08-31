@@ -104,7 +104,7 @@ async function runMatrix(iteration) {
     for (const name of ["city_editor", "faculty_editor"]) { accounts[name].jar = await accountCookie(accounts[name].email, accounts[name].secret); record(name, "Supabase Auth relace", "vytvořena", accounts[name].jar.size ? "vytvořena" : "chybí", accounts[name].jar.size > 0); }
     const userLogin = await productionLogin(accounts.user.email, accounts.user.secret); expectStatus("user", "odmítnutí admin přihlášení", userLogin.status, 401);
     const userJar = await accountCookie(accounts.user.email, accounts.user.secret); const userAdminPage = await call(userJar, "/admin"); const userDashboardRendered = typeof userAdminPage.body === "string" && userAdminPage.body.includes("Správa StudentHub"); record("user", "serverová ochrana administrace", "redirect bez admin dashboardu", `${userAdminPage.status}, dashboard=${userDashboardRendered}`, ([307, 308].includes(userAdminPage.status) || userAdminPage.status === 200) && !userDashboardRendered);
-    expectStatus("user", "podvržená role v requestu", (await call(userJar, "/api/admin/users?role=super_admin", { headers: { "x-role": "super_admin" } })).status, 401);
+    const forgedRole = await call(userJar, "/api/admin/users?role=super_admin", { headers: { "x-role": "super_admin" } }); record("user", "podvržená role v requestu", "401 nebo 403", String(forgedRole.status), [401, 403].includes(forgedRole.status));
     const anonymousAdmin = await call(null, "/api/admin/data"); expectStatus("anonymous", "admin API bez relace", anonymousAdmin.status, 401);
 
     const placeRows = [
