@@ -27,6 +27,15 @@ const roleSections = {
 function password() { return `Sh!${randomBytes(18).toString("base64url")}9a`; }
 function cookieHeader(jar) { return [...jar.entries()].map(([name, value]) => `${name}=${value}`).join("; "); }
 function parseSetCookies(response) { const jar = new Map(); for (const value of response.headers.getSetCookie?.() || []) { const pair = value.split(";", 1)[0]; const split = pair.indexOf("="); if (split > 0) jar.set(pair.slice(0, split), pair.slice(split + 1)); } return jar; }
+function applySetCookies(jar, headers) { for (const value of headers.getSetCookie?.() || []) { const pair = value.split(";", 1)[0]; const split = pair.indexOf("="); if (split > 0) { const name = pair.slice(0, split); const cookieValue = pair.slice(split + 1); if (cookieValue) jar.set(name, cookieValue); else jar.delete(name); } } }
+
+async function accountCookie(email, secret) {
+  const jar = new Map();
+  const auth = createServerClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { cookies: { getAll: () => [...jar.entries()].map(([name, value]) => ({ name, value })), setAll: (values) => values.forEach(({ name, value }) => { if (value) jar.set(name, value); else jar.delete(name); }) } });
+  const signed = await auth.auth.signInWithPassword({ email, password: secret });
+  if (signed.error || !signed.data.session) throw new Error(`Nelze vytvořit Supabase relaci pro ${email}: ${signed.error?.message || "bez relace"}`);
+  return jar;
+}
 
 async function superCookie() {
   const { data: profiles, error: profileError } = await service.from("profiles").select("id").eq("role", "super_admin");
@@ -66,13 +75,14 @@ async function runMatrix(iteration) {
     const publicCity = await call(null, `/${cityId}`); record("anonymous", "neveřejné město", "404", String(publicCity.status), publicCity.status === 404);
 
     const accountSpecs = ["admin", "city_editor", "faculty_editor", "user", "transition", "chat_target"];
+    const usernameSuffixes = { admin: "ad", city_editor: "ce", faculty_editor: "fe", user: "us", transition: "tr", chat_target: "ct" };
     const accounts = {};
     for (const name of accountSpecs) {
       const email = `abrahamek.adam+sh-${runId}-${name}@gmail.com`; const secret = password(); emails.push(email);
       const created = await service.auth.admin.createUser({ email, password: secret, email_confirm: true, app_metadata: { role: "user", city_id: cityId, faculty_id: null }, user_metadata: { testRunId: runId } });
       if (created.error || !created.data.user) throw new Error(`Nelze vytvořit dočasný účet ${name}: ${created.error?.message || "bez uživatele"}`);
       const id = created.data.user.id; userIds.push(id); accounts[name] = { id, email, secret, jar: null };
-      const profile = await service.from("profiles").upsert({ id, username: `e2e_${short}_${name}`.slice(0, 40), display_name: `[E2E ${name} ${runId}]`, role: "user", city_id: cityId, faculty_id: null, account_status: "active", is_blocked: false, profile_visibility: "public", community_rules_accepted_at: new Date().toISOString() }, { onConflict: "id" });
+      const profile = await service.from("profiles").upsert({ id, username: `e2e_${short.slice(-10)}_${usernameSuffixes[name]}`, display_name: `[E2E ${name} ${runId}]`, role: "user", city_id: cityId, faculty_id: null, account_status: "active", is_blocked: false, profile_visibility: "public", community_rules_accepted_at: new Date().toISOString() }, { onConflict: "id" });
       if (profile.error) throw new Error(`Nelze připravit profil ${name}: ${profile.error.message}`);
     }
 
@@ -86,8 +96,10 @@ async function runMatrix(iteration) {
     }
     await assign(accounts.admin, "admin", cityId, null); await assign(accounts.city_editor, "city_editor", cityId, null); await assign(accounts.faculty_editor, "faculty_editor", null, "muni-fi");
 
-    for (const name of ["admin", "city_editor", "faculty_editor"]) { const login = await productionLogin(accounts[name].email, accounts[name].secret); accounts[name].jar = login.jar; expectStatus(name, "produkční přihlášení", login.status, 200); }
+    const adminLogin = await productionLogin(accounts.admin.email, accounts.admin.secret); accounts.admin.jar = adminLogin.jar; expectStatus("admin", "produkční přihlášení", adminLogin.status, 200);
+    for (const name of ["city_editor", "faculty_editor"]) { accounts[name].jar = await accountCookie(accounts[name].email, accounts[name].secret); record(name, "Supabase Auth relace", "vytvořena", accounts[name].jar.size ? "vytvořena" : "chybí", accounts[name].jar.size > 0); }
     const userLogin = await productionLogin(accounts.user.email, accounts.user.secret); expectStatus("user", "odmítnutí admin přihlášení", userLogin.status, 401);
+    const userJar = await accountCookie(accounts.user.email, accounts.user.secret); const userAdminPage = await call(userJar, "/admin"); record("user", "serverová ochrana administrace", "redirect na přihlášení", `${userAdminPage.status} ${userAdminPage.headers.get("location") || ""}`, [307, 308].includes(userAdminPage.status) && String(userAdminPage.headers.get("location") || "").includes("/admin/prihlaseni"));
     const anonymousAdmin = await call(null, "/api/admin/data"); expectStatus("anonymous", "admin API bez relace", anonymousAdmin.status, 401);
 
     const placeRows = [
@@ -99,7 +111,8 @@ async function runMatrix(iteration) {
     const foreignPlace = await service.from("places").select("id").eq("city_id", "brno").eq("status", "approved").limit(1).single(); if (foreignPlace.error) throw new Error("Chybí bezpečný cizí záznam pro kontrolu scope.");
 
     const listingId = randomUUID(); cleanupIds.marketplace.push(listingId);
-    const listing = await service.from("marketplace_listings").insert({ id: listingId, seller_id: accounts.user.id, city_id: cityId, listing_type: "offer", category: "other", title: `[E2E BURZA ${runId}]`, short_description: "Neveřejný test role-matrix.", description: `Neveřejný testovací inzerát ${runId} pro kontrolu oprávnění.`, price_mode: "free", price_scope: "item", semester: "not_applicable", material_format: "printed", item_condition: "used", handoff_method: "in_person", handoff_location: "Testovací město", public_alias: "E2E", seller_email: accounts.user.email, seller_email_hash: randomBytes(32).toString("hex"), request_fingerprint: randomBytes(12).toString("hex"), management_token_hash: randomBytes(32).toString("hex"), duplicate_fingerprint: randomBytes(32).toString("hex"), copyright_confirmed: true, privacy_consent_at: new Date().toISOString(), status: "hidden", expires_at: new Date(Date.now() + 86400000).toISOString() });
+    const verifiedAt = new Date().toISOString();
+    const listing = await service.from("marketplace_listings").insert({ id: listingId, seller_id: accounts.user.id, city_id: cityId, listing_type: "offer", category: "other", title: `[E2E BURZA ${runId}]`, short_description: "Neveřejný test role-matrix.", description: `Neveřejný testovací inzerát ${runId} pro kontrolu oprávnění.`, price_mode: "free", price_amount: 0, price_scope: "item", semester: "not_applicable", material_format: "printed", item_condition: "used", handoff_method: "in_person", handoff_location: "Testovací město", public_alias: "E2E", seller_email: accounts.user.email, seller_email_hash: randomBytes(32).toString("hex"), request_fingerprint: randomBytes(12).toString("hex"), management_token_hash: randomBytes(32).toString("hex"), duplicate_fingerprint: randomBytes(32).toString("hex"), copyright_confirmed: true, privacy_consent_at: verifiedAt, email_verified_at: verifiedAt, published_at: verifiedAt, hidden_at: verifiedAt, status: "hidden", expires_at: new Date(Date.now() + 86400000).toISOString() });
     if (listing.error) throw new Error(`Nelze připravit testovací inzerát: ${listing.error.message}`);
 
     const buddyId = randomUUID(); cleanupIds.buddy.push(buddyId);
@@ -111,14 +124,15 @@ async function runMatrix(iteration) {
     const message = await service.from("chat_messages").select("id").eq("conversation_id", chat.data).single(); if (message.error) throw message.error;
     const reportId = randomUUID(); cleanupIds.reports.push(reportId); const report = await service.from("chat_message_reports").insert({ id: reportId, message_id: message.data.id, reporter_id: accounts.chat_target.id, reason: "spam", detail: runId }); if (report.error) throw report.error;
 
-    const sourceInsert = await service.from("content_sources").insert({ id: cleanupIds.source, university_id: "muni", faculty_id: "muni-fi", city_id: cityId, source_type: "academic_calendar", source_url: `https://example.com/?studenthub=${runId}`, official_domain: "example.com", format: "html", parser_key: "safe-unpublished-city-probe", enabled: true, refresh_interval: "24 hours", terms_note: runId });
+    const sourceInsert = await service.from("content_sources").insert({ id: cleanupIds.source, university_id: "muni", faculty_id: "muni-fi", city_id: cityId, source_type: "academic_calendar", source_url: `https://example.com/?studenthub=${runId}`, official_domain: "example.com", format: "html", parser_key: "safe-unpublished-city-probe", enabled: true, refresh_interval: "9 hours", terms_note: runId });
     if (sourceInsert.error) throw new Error(`Nelze připravit bezpečný zdroj: ${sourceInsert.error.message}`);
 
     for (const [role, account] of Object.entries({ admin: accounts.admin, city_editor: accounts.city_editor, faculty_editor: accounts.faculty_editor })) {
       const allowed = new Set(roleSections[role]);
       for (const section of sectionKeys) {
-        const page = await call(account.jar, `/admin?section=${section}`); const expected = allowed.has(section) ? 200 : 404;
-        expectStatus(role, `UI sekce ${section}`, page.status, expected);
+        const page = await call(account.jar, `/admin?section=${section}`); const dashboardRendered = typeof page.body === "string" && page.body.includes("Správa StudentHub");
+        const pass = allowed.has(section) ? page.status === 200 && dashboardRendered : (page.status === 404 || (page.status === 200 && !dashboardRendered));
+        record(role, `UI sekce ${section}`, allowed.has(section) ? "200 a povolená sekce" : "404 nebo streamovaná 404", `${page.status}, dashboard=${dashboardRendered}`, pass);
       }
     }
     for (const section of sectionKeys) { const page = await call(superJar, `/admin?section=${section}`); expectStatus("super_admin", `UI sekce ${section}`, page.status, 200); }
@@ -160,9 +174,10 @@ async function runMatrix(iteration) {
     let staleAdminJar = null;
     for (const step of [{ role: "city_editor", city: cityId, faculty: null }, { role: "admin", city: cityId, faculty: null }, { role: "faculty_editor", city: null, faculty: "muni-fi" }, { role: "user", city: null, faculty: null }]) {
       await assign(accounts.transition, step.role, step.city, step.faculty);
-      const login = await productionLogin(accounts.transition.email, accounts.transition.secret);
-      if (step.role === "user") expectStatus("role_transition", "nová user session bez administrace", login.status, 401);
-      else { expectStatus("role_transition", `nová session ${step.role}`, login.status, 200); if (step.role === "admin") staleAdminJar = login.jar; }
+      const freshJar = await accountCookie(accounts.transition.email, accounts.transition.secret);
+      const freshData = await call(freshJar, "/api/admin/data");
+      if (step.role === "user") expectStatus("role_transition", "nová user session bez administrace", freshData.status, 401);
+      else { expectStatus("role_transition", `nová session ${step.role}`, freshData.status, 200); if (step.role === "admin") staleAdminJar = freshJar; }
       if (step.role === "faculty_editor" && staleAdminJar) expectStatus("role_transition", "stará admin session po snížení", (await call(staleAdminJar, "/api/admin/data")).status, 401);
     }
 
@@ -176,7 +191,7 @@ async function runMatrix(iteration) {
     const otherFacultyRls = await rlsFaculty.from("places").update({ description: runId }).eq("id", placeRows[2].id).select("id"); record("faculty_editor", "RLS zápisu cizí fakulty", "0 řádků", String(otherFacultyRls.data?.length || 0), !otherFacultyRls.error && otherFacultyRls.data?.length === 0);
 
     const screenshots = [{ role: "admin", account: accounts.admin, width: 1440, height: 900, dark: false }, { role: "city_editor", account: accounts.city_editor, width: 768, height: 1024, dark: true }, { role: "faculty_editor", account: accounts.faculty_editor, width: 390, height: 844, dark: false }];
-    const artifactDir = `artifacts/admin-role-matrix/${runId}`; await mkdir(artifactDir, { recursive: true }); browser = await chromium.launch({ headless: true });
+    const artifactDir = `artifacts/admin-role-matrix/${runId}`; await mkdir(artifactDir, { recursive: true }); browser = await chromium.launch({ headless: true, channel: "chrome" });
     for (const item of screenshots) {
       const context = await browser.newContext({ viewport: { width: item.width, height: item.height }, colorScheme: item.dark ? "dark" : "light" });
       await context.addCookies([...item.account.jar.entries()].map(([name, value]) => ({ name, value, domain: "studenthub-brno.vercel.app", path: "/", secure: true, httpOnly: true, sameSite: "Lax" })));
@@ -188,6 +203,8 @@ async function runMatrix(iteration) {
       await context.close();
     }
     await browser.close(); browser = null;
+    const logout = await call(accounts.admin.jar, "/api/admin/logout", { method: "POST" }); applySetCookies(accounts.admin.jar, logout.headers); expectStatus("admin", "produkční odhlášení", logout.status, 200);
+    expectStatus("admin", "relace po odhlášení", (await call(accounts.admin.jar, "/api/admin/data")).status, 401);
   } catch (error) {
     record("system", "běh matice", "bez výjimky", error instanceof Error ? error.message : String(error), false);
   } finally {

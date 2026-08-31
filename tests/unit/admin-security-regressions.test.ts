@@ -15,6 +15,19 @@ describe("regrese produkční administrace", () => {
     expect(route).toContain('parsed.data.action === "suspend_profile"');
   });
 
+  it("odhlášení ukončí Supabase relaci a smaže i starý lokální cookie", () => {
+    const route = readFileSync("app/api/admin/logout/route.ts", "utf8");
+    expect(route).toContain("createServerClient");
+    expect(route).toContain('supabase.auth.signOut({ scope: "local" })');
+    expect(route).toContain("adminCookie.name");
+  });
+
+  it("nepovolenou admin sekci zastaví už serverová stránka", () => {
+    const page = readFileSync("app/admin/page.tsx", "utf8");
+    expect(page).toContain("adminSectionAllowed(requested, user.role)");
+    expect(page).toContain("notFound()");
+  });
+
   it("migrace chrání jediného superadmina, citlivá městská data a městský chat", () => {
     const migration = readFileSync("supabase/migrations/202608310033_admin_role_scope_hardening.sql", "utf8");
     for (const marker of ["profiles_single_super_admin_idx", "cannot_demote_only_superadmin", "profiles_admin_scope_required", "can_manage_sensitive_city", "chat_conversations alter column city_id set not null", "scoped moderators read chat action audit"]) expect(migration).toContain(marker);
