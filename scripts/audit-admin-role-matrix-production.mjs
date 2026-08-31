@@ -73,6 +73,10 @@ async function runMatrix(iteration) {
     const createCity = await call(superJar, "/api/admin/content/cities", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cityId, slug: cityId, name: `[E2E ADMIN – ${runId}]`, region: "Testovací neveřejný rozsah", country_code: "CZ", timezone: "Europe/Prague", latitude: 49.2, longitude: 16.61, map_bounds: [[49.1, 16.4], [49.3, 16.8]], map_zoom: 13, enabled: false, public_status: "draft", sort_order: 999, brand_config: { testRunId: runId } }) });
     expectStatus("super_admin", "vytvoření neveřejného města", createCity.status, 201);
     const publicCity = await call(null, `/${cityId}`); record("anonymous", "neveřejné město", "404", String(publicCity.status), publicCity.status === 404);
+    expectStatus("super_admin", "úprava testovacího města", (await call(superJar, "/api/admin/content/cities", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cityId, region: "Upravený testovací rozsah", longitude: 16.62, enabled: true, public_status: "review" }) })).status, 200);
+    const updatedCity = await service.from("cities").select("region,longitude,enabled,public_status").eq("id", cityId).single(); record("super_admin", "uložení úpravy města", "review/enabled", `${updatedCity.data?.public_status}/${updatedCity.data?.enabled}`, updatedCity.data?.region === "Upravený testovací rozsah" && Number(updatedCity.data?.longitude) === 16.62 && updatedCity.data?.enabled === true && updatedCity.data?.public_status === "review");
+    expectStatus("super_admin", "deaktivace testovacího města", (await call(superJar, "/api/admin/content/cities", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cityId, enabled: false, public_status: "draft" }) })).status, 200);
+    const deactivatedCity = await service.from("cities").select("enabled,public_status").eq("id", cityId).single(); record("super_admin", "město zůstává neveřejné", "draft/false", `${deactivatedCity.data?.public_status}/${deactivatedCity.data?.enabled}`, deactivatedCity.data?.enabled === false && deactivatedCity.data?.public_status === "draft");
 
     const accountSpecs = ["admin", "city_editor", "faculty_editor", "user", "transition", "chat_target"];
     const usernameSuffixes = { admin: "ad", city_editor: "ce", faculty_editor: "fe", user: "us", transition: "tr", chat_target: "ct" };
@@ -100,6 +104,7 @@ async function runMatrix(iteration) {
     for (const name of ["city_editor", "faculty_editor"]) { accounts[name].jar = await accountCookie(accounts[name].email, accounts[name].secret); record(name, "Supabase Auth relace", "vytvořena", accounts[name].jar.size ? "vytvořena" : "chybí", accounts[name].jar.size > 0); }
     const userLogin = await productionLogin(accounts.user.email, accounts.user.secret); expectStatus("user", "odmítnutí admin přihlášení", userLogin.status, 401);
     const userJar = await accountCookie(accounts.user.email, accounts.user.secret); const userAdminPage = await call(userJar, "/admin"); const userDashboardRendered = typeof userAdminPage.body === "string" && userAdminPage.body.includes("Správa StudentHub"); record("user", "serverová ochrana administrace", "redirect bez admin dashboardu", `${userAdminPage.status}, dashboard=${userDashboardRendered}`, ([307, 308].includes(userAdminPage.status) || userAdminPage.status === 200) && !userDashboardRendered);
+    expectStatus("user", "podvržená role v requestu", (await call(userJar, "/api/admin/users?role=super_admin", { headers: { "x-role": "super_admin" } })).status, 401);
     const anonymousAdmin = await call(null, "/api/admin/data"); expectStatus("anonymous", "admin API bez relace", anonymousAdmin.status, 401);
 
     const placeRows = [
@@ -135,9 +140,10 @@ async function runMatrix(iteration) {
         record(role, `UI sekce ${section}`, allowed.has(section) ? "200 a povolená sekce" : "404 nebo streamovaná 404", `${page.status}, dashboard=${dashboardRendered}`, pass);
       }
     }
-    for (const section of sectionKeys) { const page = await call(superJar, `/admin?section=${section}`); expectStatus("super_admin", `UI sekce ${section}`, page.status, 200); }
+    for (const section of sectionKeys) { const page = await call(superJar, `/admin?section=${section}`); const rendered = typeof page.body === "string" && page.body.includes("Správa StudentHub"); record("super_admin", `UI sekce ${section}`, "200 a vykreslený dashboard", `${page.status}, dashboard=${rendered}`, page.status === 200 && rendered); }
 
     const superData = await call(superJar, "/api/admin/data"); expectStatus("super_admin", "globální data", superData.status, 200); record("super_admin", "vidí testovací město", cityId, (superData.body?.cities || []).map((row) => row.id).join(","), (superData.body?.cities || []).some((row) => row.id === cityId));
+    expectStatus("super_admin", "export soukromého archivu", (await call(superJar, "/api/admin/export")).status, 200);
     const adminData = await call(accounts.admin.jar, "/api/admin/data"); expectStatus("admin", "městská data", adminData.status, 200); record("admin", "scope míst", cityId, (adminData.body?.places || []).map((row) => row.city_id).join(","), (adminData.body?.places || []).every((row) => row.city_id === cityId));
     const editorData = await call(accounts.city_editor.jar, "/api/admin/data"); expectStatus("city_editor", "obsahová data", editorData.status, 200); record("city_editor", "bez kontaktů a analytiky", "0/0/0", `${editorData.body?.contact_messages?.length || 0}/${editorData.body?.service_requests?.length || 0}/${editorData.body?.page_views?.length || 0}`, !(editorData.body?.contact_messages?.length || editorData.body?.service_requests?.length || editorData.body?.page_views?.length));
     const facultyData = await call(accounts.faculty_editor.jar, "/api/admin/data"); expectStatus("faculty_editor", "fakultní data", facultyData.status, 200); record("faculty_editor", "scope míst", "muni-fi", (facultyData.body?.places || []).map((row) => row.faculty_id).join(","), (facultyData.body?.places || []).some((row) => row.id === placeRows[1].id) && (facultyData.body?.places || []).every((row) => row.faculty_id === "muni-fi"));
@@ -195,11 +201,12 @@ async function runMatrix(iteration) {
     const rlsFaculty = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, anonOptions); await rlsFaculty.auth.signInWithPassword({ email: accounts.faculty_editor.email, password: accounts.faculty_editor.secret });
     const otherFacultyRls = await rlsFaculty.from("places").update({ description: runId }).eq("id", placeRows[2].id).select("id"); record("faculty_editor", "RLS zápisu cizí fakulty", "0 řádků", String(otherFacultyRls.data?.length || 0), !otherFacultyRls.error && otherFacultyRls.data?.length === 0);
 
-    const screenshots = [{ role: "admin", account: accounts.admin, width: 1440, height: 900, dark: false }, { role: "city_editor", account: accounts.city_editor, width: 768, height: 1024, dark: true }, { role: "faculty_editor", account: accounts.faculty_editor, width: 390, height: 844, dark: false }];
+    const screenshots = [{ role: "super_admin", account: { jar: superJar }, width: 1440, height: 900, dark: true }, { role: "admin", account: accounts.admin, width: 1440, height: 900, dark: false }, { role: "city_editor", account: accounts.city_editor, width: 768, height: 1024, dark: true }, { role: "faculty_editor", account: accounts.faculty_editor, width: 390, height: 844, dark: false }];
     const artifactDir = `artifacts/admin-role-matrix/${runId}`; await mkdir(artifactDir, { recursive: true }); browser = await chromium.launch({ headless: true, channel: "chrome" });
     for (const item of screenshots) {
       const context = await browser.newContext({ viewport: { width: item.width, height: item.height }, colorScheme: item.dark ? "dark" : "light" });
       await context.addCookies([...item.account.jar.entries()].map(([name, value]) => ({ name, value, domain: "studenthub-brno.vercel.app", path: "/", secure: true, httpOnly: true, sameSite: "Lax" })));
+      await context.addInitScript(() => localStorage.setItem("studenthub-consent", JSON.stringify({ analytics: false, marketing: false })));
       const page = await context.newPage(); const errors = []; page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); }); page.on("pageerror", (error) => errors.push(error.message));
       const response = await page.goto(`${baseUrl}/admin?section=${item.role === "faculty_editor" ? "places" : item.role === "city_editor" ? "chat_reports" : "cities"}`, { waitUntil: "networkidle" });
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
