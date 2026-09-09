@@ -42,8 +42,10 @@ test.describe("produkční StudentHub", () => {
 
     await page.goto("/brno/kalendar?view=community", { waitUntil: "networkidle" });
     await expect(page.getByRole("tab", { name: "Co se děje" })).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("heading", { name: "Festival vědy 2026", exact: true })).toBeVisible();
-    await expect(page.getByText("Veřejný zdroj", { exact: true }).first()).toBeVisible();
+    const firstCurrentEvent = page.locator("main article").first();
+    await expect(firstCurrentEvent).toBeVisible();
+    await expect(firstCurrentEvent.locator("time")).toBeVisible();
+    await expect(firstCurrentEvent.getByRole("link", { name: "Veřejný zdroj" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 
     await page.goto("/brno/mista?university=muni&campus=Bohunice", { waitUntil: "networkidle" });
