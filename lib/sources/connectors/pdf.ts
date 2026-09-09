@@ -46,8 +46,7 @@ export async function parsePdfExtractedText(
     || (inferredYears.size === 1 ? [...inferredYears][0] : null);
   const expectedAcademicYear = currentAcademicYear(new Date(context.checkedAt));
   const eligibleCandidates = documentAcademicYear ? candidates.filter((candidate) => fallsWithinAcademicYear(candidate.parsed.start, candidate.parsed.end, documentAcademicYear)) : candidates;
-  const automatic = context.source.monitoringMode === "automatic_publish"
-    && !options.usedOcr
+  const automatic = !options.usedOcr
     && documentAcademicYear === expectedAcademicYear
     && eligibleCandidates.length > 0;
 
@@ -82,7 +81,7 @@ export async function parsePdfExtractedText(
     if (!events.length) warnings.push("PDF neobsahuje strojově čitelný jistý termín; dokument vyžaduje ruční kontrolu nebo OCR.");
     else if (!automatic) warnings.push("PDF nesplnilo všechny podmínky pro automatické zveřejnění: aktuální rok, textová vrstva a jednoznačné datum.");
   }
-  return { events, warnings, sourceText: normalizedText, documentTitle, normalizedHash: await sha256(normalizedText) };
+  return { events, warnings, sourceText: normalizedText, documentTitle, normalizedHash: await sha256(normalizedText), extractionMethod: options.usedOcr ? "ocr" : "native_text" };
 }
 
 type PositionedText = { text: string; x: number; y: number; width: number; hasEol: boolean };
@@ -186,5 +185,5 @@ export async function parsePdf(context: ConnectorContext): Promise<ConnectorResu
   else if (!pages.some((page) => page.text.trim())) warnings.push("Skenované PDF nemá textovou vrstvu a OCR služba není nakonfigurovaná; dokument zůstává v ruční frontě.");
   else if (!events.length) warnings.push("PDF neobsahuje žádný jednoznačně rozpoznaný akademický termín.");
   else if (events.some((event) => event.status !== "approved")) warnings.push("PDF nesplnilo všechny podmínky pro automatické zveřejnění: aktuální rok, textová vrstva a jednoznačné datum.");
-  return { events, warnings, sourceText, documentTitle, normalizedHash: await sha256(sourceText) };
+  return { events, warnings, sourceText, documentTitle, normalizedHash: await sha256(sourceText), extractionMethod: usedOcr ? "ocr" : "native_text" };
 }

@@ -57,4 +57,5 @@ export type NormalizedEvent = {
 };
 
 export type ConnectorContext = { source: ContentSource; body: Uint8Array; contentType: string; checkedAt: string };
-export type ConnectorResult = { events: NormalizedEvent[]; warnings: string[]; sourceText?: string; documentTitle?: string; normalizedHash?: string };
+export type ConnectorExtractionMethod = "structured" | "native_text" | "ocr";
+export type ConnectorResult = { events: NormalizedEvent[]; warnings: string[]; sourceText?: string; documentTitle?: string; normalizedHash?: string; extractionMethod?: ConnectorExtractionMethod };

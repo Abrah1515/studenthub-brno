@@ -57,9 +57,9 @@ test("výběr místa propojí seznam s mapou, funguje klávesnicí a přežije p
   const secondMarker = page.locator('.leaflet-interactive[role="button"]').nth(1); if (await secondMarker.count()) { await secondMarker.focus(); await page.keyboard.press("Enter"); await expect(cards.nth(1)).toHaveClass(/selected/); }
 });
 
-test("dashboard odděluje probíhající období od nejbližšího budoucího termínu", async ({ page }, testInfo) => {
+test("dashboard nepovažuje ukončený bodový termín za probíhající", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
   await page.goto("/brno");
-  await expect(page.getByRole("heading", { name: "Právě probíhá" })).toBeVisible();
-  const nearest = page.locator("article.next-card"); await expect(nearest).toContainText("Začátek podzimního semestru 2026"); await expect(nearest).not.toContainText("Registrace předmětů na HF JAMU");
+  await expect(page.getByRole("heading", { name: "Právě probíhá" })).toHaveCount(0);
+  const nearest = page.locator("article.next-card"); await expect(nearest).toContainText("Výuka v zimním semestru FIT VUT"); await expect(nearest).not.toContainText("Registrace předmětů na HF JAMU");
 });

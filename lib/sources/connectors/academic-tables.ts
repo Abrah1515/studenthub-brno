@@ -33,10 +33,6 @@ function rows(table: string) {
   }));
 }
 
-function sourceStatus(context: ConnectorContext) {
-  return context.source.monitoringMode === "automatic_publish" ? "approved" as const : "pending" as const;
-}
-
 async function event(context: ConnectorContext, values: { title: string; startAt: string; endAt?: string; allDay: boolean; academicYear: string; originalText: string }): Promise<NormalizedEvent> {
   const category = inferCategory(values.title);
   // Identity excludes the schedule so a moved term updates one durable event.
@@ -47,7 +43,7 @@ async function event(context: ConnectorContext, values: { title: string; startAt
     startAt: values.startAt, endAt: values.endAt, allDay: values.allDay, timezone: "Europe/Prague", category,
     academicYear: values.academicYear, universityId: context.source.universityId, facultyId: context.source.facultyId,
     sourceId: context.source.id, sourceUrl: context.source.sourceUrl, sourceHash: await sha256(values.originalText),
-    confidence: context.source.monitoringMode === "automatic_publish" ? 0.98 : 0.82, status: sourceStatus(context),
+    confidence: 0.98, status: "approved",
     lastVerifiedAt: context.checkedAt, sourceDocumentTitle: "Přehled harmonogramu období fakult", originalText: values.originalText,
   };
 }
@@ -89,7 +85,7 @@ export async function parseVutSchedule(context: ConnectorContext): Promise<Conne
     parsed.push(await event(context, { title, startAt: start.iso, endAt: end?.iso, allDay, academicYear, originalText: htmlText(item) }));
   }
   const events = [...new Map(parsed.map((item) => [item.externalId, item])).values()];
-  return { events, warnings: events.length ? [] : ["Strukturovaný časový plán VUT neobsahuje žádný jednoznačný termín aktuálního akademického roku."], sourceText: htmlText(html), documentTitle: `Časový plán ${context.source.facultyId.toUpperCase()} VUT`, normalizedHash: await sha256(JSON.stringify(events.map((item) => [item.externalId, item.sourceHash]))) };
+  return { events, warnings: events.length ? [] : ["Strukturovaný časový plán VUT neobsahuje žádný jednoznačný termín aktuálního akademického roku."], sourceText: htmlText(html), documentTitle: `Časový plán ${context.source.facultyId.toUpperCase()} VUT`, normalizedHash: await sha256(JSON.stringify(events.map((item) => [item.externalId, item.sourceHash]))), extractionMethod: "structured" };
 }
 
 function academicYearFromPeriod(period: string) {
@@ -141,7 +137,7 @@ export async function parseIsAcademicPeriods(context: ConnectorContext): Promise
   }
   const latestYear = [...parsedByYear.keys()].sort().at(-1);
   const events = latestYear ? parsedByYear.get(latestYear) || [] : [];
-  return { events, warnings: events.length ? [] : ["Veřejný IS neobsahuje pro zvolenou fakultu jednoznačné aktuální termíny."], sourceText: htmlText(html), documentTitle: "Přehled harmonogramu období fakult", normalizedHash: await sha256(JSON.stringify(events.map((item) => [item.externalId, item.sourceHash]))) };
+  return { events, warnings: events.length ? [] : ["Veřejný IS neobsahuje pro zvolenou fakultu jednoznačné aktuální termíny."], sourceText: htmlText(html), documentTitle: "Přehled harmonogramu období fakult", normalizedHash: await sha256(JSON.stringify(events.map((item) => [item.externalId, item.sourceHash]))), extractionMethod: "structured" };
 }
 
 const pefHeaders: Array<{ pattern: RegExp; title: string }> = [
@@ -167,5 +163,5 @@ export async function parseMendeluPef(context: ConnectorContext): Promise<Connec
       }
     }
   }
-  return { events, warnings: events.length ? [] : ["Strukturovaná tabulka PEF nebyla nalezena nebo změnila záhlaví."], sourceText: htmlText(html), documentTitle: "Harmonogram PEF MENDELU", normalizedHash: await sha256(JSON.stringify(events.map((item) => [item.externalId, item.sourceHash]))) };
+  return { events, warnings: events.length ? [] : ["Strukturovaná tabulka PEF nebyla nalezena nebo změnila záhlaví."], sourceText: htmlText(html), documentTitle: "Harmonogram PEF MENDELU", normalizedHash: await sha256(JSON.stringify(events.map((item) => [item.externalId, item.sourceHash]))), extractionMethod: "structured" };
 }

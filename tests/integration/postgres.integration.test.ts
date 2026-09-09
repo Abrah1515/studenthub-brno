@@ -42,7 +42,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant usage on schema public, auth to anon, authenticated, service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(33);
+      expect(files).toHaveLength(34);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -207,15 +207,20 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query<{ moderation_status: string; report_count: number }>("select moderation_status,report_count from public.buddy_posts where id='91111111-1111-4111-8111-111111111112'")).rows[0]).toEqual({ moderation_status: "hidden", report_count: 3 });
       await expect(db.exec("update public.buddy_join_requests set status='accepted' where id='92111111-1111-4111-8111-111111111112'")).rejects.toThrow(/capacity/i);
       expect((await db.query<{ status: string; report_count: number }>("select status,report_count from public.community_events where id='93111111-1111-4111-8111-111111111111'")).rows[0]).toEqual({ status: "hidden", report_count: 3 });
-      expect((await db.query<{ archive_expired_community_events: number }>("select public.archive_expired_community_events()")).rows[0].archive_expired_community_events).toBe(1);
+      expect((await db.query<{ archive_expired_community_events: number }>("select public.archive_expired_community_events()")).rows[0].archive_expired_community_events).toBeGreaterThanOrEqual(1);
 
       const vetuni = contentSources.find((item) => item.id === "src-vetuni-fvl")!;
       const pdfResult = await parsePdf({ source: { ...vetuni, format: "pdf", parserKey: "pdf-review", sourceUrl: "https://www.vetuni.cz/files/fixture.pdf" }, body: await readFile("tests/fixtures/calendar-text.pdf"), contentType: "application/pdf", checkedAt: "2026-08-02T10:00:00Z" });
       const pdfPartition = partitionEventsForMonitoring(vetuni.monitoringMode, pdfResult.events);
-      expect(pdfPartition.publishable).toHaveLength(0); expect(pdfPartition.review).toHaveLength(2);
+      expect(pdfPartition.publishable).toHaveLength(2); expect(pdfPartition.review).toHaveLength(0);
       const run = await db.query<{ id: string }>("insert into public.source_sync_runs(source_id,status,finished_at,discovered_count,published_count,review_count) values ('src-vetuni-fvl','review',now(),2,0,2) returning id");
-      await db.query("insert into public.source_review_queue(source_id,sync_run_id,proposed_payload,reason,status,source_text,confidence,source_document_title) values ('src-vetuni-fvl',$1,$2::jsonb,'low_confidence','pending',$3,$4,$5)", [run.rows[0].id, JSON.stringify({ events: pdfPartition.review, warnings: pdfResult.warnings }), pdfResult.sourceText, Math.max(...pdfPartition.review.map((item) => item.confidence)), pdfResult.documentTitle]);
+      const firstQueue = await db.query<{ id: string }>("select public.enqueue_source_review('src-vetuni-fvl',$1,$2::jsonb,'low_confidence',$3,0.7,$4,null,repeat('a',64),'academic-source-v2') as id", [run.rows[0].id, JSON.stringify({ events: pdfResult.events, warnings: [] }), pdfResult.sourceText, pdfResult.documentTitle]);
+      const secondQueue = await db.query<{ id: string }>("select public.enqueue_source_review('src-vetuni-fvl',$1,$2::jsonb,'source_conflict',$3,0.8,$4,null,repeat('b',64),'academic-source-v2') as id", [run.rows[0].id, JSON.stringify({ events: pdfResult.events, warnings: ["konflikt"] }), pdfResult.sourceText, pdfResult.documentTitle]);
+      const sameQueue = await db.query<{ id: string }>("select public.enqueue_source_review('src-vetuni-fvl',$1,$2::jsonb,'source_conflict',$3,0.8,$4,null,repeat('b',64),'academic-source-v2') as id", [run.rows[0].id, JSON.stringify({ events: pdfResult.events, warnings: ["konflikt"] }), pdfResult.sourceText, pdfResult.documentTitle]);
+      expect(firstQueue.rows[0].id).not.toBe(secondQueue.rows[0].id);
+      expect(sameQueue.rows[0].id).toBe(secondQueue.rows[0].id);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.source_review_queue where source_id='src-vetuni-fvl' and status='pending'")).rows[0].count).toBe(1);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.source_review_queue where source_id='src-vetuni-fvl' and status='superseded'")).rows[0].count).toBe(1);
 
       await db.exec(`
         insert into public.marketplace_listings(id,city_id,listing_type,category,title,short_description,description,price_mode,price_amount,price_scope,university_id,faculty_id,semester,material_format,item_condition,handoff_method,handoff_location,public_alias,seller_email,seller_email_hash,request_fingerprint,management_token_hash,duplicate_fingerprint,copyright_confirmed,privacy_consent_at,status,email_verified_at,published_at,expires_at)

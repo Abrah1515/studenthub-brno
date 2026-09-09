@@ -63,9 +63,9 @@ test("výběr fakulty funguje pro všech pět univerzit a kontext se mění bez 
   }
 });
 
-test("kalendář opraví neplatnou kombinaci URL a neukáže jinou fakultu", async ({ page }) => { await page.goto("/brno/kalendar?university=muni&faculty=vut-fit"); await expect(page).toHaveURL(/university=muni/); await expect(page).not.toHaveURL(/faculty=vut-fit/); await expect(page.getByRole("heading", { name: /FIT VUT/ })).toHaveCount(0); await page.getByRole("button", { name: "Resetovat filtry" }).click(); await expect(page).toHaveURL(/\/brno\/kalendar$/); });
+test("kalendář opraví neplatnou kombinaci URL a neukáže jinou fakultu", async ({ page }) => { await page.goto("/brno/kalendar?university=muni&faculty=vut-fit"); await expect(page).toHaveURL(/university=muni/); await expect(page).not.toHaveURL(/faculty=vut-fit/); await expect(page.getByRole("heading", { name: /FIT VUT/ })).toHaveCount(0); await page.getByRole("button", { name: "Resetovat filtry" }).last().click(); await expect(page).toHaveURL(/\/brno\/kalendar$/); });
 
-test("explicitní MUNI FI scope má přednost a dashboard nepropustí VUT", async ({ page }) => { await page.evaluate(() => localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "vut", facultyId: "vut-fit", studyYear: 1, studyYearCycleStart: 2026, completed: true }))); await page.goto("/brno?university=muni&faculty=muni-fi"); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); await expect(page.getByText(/FIT VUT|FSI VUT/)).toHaveCount(0); await expect(page.getByRole("heading", { name: "Začátek podzimního semestru 2026", exact: true }).first()).toBeVisible(); });
+test("explicitní MUNI FI scope má přednost a dashboard nepropustí VUT", async ({ page }) => { await page.evaluate(() => localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "vut", facultyId: "vut-fit", studyYear: 1, studyYearCycleStart: 2026, completed: true }))); await page.goto("/brno?university=muni&faculty=muni-fi"); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); await expect(page.getByText(/FIT VUT|FSI VUT/)).toHaveCount(0); await expect(page.getByRole("heading", { name: "Zatím bez ověřených termínů" })).toBeVisible(); await expect(page.getByRole("heading", { name: "Menza Vinařská MUNI", exact: true })).toBeVisible(); });
 
 test("uložená preference MUNI FI filtruje KPI, termíny i místa bez URL parametrů", async ({ page }) => { await page.evaluate(() => localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "muni", facultyId: "muni-fi", studyYear: null, studyYearCycleStart: null, completed: true }))); await page.goto("/brno"); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); await expect(page.getByText(/FIT VUT|FSI VUT/)).toHaveCount(0); await expect(page.getByText("Další zkouškové období")).toHaveCount(0); await expect(page.getByRole("heading", { name: "Menza Vinařská MUNI", exact: true })).toBeVisible(); await expect(page.getByRole("heading", { name: "Ústřední knihovna VUT", exact: true })).toHaveCount(0); });
 
@@ -241,4 +241,17 @@ test("offline navigace zobrazí jen bezpečnou offline stránku", async ({ page,
   await context.setOffline(true);
   try { await page.goto("/brno?offline-audit=1", { waitUntil: "domcontentloaded" }); await expect(page.getByRole("heading", { name: "Teď jste offline" })).toBeVisible(); }
   finally { await context.setOffline(false); }
+});
+
+test("administrace vysvětluje čistou frontu obsahových změn", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
+  await page.goto("/admin/prihlaseni");
+  await page.getByLabel("E-mail").fill("queue-audit@example.cz");
+  await page.getByLabel("Heslo").fill("local-test-password-2026");
+  await page.getByRole("button", { name: "Přihlásit se" }).click();
+  await page.waitForURL("**/admin");
+  await page.goto("/admin?section=source_review_queue");
+  await expect(page.getByRole("heading", { name: "Změny čekající na kontrolu" })).toBeVisible();
+  await expect(page.getByText(/Technické blokace najdeš u Datových zdrojů/)).toBeVisible();
+  await expect(page.getByText("Žádné změny nečekají na kontrolu.")).toBeVisible();
 });

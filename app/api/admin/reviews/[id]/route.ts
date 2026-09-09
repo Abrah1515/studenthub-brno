@@ -148,6 +148,27 @@ export async function PATCH(request: Request, context: Context) {
     if (isSupabaseConfigured()) {
       const client = createServiceClient();
 
+      const refreshSourceReviewState = async (sourceId: string) => {
+        const { count, error: countError } = await client
+          .from("source_review_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("source_id", sourceId)
+          .eq("status", "pending");
+
+        if (countError) throw countError;
+
+        const stillPending = (count || 0) > 0;
+        const { error: sourceError } = await client
+          .from("content_sources")
+          .update({
+            requires_review: stillPending,
+            ...(stillPending ? {} : { sync_status: "success" }),
+          })
+          .eq("id", sourceId);
+
+        if (sourceError) throw sourceError;
+      };
+
       const { data: review, error } = await client
         .from("source_review_queue")
         .select("*,content_sources(faculty_id,city_id,university_id)")
@@ -342,6 +363,10 @@ export async function PATCH(request: Request, context: Context) {
 
         if (updateError) throw updateError;
 
+        if (allDone) {
+          await refreshSourceReviewState(review.source_id);
+        }
+
         return NextResponse.json(data);
       }
 
@@ -386,6 +411,8 @@ export async function PATCH(request: Request, context: Context) {
           .single();
 
       if (updateError) throw updateError;
+
+      await refreshSourceReviewState(review.source_id);
 
       return NextResponse.json(data);
     }

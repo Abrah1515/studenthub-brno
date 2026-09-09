@@ -12,6 +12,7 @@ import { MarketplaceAdminPanel } from "@/components/marketplace-admin-panel";
 import { PlaceCommunityAdminPanel } from "@/components/place-community-admin-panel";
 import { ProfileAdminPanel } from "@/components/profile-admin-panel";
 import { ChatAdminPanel } from "@/components/chat-admin-panel";
+import { isActionableSourceReview, sourceReviewReasonLabel } from "@/lib/sources/publish-policy";
 
 type Row = Record<string, unknown>;
 type DataKey = "profiles" | "profile_reports" | "account_moderation_history" | "profile_permissions" | "profile_permission_audit" | "cities" | "academic_events" | "community_events" | "places" | "place_live_reports" | "moderation_actions" | "offers" | "jobs" | "marketplace_listings" | "marketplace_reports" | "marketplace_history" | "marketplace_moderation_actions" | "marketplace_abuse_blocks" | "service_requests" | "submissions" | "content_sources" | "source_review_queue" | "outbound_clicks" | "page_views" | "source_sync_runs" | "link_checks" | "content_publication_events" | "buddy_posts" | "buddy_join_requests" | "content_reports" | "contact_messages" | "academic_event_conflicts" | "community_profiles" | "community_posts" | "community_comments" | "community_reports" | "community_moderation_history" | "community_moderation_settings" | "chat_reports";
@@ -36,7 +37,7 @@ export function AdminDashboard({ adminEmail, mode, role, initialSection }: { adm
     ...(role === "super_admin" ? [{ label: "Profily", value: data.profiles.length, icon: UserCog }, { label: "Pozastavené účty", value: data.profiles.filter((row) => row.account_status === "suspended").length, icon: ShieldCheck }] : []),
     { label: "Veřejný obsah", value: data.academic_events.length + data.community_events.length + data.places.length + data.offers.length + data.jobs.length, icon: LayoutDashboard },
     ...(adminSectionAllowed("service_requests", role) ? [{ label: "Nové poptávky", value: data.service_requests.filter((row) => row.status === "new").length, icon: Eye }] : []),
-    { label: "Čeká na kontrolu", value: data.submissions.filter((row) => row.status === "pending").length + data.source_review_queue.filter((row) => row.status === "pending").length, icon: ShieldCheck },
+    { label: "Čeká na kontrolu", value: data.submissions.filter((row) => row.status === "pending").length + data.source_review_queue.filter(isActionableSourceReview).length, icon: ShieldCheck },
     { label: "Aktivní zdroje", value: data.content_sources.filter((row) => Boolean(sourceValue(row, "enabled", "enabled"))).length, icon: Database },
     { label: "Živá hlášení míst", value: data._meta.operations.freshPlaceReports, icon: MapPin },
     { label: "Změny termínů", value: data._meta.operations.academicChanges, icon: CalendarDays },
@@ -64,13 +65,13 @@ function SourcesPanel({ rows, runs, content, role, onApi }: { rows: Row[]; runs:
   return <section className="admin-panel"><div className="admin-section-head"><div><h2>Pokrytí datových zdrojů</h2><p>{rows.length} zdrojů · stav smluvních feedů neodhaluje jejich neveřejné adresy.</p></div></div><div className="source-coverage" role="table" aria-label="Pokrytí datových zdrojů"><div className="source-coverage-head" role="row"><span>Rozsah</span><span>Zdroj</span><span>Obsah a kontrola</span><span>Režim a stav</span><span>Akce</span></div>{rows.map((row) => {
     const id = String(row.id); const isJobFeed = String(row.sourceType || row.source_type) === "job_feed"; const enabled = Boolean(sourceValue(row, "enabled", "enabled")); const connectorEnabled = !isJobFeed || Boolean(row.connector_enabled); const status = String(row.syncStatus || row.sync_status || "idle"); const mode = String(row.monitoringMode || row.monitoring_mode || "automatic_review"); const facultyId = String(sourceValue(row, "facultyId", "faculty_id") || ""); const faculty = facultyById(facultyId);
     const sourceRuns = [...runs].filter((run) => String(run.source_id) === id).sort((a, b) => String(b.started_at).localeCompare(String(a.started_at))).slice(0, 5); const lastRun = sourceRuns[0];
-    const count = isJobFeed ? Number(row.active_count || 0) : content.filter((item) => String(item.source_id || item.sourceId) === id && item.status !== "archived").length; const failures = Number(row.consecutive_failures || 0); const blockReason = String(row.last_block_reason || ""); const modeLabel = mode === "automatic_publish" ? "automaticky publikovat" : mode === "not_found_monitored" ? "zdroj nenalezen · monitorovat" : "automaticky načíst · schválit";
+    const count = isJobFeed ? Number(row.active_count || 0) : content.filter((item) => String(item.source_id || item.sourceId) === id && item.status !== "archived").length; const failures = Number(row.consecutive_failures || 0); const blockReason = String(row.last_block_reason || ""); const modeLabel = mode === "automatic_publish" ? "automaticky publikovat po bezpečnostní kontrole" : mode === "not_found_monitored" ? "zdroj nenalezen · monitorovat" : "automatický import · jisté změny publikovat";
     const warnings = lastRun && Array.isArray(lastRun.warnings) ? lastRun.warnings.map(String) : [];
     return <article role="row" key={id}><div><strong>{isJobFeed ? "BRNO" : String(row.universityId || row.university_id || "").toUpperCase()}</strong><span>{isJobFeed ? "Brigády" : faculty?.name || facultyId}</span></div><div><a href={String(sourceValue(row, "sourceUrl", "source_url"))} target="_blank" rel="noopener noreferrer">{isJobFeed ? "Veřejná stránka poskytovatele" : "Oficiální zdroj"}</a><small>{String(row.format)} · {String(row.parserKey || row.parser_key)}</small>{!isJobFeed && <small>{String(row.academicYear || row.academic_year || "rok zjišťuje parser")}</small>}{!isJobFeed && Boolean(row.last_final_url) && <small>Finální URL: {String(row.last_final_url)}</small>}{Boolean(row.last_content_type) && <small>MIME: {String(row.last_content_type)}</small>}</div><div><strong>{count} {isJobFeed ? "aktivních nabídek" : "událostí"}</strong><small>Poslední pokus: {String(row.last_checked_at || "zatím neproběhl")}</small><small>Poslední úspěch: {String(row.last_success_at || "zatím neproběhl")}</small><small>Další kontrola: {String(row.next_check_at || "nenaplánována")}</small>{Boolean(blockReason) && <small className="source-block-reason">Blokováno: {blockReason}</small>}</div><div><span className={`source-status source-${mode}`}>{modeLabel}</span><small>Poslední stav: {status}</small><small>{failures} chyb · jistota {Math.round(Number(row.confidence || 0) * 100)} %</small>{isJobFeed && <small>{String(row.connector_status_reason || "Čeká na ostrý XML feed.")}</small>}{lastRun && <small>Poslední běh: {String(lastRun.status)} · načteno {String(lastRun.loaded_count ?? lastRun.discovered_count ?? 0)}, vloženo {String(lastRun.inserted_count ?? 0)}, změněno {String(lastRun.updated_count ?? 0)}, beze změny {String(lastRun.unchanged_count ?? 0)}, archivováno {String(lastRun.archived_count ?? 0)}, odmítnuto {String(lastRun.rejected_count ?? 0)}, varování {String(lastRun.warning_count ?? warnings.length)}</small>}{warnings.length > 0 && <small className="source-block-reason">{warnings.slice(0, 2).join(" ")}</small>}{isJobFeed && sourceRuns.length > 0 && <details className="admin-audit-log"><summary>Poslední běhy synchronizace</summary>{sourceRuns.map((run) => <small key={String(run.id)}>• {String(run.started_at)} · {String(run.status)} · {String(run.loaded_count ?? run.discovered_count ?? 0)} načteno / {String(run.rejected_count ?? 0)} odmítnuto</small>)}</details>}</div><div className="source-actions">{role === "super_admin" && <button className="button button-secondary" disabled={!enabled || !connectorEnabled} onClick={() => onApi(`/api/admin/sources/${id}/sync`, { method: "POST" })}><RefreshCcw size={15} />Synchronizovat</button>}<button className="button button-secondary" onClick={() => onApi(`/api/admin/sources/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled: !enabled }) })}>{enabled ? "Vypnout" : "Zapnout"}</button></div></article>;
   })}</div></section>;
 }
 function ReviewPanel({ rows, sources, onApi }: { rows: Row[]; sources: Row[]; onApi: (url: string, options?: RequestInit) => Promise<boolean> }) {
-  const pending = rows.filter((row) => row.status === "pending");
+  const pending = rows.filter(isActionableSourceReview);
 
   function eventsFor(row: Row): Row[] {
     const payload = row.proposed_payload as Row | undefined;
@@ -158,9 +159,7 @@ function ReviewPanel({ rows, sources, onApi }: { rows: Row[]; sources: Row[]; on
         <div>
           <h2>Změny čekající na kontrolu</h2>
           <p>
-            Návrhy z automatického zpracování můžeš
-            schválit všechny najednou nebo je rozbalit
-            a rozhodnout o každém zvlášť.
+            Aktuální, úplné a strojově čitelné oficiální zdroje se zveřejní automaticky. Zde zůstávají jen výjimky: OCR, nejasný rok, nízká jistota, konflikt nebo podezřele rozsáhlá změna. Technické blokace najdeš u Datových zdrojů.
           </p>
         </div>
       </div>
@@ -200,10 +199,7 @@ function ReviewPanel({ rows, sources, onApi }: { rows: Row[]; sources: Row[]; on
               <article key={String(row.id)}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <span className="tag">
-                    {String(
-                      row.reason ||
-                      "ruční kontrola"
-                    )}
+                    {sourceReviewReasonLabel(row.reason)}
                   </span>
 
                   <h3>
@@ -229,6 +225,11 @@ function ReviewPanel({ rows, sources, onApi }: { rows: Row[]; sources: Row[]; on
                           "—"
                         )}
                       </dd>
+                    </div>
+
+                    <div>
+                      <dt>Akademický rok</dt>
+                      <dd>{String(firstEvent?.academicYear || source?.academic_year || "nebyl jednoznačně určen")}</dd>
                     </div>
 
                     <div>
@@ -294,6 +295,13 @@ function ReviewPanel({ rows, sources, onApi }: { rows: Row[]; sources: Row[]; on
                       </dd>
                     </div>
                   </dl>
+
+                  {(() => {
+                    const payload = row.proposed_payload as Row | undefined;
+                    const policy = payload?.policy as Row | undefined;
+                    const reasons = Array.isArray(policy?.reasonMessages) ? policy.reasonMessages.map(String) : [sourceReviewReasonLabel(row.reason)];
+                    return <div className="admin-data-note" role="note"><ShieldCheck size={17} /><p><strong>Proč nebylo zveřejněno automaticky:</strong> {reasons.join(" ")}</p></div>;
+                  })()}
 
                   {events.length > 0 && (
                     <details
