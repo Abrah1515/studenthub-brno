@@ -87,7 +87,7 @@ export type PublishPolicyInput = {
   format: SourceFormat; officialDomain: string; allowedDomains: string[]; finalUrl: string; contentType: string;
   extractionMethod?: ConnectorExtractionMethod; sourceText?: string; universityId: string; facultyId: string;
   events: NormalizedEvent[]; warnings: string[]; issue?: SourceIssue | null; hasCrossSourceConflict?: boolean;
-  suspiciousMassChange?: boolean; now?: Date;
+  hasUnprovenRevision?: boolean; suspiciousMassChange?: boolean; now?: Date;
 };
 
 function validEvent(event: NormalizedEvent, values: PublishPolicyInput, expectedAcademicYear: string) {
@@ -125,6 +125,7 @@ export function evaluateSourcePublishPolicy(values: PublishPolicyInput): Publish
   if (values.issue?.code === "stale_academic_year") reasons.add("stale_academic_year");
   if (values.issue?.code === "incomplete_result") reasons.add("incomplete_result");
   if (values.hasCrossSourceConflict) reasons.add("source_conflict");
+  if (values.hasUnprovenRevision) reasons.add("unproven_revision");
   if (values.suspiciousMassChange) reasons.add("suspicious_mass_change");
   const reviewReasons = [...reasons];
   const autoPublish = reviewReasons.length === 0;

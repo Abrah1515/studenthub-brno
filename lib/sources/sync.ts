@@ -111,6 +111,16 @@ export async function syncSource(sourceId: string, cityId?: string, options: { c
     let observedYears = new Set(certain.map((event) => event.academicYear));
     let comparableExisting = (existingRows || []).filter((row) => observedYears.has(String(row.academic_year)));
     let changes = reconcileEvents(comparableExisting as ExistingEvent[], certain);
+    const hasUnprovenRevision = changes.updates.some((event) => {
+      const basis = event.sourceModifiedBasis || (httpModifiedAt ? "http_last_modified" : "first_detected");
+      return !event.sourceUpdatedAt && !httpModifiedAt && basis === "first_detected";
+    });
+    if (hasUnprovenRevision) {
+      policy = evaluateSourcePublishPolicy({ ...policyInput, hasUnprovenRevision: true });
+      certain = []; uncertain = result.events;
+      reviewWarnings = [...reviewWarnings, "Změna existujícího termínu nemá doložené datum novější oficiální revize."];
+      observedYears = new Set(); comparableExisting = []; changes = reconcileEvents([], []);
+    }
     const movedCount = changes.updates.filter((event) => { const existing = comparableExisting.find((row) => row.external_id === event.externalId); return Boolean(existing && (String(existing.starts_at) !== event.startAt || String(existing.ends_at || "") !== String(event.endAt || ""))); }).length;
     const suspiciousMassChange = isSuspiciousMassChange({ existingCount: comparableExisting.length, archivedCount: changes.archived.length, movedCount });
     if (suspiciousMassChange) {

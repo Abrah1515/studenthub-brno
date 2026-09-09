@@ -36,6 +36,12 @@ describe("deterministická politika akademických zdrojů", () => {
     expect(isSuspiciousMassChange({ existingCount: 10, archivedCount: 2, movedCount: 2 })).toBe(true);
     expect(isSuspiciousMassChange({ existingCount: 10, archivedCount: 1, movedCount: 1 })).toBe(false);
   });
+  it("změnu existujícího termínu bez doložené novější revize pošle k člověku", () => {
+    expect(evaluateSourcePublishPolicy({ ...input, hasUnprovenRevision: true })).toMatchObject({
+      decision: "manual_review",
+      reasons: expect.arrayContaining(["unproven_revision"]),
+    });
+  });
   it("technický stav nevytvoří úkol pro editora", () => {
     const result = evaluateSourcePublishPolicy({ ...input, issue: { code: "challenge", status: "blocked", message: "Turnstile" } });
     expect(result).toMatchObject({ decision: "technical_blocked", review: [] });
