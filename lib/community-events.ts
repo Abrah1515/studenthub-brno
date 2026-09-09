@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { CommunityEvent } from "@/lib/types";
 import type { PublicProfileIdentity } from "@/lib/profile-types";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
@@ -15,17 +15,6 @@ export function sanitizePlainText(value: string, multiline = false) {
 export function communityEventFingerprint(input: { cityId: string; title: string; startsAt: string; venue: string }) {
   const normalized = [input.cityId, input.title, input.startsAt.slice(0, 16), input.venue].map((value) => sanitizePlainText(value).normalize("NFKD").replace(/\p{Diacritic}/gu, "").toLowerCase()).join("|");
   return createHash("sha256").update(normalized).digest("hex");
-}
-
-export function newManagementToken() {
-  const token = randomBytes(32).toString("hex");
-  return { token, hash: createHash("sha256").update(token).digest("hex") };
-}
-
-export function managementTokenMatches(token: string | null, expectedHash: unknown) {
-  if (!token || !/^[a-f0-9]{64}$/.test(token) || typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedHash)) return false;
-  const actual = createHash("sha256").update(token).digest("hex");
-  return timingSafeEqual(Buffer.from(actual), Buffer.from(expectedHash));
 }
 
 export function publicCommunityEvent(row: Record<string, unknown>, author?: PublicProfileIdentity): CommunityEvent {
@@ -60,11 +49,4 @@ export async function removeCommunityImage(imageUrl: unknown) {
   const marker = `/storage/v1/object/public/${communityImageBucket}/`; const position = imageUrl.indexOf(marker); if (position < 0) return;
   const path = decodeURIComponent(imageUrl.slice(position + marker.length)); if (!/^[a-f0-9-]{36}\.webp$/.test(path)) return;
   await createServiceClient().storage.from(communityImageBucket).remove([path]);
-}
-
-export async function emailCommunityManagementLink(input: { email: string; title: string; manageUrl: string }) {
-  const apiKey = process.env.RESEND_API_KEY; const from = process.env.CONTACT_FROM_EMAIL;
-  if (!apiKey || !from) return false;
-  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ from, to: [input.email], subject: `[StudentHub] Správa akce: ${input.title}`, text: `Vaše komunitní akce byla zveřejněna. Tento neveřejný odkaz slouží k její úpravě nebo odstranění:\n\n${input.manageUrl}\n\nOdkaz nikomu neposílejte.` }), cache: "no-store" }).catch(() => null);
-  return Boolean(response?.ok);
 }

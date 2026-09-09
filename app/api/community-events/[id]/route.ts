@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
-import { communityEventFingerprint, managementTokenMatches, publicCommunityEvent, removeCommunityImage, sanitizePlainText } from "@/lib/community-events";
+import { communityEventFingerprint, publicCommunityEvent, removeCommunityImage, sanitizePlainText } from "@/lib/community-events";
 import { listRecords, updateRecord } from "@/lib/data-store";
 import { allowRequest, requestFingerprint } from "@/lib/rate-limit";
 import { communityEventSchema, communityEventUpdateSchema } from "@/lib/schemas";
 import { getCurrentAccount } from "@/lib/user-auth";
 
 type Context = { params: Promise<{ id: string }> };
-async function managedEvent(request: Request, id: string) { const row = (await listRecords("community_events")).find((item) => String(item.id) === id); const account = await getCurrentAccount(); if (!row) return null; if (row.author_id) return account?.complete && account.accountStatus === "active" && row.author_id === account.id ? { row, account } : null; return managementTokenMatches(request.headers.get("x-management-token"), row.management_token_hash) ? { row, account: null } : null; }
+async function managedEvent(id: string) { const row = (await listRecords("community_events")).find((item) => String(item.id) === id); const account = await getCurrentAccount(); if (!row?.author_id) return null; return account?.complete && account.accountStatus === "active" && row.author_id === account.id ? { row, account } : null; }
 
-export async function GET(request: Request, context: Context) {
-  const id = (await context.params).id; const managed = await managedEvent(request, id); if (!managed) return NextResponse.json({ message: "Akci nelze tímto účtem spravovat." }, { status: 404 });
+export async function GET(_request: Request, context: Context) {
+  const id = (await context.params).id; const managed = await managedEvent(id); if (!managed) return NextResponse.json({ message: "Akci nelze tímto účtem spravovat." }, { status: 404 });
   return NextResponse.json({ item: publicCommunityEvent(managed.row), status: managed.row.status }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function PATCH(request: Request, context: Context) {
   if (!allowRequest(`community-edit:${requestFingerprint(request)}`, 20, 60 * 60 * 1000)) return NextResponse.json({ message: "Limit úprav byl vyčerpán." }, { status: 429 });
-  const id = (await context.params).id; const managed = await managedEvent(request, id); if (!managed) return NextResponse.json({ message: "Akci nelze tímto účtem spravovat." }, { status: 404 }); const event = managed.row;
+  const id = (await context.params).id; const managed = await managedEvent(id); if (!managed) return NextResponse.json({ message: "Akci nelze tímto účtem spravovat." }, { status: 404 }); const event = managed.row;
   if (["deleted", "archived"].includes(String(event.status))) return NextResponse.json({ message: "Ukončenou akci už nelze upravit." }, { status: 409 });
   const parsed = communityEventUpdateSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte změny.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
   const value = parsed.data;
@@ -29,7 +29,7 @@ export async function PATCH(request: Request, context: Context) {
 
 export async function DELETE(request: Request, context: Context) {
   if (!allowRequest(`community-delete:${requestFingerprint(request)}`, 5, 60 * 60 * 1000)) return NextResponse.json({ message: "Limit operací byl vyčerpán." }, { status: 429 });
-  const id = (await context.params).id; const managed = await managedEvent(request, id); if (!managed) return NextResponse.json({ message: "Akci nelze tímto účtem spravovat." }, { status: 404 }); const event = managed.row;
-  await updateRecord("community_events", id, { status: "deleted", archived_at: new Date().toISOString(), author_email: "deleted@invalid.local" }); await removeCommunityImage(event.image_url);
+  const id = (await context.params).id; const managed = await managedEvent(id); if (!managed) return NextResponse.json({ message: "Akci nelze tímto účtem spravovat." }, { status: 404 }); const event = managed.row;
+  await updateRecord("community_events", id, { status: "deleted", archived_at: new Date().toISOString() }); await removeCommunityImage(event.image_url);
   return new NextResponse(null, { status: 204 });
 }

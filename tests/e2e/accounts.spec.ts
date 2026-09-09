@@ -32,7 +32,6 @@ test("nastavení nabízí jen dokončený e-mailový účet s heslem a obnovou",
 });
 
 test("registrace pravdivě zobrazí čekání, adresu a bezpečný resend s odpočtem", async ({ page }) => {
-  await page.route("**/api/auth/providers", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ google: false }) }));
   await page.route("**/api/auth/signup", (route) => route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ message: "Účet je založený a čeká na potvrzení e-mailu.", requiresEmailConfirmation: true, deliveryRequested: true }) }));
   await page.goto("/ucet/prihlaseni");
   await page.getByRole("button", { name: "Vytvořit účet e-mailem" }).first().click();
@@ -56,11 +55,11 @@ test("dokončený profil zobrazuje jen vlastní bezpečné ovládání a drží 
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 });
 
-test("auth endpointy validují vstup a starý jednorázový obsahový OTP je vypnutý", async ({ request }, testInfo) => {
+test("auth endpointy validují vstup a odstraněné OAuth i OTP cesty neexistují", async ({ request }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
   expect((await request.post("/api/auth/signup", { data: { email: "neni-email", password: "kratke" } })).status()).toBe(422);
   expect((await request.post("/api/auth/password", { data: { email: "neni-email", password: "kratke" } })).status()).toBe(422);
-  expect((await request.post("/api/auth/google", { data: { next: "/nastaveni" } })).status()).toBe(503);
+  expect((await request.post("/api/auth/google", { data: { next: "/nastaveni" } })).status()).toBe(404);
   expect((await request.post("/api/auth/resend", { data: { email: "neni-email" } })).status()).toBe(422);
-  expect((await request.post("/api/auth/otp", { data: { email: "legacy@example.cz" } })).status()).toBe(410);
+  expect((await request.post("/api/auth/otp", { data: { email: "legacy@example.cz" } })).status()).toBe(404);
 });

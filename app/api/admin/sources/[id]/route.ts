@@ -12,7 +12,7 @@ async function canManageSource(user: NonNullable<Awaited<ReturnType<typeof getAd
   if (!user.cityId) return false;
   if (source.cityId) return source.cityId === user.cityId;
   if (!source.universityId) return false;
-  if (!isSupabaseConfigured()) return user.mode === "local" && user.cityId === "brno";
+  if (!isSupabaseConfigured()) return false;
   const { data } = await createServiceClient().from("university_cities").select("university_id").eq("university_id", source.universityId).eq("city_id", user.cityId).maybeSingle();
   return Boolean(data);
 }

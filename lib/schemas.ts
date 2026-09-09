@@ -42,10 +42,6 @@ export const serviceRequestSchema = serviceRequestObject.superRefine((value, ctx
   if (/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(value.description) || /(?:\+?420\s*)?(?:\d[\s-]*){9}/.test(value.description)) ctx.addIssue({ code: "custom", path: ["description"], message: "Do veřejného popisu neuvádějte e-mail ani telefon." });
 });
 
-export const serviceRequestUpdateSchema = serviceRequestObject.pick({ publicTitle: true, publicAlias: true, serviceType: true, description: true, location: true, preferredDate: true }).partial()
-  .refine((value) => Object.keys(value).length > 0, "Není co změnit.")
-  .refine((value) => !value.description || (!/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(value.description) && !/(?:\+?420\s*)?(?:\d[\s-]*){9}/.test(value.description)), { path: ["description"], message: "Do veřejného popisu neuvádějte e-mail ani telefon." });
-
 export const reportSchema = z.object({ targetType: z.enum(["service_request", "buddy_post", "community_event"]), targetId: z.string().uuid(), reason: z.enum(["spam", "harassment", "illegal", "privacy", "outdated", "other"]), detail: z.string().trim().max(800).default(""), cityId });
 
 const unsafeLinkHosts=new Set(["bit.ly","tinyurl.com","t.co","goo.gl","cutt.ly","rb.gy"]);
@@ -255,7 +251,6 @@ export const marketplaceListingUpdateSchema = z.object({
     handoffLocation: z.string().trim().min(2).max(120).optional().or(z.literal("")),
 }).refine((value) => value.action !== "update" || Object.keys(value).some((key) => key !== "action"), "Není co změnit.");
 
-export const marketplaceVerificationSchema = z.object({ verificationToken: z.string().regex(/^[a-f0-9]{64}$/), managementToken: z.string().regex(/^[a-f0-9]{64}$/) });
 export const marketplaceContactSchema = z.object({ message: z.string().trim().min(20, "Zpráva musí mít alespoň 20 znaků.").max(2000), consent: z.boolean().refine(Boolean, "Potvrďte předání zprávy prodávajícímu."), company: honeypot });
 export const marketplaceReportSchema = z.object({ reason: z.enum(["fraud", "copyright", "academic_integrity", "illegal", "sold", "privacy", "spam", "other"]), detail: z.string().trim().max(1000).default(""), company: honeypot });
 

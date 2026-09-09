@@ -1,4 +1,6 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { authCookieOptions, copyResponseCookies, isSupabaseSessionCookie } from "@/lib/auth-cookies";
 
 const reservedTopLevelRoutes = new Set([
   "admin",
@@ -57,7 +59,7 @@ function cityNotFoundResponse() {
   );
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   if (pathname === "/navrhnout-obsah" || pathname === "/navrhnout-obsah/") {
@@ -69,17 +71,35 @@ export function proxy(request: NextRequest) {
     return response;
   }
 
+  let response = NextResponse.next({ request });
+  let verifiedUser = false;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const hasSupabaseCookie = request.cookies.getAll().some((cookie) => isSupabaseSessionCookie(cookie.name));
+  if (url && anon && hasSupabaseCookie) {
+    const client = createServerClient(url, anon, {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (values) => {
+          for (const { name, value } of values) request.cookies.set(name, value);
+          response = NextResponse.next({ request });
+          for (const { name, value, options } of values) response.cookies.set(name, value, authCookieOptions(options));
+        },
+      },
+    });
+    const { data } = await client.auth.getUser();
+    verifiedUser = Boolean(data.user?.email_confirmed_at);
+  }
+
   if (pathname.startsWith("/admin") && pathname !== "/admin/prihlaseni") {
-    const hasDemo = Boolean(request.cookies.get("sh_admin"));
-    const hasSupabase = request.cookies.getAll().some((cookie) => cookie.name.startsWith("sb-") && cookie.name.includes("auth-token"));
-    if (!hasDemo && !hasSupabase) {
+    if (!verifiedUser) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/admin/prihlaseni";
       loginUrl.search = "?from=%2Fadmin";
       if (loginUrl.hostname === "127.0.0.1" || loginUrl.hostname === "localhost") loginUrl.protocol = "http:";
-      const response = NextResponse.redirect(loginUrl);
-      response.headers.set("Cache-Control", "private, no-store");
-      return response;
+      const redirectResponse = NextResponse.redirect(loginUrl);
+      redirectResponse.headers.set("Cache-Control", "private, no-store");
+      return copyResponseCookies(response,redirectResponse);
     }
   }
 
@@ -93,7 +113,7 @@ export function proxy(request: NextRequest) {
     return cityNotFoundResponse();
   }
 
-  return NextResponse.next();
+  return response;
 }
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],

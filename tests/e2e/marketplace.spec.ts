@@ -28,7 +28,7 @@ test("anonymní uživatel může Burzu číst, ale nemůže publikovat ani konta
 test("odstraněné per-inzerátové ověření není veřejným obchvatem účtu", async ({ request }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
   const oldOtp = await request.post("/api/auth/otp", { data: { email: "legacy@example.cz" } });
-  expect(oldOtp.status()).toBe(410);
+  expect(oldOtp.status()).toBe(404);
   const invalid = await request.post("/api/marketplace/listings", { multipart: { company: "robot" } });
   expect([401, 503]).toContain(invalid.status());
 });

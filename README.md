@@ -10,8 +10,8 @@ Nezávislá PWA pro studenty všech brněnských vysokých škol. Spojuje ověř
 - povinný sekvenční onboarding města/školy/fakulty bez registrace, vědomé pokračování pro celé město a aktuální studijní kontext pod značkou v desktopové i mobilní navigaci;
 - Leaflet/OpenStreetMap mapu i plně použitelný seznam ověřených míst ve 12 kategoriích; přihlášené dokončené profily mohou poslat komunitní návrh s bodem, zdrojem a fotografiemi ke schválení a přidávat moderované zkušenosti bez hvězdiček;
 - brigády s moderací, expirací a označením zvýraznění; modul nabídek zůstává v kódu a databázi, ale ve veřejném webu je výchozím produkčním příznakem vypnutý;
-- dobrovolný jednotný účet přes Supabase Auth s potvrzeným e-mailem a heslem, bezpečným opětovným odesláním potvrzení a volitelným Google OAuth zobrazovaným jen po skutečné konfiguraci provideru; nastavení školy a profilu je na `/nastaveni`, veřejné profily `/profil/<jméno>` a adresář `/profily`; prohlížení, onboarding, mapa, kalendář, oblíbené a Hlídač fungují bez účtu;
-- Studentskou burzu pro nabídku i poptávku učebnic, fyzických skript, vlastních poznámek a studijního vybavení: bez plateb přes StudentHub, s jednotným účtem a dokončeným profilem, 30denní expirací, soukromým chatem, nahlášením a až třemi fotografiemi překódovanými do WebP bez EXIF; původní e-mailový relay a správcovské odkazy zůstávají vypnutým fallbackem pouze pro starší anonymní obsah;
+- dobrovolný jednotný účet přes Supabase Auth s potvrzeným e-mailem a heslem a bezpečným opětovným odesláním potvrzení; nastavení školy a profilu je na `/nastaveni`, veřejné profily `/profil/<jméno>` a adresář `/profily`; prohlížení, onboarding, mapa, kalendář, oblíbené a Hlídač fungují bez účtu;
+- Studentskou burzu pro nabídku i poptávku učebnic, fyzických skript, vlastních poznámek a studijního vybavení: bez plateb přes StudentHub, výhradně s jednotným účtem a dokončeným profilem, 30denní expirací, soukromým chatem, nahlášením a až třemi fotografiemi překódovanými do WebP bez EXIF;
 - soukromý textový chat dvou profilů navázaný na veřejný profil, Hledám parťáka nebo Burzu: jedna úvodní zpráva, žádosti o kontakt, blokace, archivace, ztlumení, stránkování, Realtime s obnovou po návratu do aplikace, obecná push upozornění bez textu zprávy a moderace pouze po nahlášení omezeného kontextu;
 - historické technické žádosti zůstávají v databázi jako neveřejný administrativní archiv; veřejná cesta `/pomoc` vede na Burzu a API už nové technické žádosti nepřijímá;
 - oblíbené termíny a akce bez registrace, sekci `/hlidac`, interní upozornění, ztlumení vybraných kategorií push zpráv a dobrovolný Web Push s unikátním doručením a automatickým odstraněním neplatných odběrů;
@@ -50,8 +50,6 @@ Otevřete `http://localhost:3000`. Bez Supabase veřejné kolekce zůstanou prá
 DEMO_MODE=true
 ALLOW_LOCAL_FILE_STORE=true
 ALLOW_VERIFIED_FALLBACK=true
-ADMIN_DEMO_PASSWORD=nejmene-12-znaku-pro-lokalni-test
-ADMIN_COOKIE_SECRET=nejmene-32-nahodnych-znaku-pro-lokalni-test
 ```
 
 Tento režim je pouze pro lokální testování. Produkční hodnoty všech tří přepínačů jsou `false`.
@@ -67,8 +65,7 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `NEXT_PUBLIC_SUPABASE_URL` | klient/server | ano | URL Supabase projektu |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | klient/server | ano | veřejný anon klíč, chráněný RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | pouze server | ano | serverové formuláře, synchronizace a administrace; nikdy ne do klienta |
-| `GOOGLE_AUTH_ENABLED` | pouze server | ne | release gate; `true` až po aktivaci Google provideru v Supabase, aplikace navíc ověřuje jeho veřejný stav |
-| `SUPERADMIN_EMAIL` | pouze lokální CLI | při prvním účtu | skutečný e-mail pro jednorázovou pozvánku; nepřidávat do Vercelu ani repozitáře |
+| `SUPERADMIN_EMAIL` | pouze lokální CLI | při prvním účtu | již zaregistrovaný a potvrzený e-mail pro jednorázový idempotentní bootstrap; nepřidávat do Vercelu ani repozitáře |
 | `CRON_SECRET` | pouze server | ano | Bearer autorizace obou cron endpointů |
 | `RATE_LIMIT_SALT` | pouze server | ano | pseudonymizace IP pro lokální rate limit |
 | `SYNC_USER_AGENT` | server | ano | identifikace slušného crawleru s kontaktem |
@@ -90,11 +87,9 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | pouze server | ano pro push | podpis Web Push; soukromý klíč nikdy nepatří do klienta ani Gitu |
 | `ANDROID_PACKAGE_ID` | pouze server | ano pro TWA | původní package ID z Play Console pro Digital Asset Links |
 | `ANDROID_SHA256_CERT_FINGERPRINTS` | pouze server | ano pro TWA | SHA-256 App Signing certifikátu; více otisků lze oddělit čárkou |
-| `DEMO_MODE` | server | ne | výhradně lokální testovací přihlášení |
+| `DEMO_MODE` | server | ne | výhradně lokální obsahový režim; autentizaci nikdy nenahrazuje |
 | `ALLOW_LOCAL_FILE_STORE` | server | ne | lokální souborové úložiště; vyžaduje současně `DEMO_MODE=true` |
 | `ALLOW_VERIFIED_FALLBACK` | server | ne | kurátorovaný fallback bez DB; v produkci ponechat `false` |
-| `ADMIN_DEMO_PASSWORD` | server | ne | pouze lokální test, min. 12 znaků |
-| `ADMIN_COOKIE_SECRET` | server | ne | pouze lokální test, min. 32 náhodných znaků |
 
 ## Supabase od nuly
 
@@ -112,19 +107,19 @@ pnpm dlx supabase db push
 4. Obsah `supabase/seed.sql` po obsahové kontrole spusťte jednorázově v Supabase SQL Editoru a ověřte počty i označení importovaných záznamů. V produkci nepoužívejte `db push --include-seed`; tato volba patří jen do čerstvého vývojového nebo stagingového prostředí.
 
 5. Z Project Settings → API zkopírujte URL, anon key a service role key do `.env.local`/Vercelu. Service role klíč nesmí mít prefix `NEXT_PUBLIC_` a nesmí být commitnutý.
-6. V Authentication → URL Configuration nastavte produkční Site URL a povolte přesný redirect `https://VAŠE-DOMÉNA/auth/callback`. Pro lokální vývoj povolte také `http://localhost:3000/auth/callback` a `http://localhost:3000/admin/obnova`. Callback přes PKCE dokončuje e-mailovou registraci, obnovu hesla a OAuth relaci.
+6. V Authentication → URL Configuration nastavte produkční Site URL a povolte přesný redirect `https://VAŠE-DOMÉNA/auth/callback`. Pro lokální vývoj povolte také `http://localhost:3000/auth/callback`. Jediný callback dokončuje potvrzení registrace i obnovu hesla.
 
-### Produkční Auth, SMTP a Google OAuth
+### Produkční Auth a SMTP
 
 Výchozí SMTP Supabase není veřejná produkční e-mailová služba: doručuje jen na adresy členů projektového týmu a má velmi nízký limit. Před veřejnou registrací nastavte vlastní SMTP výhradně v Supabase Dashboard → Authentication → Email → SMTP Settings:
 
 1. U poskytovatele (například Resend, Postmark nebo Brevo) ověřte vlastní odesílací doménu pomocí předepsaných DNS záznamů. Doménu `vercel.app` nelze použít jako vlastní odesílací doménu.
 2. Do Supabase vložte SMTP host, podporovaný TLS port, uživatelské jméno, heslo/API token, ověřenou adresu odesílatele a jméno `StudentHub Brno`. SMTP heslo nepatří do Vercelu, `.env`, klienta ani Gitu.
 3. V Email provideru ponechte `Confirm Email` zapnuté. Nastavte české šablony potvrzení, pozvánky a obnovy tak, aby používaly Supabase potvrzovací URL.
-4. V URL Configuration nastavte Site URL `https://studenthub-brno.vercel.app` a allowlist `https://studenthub-brno.vercel.app/auth/callback`, `https://studenthub-brno.vercel.app/admin/obnova`, `http://localhost:3000/auth/callback` a `http://localhost:3000/admin/obnova`. Při přidání vlastní domény doplňte její přesné callback URL a aktualizujte `NEXT_PUBLIC_SITE_URL`.
+4. V URL Configuration nastavte Site URL `https://studenthub-brno.vercel.app` a allowlist `https://studenthub-brno.vercel.app/auth/callback` a `http://localhost:3000/auth/callback`. Při přidání vlastní domény doplňte její přesnou `/auth/callback` URL a aktualizujte `NEXT_PUBLIC_SITE_URL`.
 5. Až potom otestujte novou adresu mimo tým projektu: registraci, skutečné doručení, potvrzení, profil, odhlášení/přihlášení, obnovu hesla a resend po 60 sekundách. Stav `201` nebo `202` sám doručení nedokazuje.
 
-Google přihlášení je připravené přes Supabase OAuth s PKCE, ale je dvojitě uzamčené. V Google Cloud vytvořte OAuth Web Client, jako autorizovaný redirect nastavte `https://<PROJECT_REF>.supabase.co/auth/v1/callback`, Client ID a Secret uložte pouze do Supabase Authentication → Providers → Google a provider aktivujte. Nakonec nastavte serverovou proměnnou Vercelu `GOOGLE_AUTH_ENABLED=true` a proveďte nový deployment. Tlačítko se zobrazí jen tehdy, když je zapnutý release gate a veřejné Supabase Auth settings zároveň potvrzují aktivní Google provider.
+Aktivní metoda přihlášení je pouze e-mail a heslo. Google OAuth nemá v aplikaci tlačítko, route ani konfigurační příznak; v Supabase ponechte Google provider vypnutý.
 
 Migrace jsou pořadové a nedestruktivní:
 
@@ -146,7 +141,7 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608120016_reprocess_vut_html_schedules.sql` – bezpečně vynutí jednorázové znovunačtení FIT/FSI po opravě strukturovaného parseru; stávající události před úspěšným během nemaže.
 - `202608140017_academic_event_study_years.sql` – přidává ověřený rozsah ročníků 1–6 k akademickým událostem; `NULL` znamená společný termín pro všechny ročníky.
 - `202608140018_fajn_job_feed.sql` – připravuje idempotentní import smluvních brigád, strukturovanou odměnu, bezpečné externí ID a soukromé provozní statistiky bez zpřístupnění feed URL.
-- `202608160019_community_events.sql` – veřejné komunitní akce, neveřejný hash správcovského odkazu a kontakt pořadatele, RLS, automatické skrytí po třech nezávislých hlášeních a archivace ukončených akcí.
+- `202608160019_community_events.sql` – historické schéma komunitních akcí; jeho tokenové vlastnictví odstraňuje pozdější autentizační migrace.
 - `202608170020_event_relevance_places_buddy.sql` – přesnější akademická relevance, rozšířená metadata míst a bezpečnější vazby sekce Hledám parťáka.
 - `202608170021_student_community.sql` – ověřené účty komunitního feedu, příspěvky, komentáře, reakce, hlášení, audit moderace, RLS a privátní úložiště obrázků.
 - `202608220022_content_focus_update.sql` – 16 ověřených veřejných akcí, 7 dalších oficiálních míst, původ a zdravotní stav zdrojů komunitních akcí, deduplikace a bezpečná fronta ruční kontroly.
@@ -155,29 +150,31 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608230025_watcher_muted_push.sql` – ztlumení kategorií pouze pro Web Push; důležité změny zůstávají v interním centru a zrušení termínu se eviduje jako kritická změna.
 - `202608230026_fajn_feed_hardening.sql` – doplňuje oficiální číselníková metadata brigád, strukturovaná varování a bezpečné archivování až po třetím úspěšném úplném snapshotu bez dané nabídky.
 - `202608230027_fajn_public_listing.sql` – nastavuje výhradně veřejný odkaz na brněnský výpis poskytovatele; tato stránka se nescrapuje a není zaměněna za tajný XML feed.
-- `202608230028_student_marketplace.sql` – historická per-inzerátová vrstva Studentské burzy se zahashovanými správcovskými tokeny, privátními fotografiemi, zprávami, hlášeními, auditem moderace, perzistentním rate limitem, 30denní expirací a uzavřenou RLS. Nové inzeráty už od migrace `202608240029_unified_user_profiles.sql` používají jednotný přihlášený profil; starší záznamy zůstávají spravovatelné původním bezpečným způsobem.
+- `202608230028_student_marketplace.sql` – historické schéma Burzy; tokenové ověření a anonymní vlastnictví odstraňuje pozdější autentizační migrace.
 - `202608240029_unified_user_profiles.sql` – dobrovolné veřejné profily, vlastnictví Burzy a komunitních akcí, bezpečně anonymizovaný starší obsah, soukromé avatary, blokace, hlášení, audit účtů a RLS podmíněná aktivním dokončeným profilem.
 - `202608240030_trusted_event_publishers.sql` – neadministrátorské oprávnění `trusted_event_publisher`, jeho audit, stavy přiděleno/pozastaveno/odebráno, databázové rozhodnutí `pending` vs. `published` a vlastnické RLS komunitních akcí.
 - `202608250031_community_places.sql` – 12 veřejných kategorií míst, neveřejná fronta návrhů a fotografií, deduplikace přes aliasy/adresu/souřadnice/web, moderátorská historie, komunitní původ, zkušenosti, užitečnost, agregované vlastnosti, hlášení, přesná sloupcová oprávnění a RLS bez zveřejnění autora návrhu.
 - `202608260032_private_chat.sql` – soukromé konverzace dvou profilů, samostatná členství a stav přečtení, textové zprávy, žádosti a 30denní cooldown, databázová blokace druhé úvodní zprávy, Realtime, hlášení, omezený moderátorský audit, perzistentní rate limit a RLS pouze pro účastníky.
 - `202608310033_admin_role_scope_hardening.sql` – audit změn rolí, povinný městský/fakultní rozsah, ochrana jediného superadmina, oddělení citlivých městských dat od role `city_editor` a městský scope chatové moderace v API i RLS.
+- `202609080034_authenticated_content_ownership.sql` – sjednocuje vlastnictví nového uživatelského obsahu pod potvrzené profily.
+- `202609090035_unified_supabase_auth.sql` – zálohuje a archivuje legacy záznamy, odstraňuje vlastnické tokeny, zavádí databázově autoritativní role, bezpečnou změnu role s auditem a ochranou posledního aktivního superadmina.
 
 ## První hlavní superadmin
 
-Nezadávejte heslo ani service-role key do kódu, argumentu příkazu nebo dokumentace. Po aplikaci všech migrací nastavte údaje pouze v lokálním shellu a spusťte jednorázovou pozvánku:
+Nezadávejte heslo ani service-role key do kódu, argumentu příkazu nebo dokumentace. Nejprve se běžně zaregistrujte, potvrďte e-mail a dokončete profil. Jen pokud databáze dosud nemá žádného aktivního superadmina, nastavte údaje v lokálním shellu a spusťte idempotentní bootstrap existujícího účtu:
 
 ```powershell
 $env:NEXT_PUBLIC_SUPABASE_URL="https://VAS_PROJEKT.supabase.co"
 $env:SUPABASE_SERVICE_ROLE_KEY="..."
 $env:SUPERADMIN_EMAIL="vas-skutecny-email@example.cz"
-pnpm admin:invite
+pnpm admin:bootstrap
 ```
 
-Skript odmítne vytvořit dalšího hlavního superadmina, nastaví shodnou roli `super_admin` v profilu i App metadata a odešle oficiální Supabase pozvánku. Heslo nevytváří ani nezobrazuje. Po dokončení se aktualizuje ignorovaný lokální soubor `ADMIN-PRISTUP-LOKALNE.txt`; `git check-ignore ADMIN-PRISTUP-LOKALNE.txt` musí soubor najít. Obnova přístupu používá stejné lokální proměnné a `pnpm admin:recover`.
+Skript nevytváří účet, pozvánku ani heslo. Odmítne nepotvrzený účet i založení druhého superadmina mimo administraci. Přihlášení a obnova hesla vždy používají stejné obrazovky Supabase Auth jako u běžného uživatele.
 
-Audit již existujícího hlavního účtu spustíte příkazem `pnpm admin:audit`. Kontroluje právě jeden potvrzený účet `super_admin` a shodu Auth App metadata s tabulkou `profiles`; nevypisuje e-mail ani žádný klíč.
+Audit spusťte příkazem `pnpm admin:roles:audit`. Volba `pnpm admin:roles:repair` doplní chybějící profil potvrzenému účtu a opraví pouze odvozenou kopii role v App metadata; autoritou zůstává `profiles.role`.
 
-Další role (`admin`, `city_editor`, `faculty_editor`) spravuje přihlášený superadmin v Administrace → Správci. Server kontroluje App metadata při přihlášení a RLS profil v databázi; obě vrstvy musí souhlasit.
+Role (`user`, `faculty_editor`, `city_editor`, `admin`, `super_admin`) spravuje přihlášený superadmin v Administrace → Správci. Změna probíhá serverovou databázovou funkcí, zapíše audit a ukončí staré relace cílového účtu. Jedinou autoritou je `profiles.role`; App metadata jsou pouze opravovatelná odvozená kopie.
 
 Administrace je na `/admin`. Bez platné serverově ověřené session přesměruje na `/admin/prihlaseni`.
 
@@ -299,7 +296,6 @@ ALLOW_LOCAL_FILE_STORE=false
 ALLOW_VERIFIED_FALLBACK=false
 NEXT_PUBLIC_ADS_ENABLED=false
 NEXT_PUBLIC_OFFERS_ENABLED=false
-GOOGLE_AUTH_ENABLED=false
 FAJN_BRIGADY_FEED_ENABLED=false
 FAJN_BRIGADY_PERMISSION_CONFIRMED=false
 FAJN_BRIGADY_FEED_URL=
@@ -332,7 +328,6 @@ pnpm dlx vercel env add NEXT_PUBLIC_SUPABASE_URL production
 pnpm dlx vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production
 pnpm dlx vercel env add SUPABASE_SERVICE_ROLE_KEY production
 pnpm dlx vercel env add CRON_SECRET production
-pnpm dlx vercel env add ADMIN_COOKIE_SECRET production
 pnpm dlx vercel env add RATE_LIMIT_SALT production
 pnpm dlx vercel env add NEXT_PUBLIC_VAPID_PUBLIC_KEY production
 pnpm dlx vercel env add VAPID_PRIVATE_KEY production
@@ -358,10 +353,10 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 - [ ] právník zkontroloval soukromí, cookies a obchodní podmínky;
 - [ ] skutečné kontaktní e-maily přijímají poštu a mají správce;
 - [ ] migrace a seed proběhly na produkčním Supabase bez chyb;
-- [ ] první hlavní `super_admin` vznikl přes `pnpm admin:invite`; pozvánka, magic link, obnova a odhlášení fungují se skutečným SMTP;
+- [ ] první hlavní `super_admin` vznikl povýšením již potvrzeného účtu přes `pnpm admin:bootstrap`; jednotná obnova a odhlášení fungují se skutečným SMTP;
 - [ ] vlastní SMTP používá ověřenou odesílací doménu, `Confirm Email` je zapnuté a doručení registrace, resend i obnovy bylo potvrzeno ve skutečné externí schránce;
-- [ ] Google tlačítko je skryté, nebo Google provider, PKCE callback a `GOOGLE_AUTH_ENABLED=true` prošly skutečným produkčním přihlášením;
-- [ ] případní `admin`, `city_editor`/`faculty_editor` mají shodný profil i App metadata a otestovaný rozsah;
+- [ ] Google provider je v Supabase vypnutý a ve veřejném UI ani konfiguraci není Google OAuth cesta;
+- [ ] role `faculty_editor`, `city_editor`, `admin` a `super_admin` mají otestovaný rozsah; autoritativní je vždy `profiles.role`;
 - [ ] service role, cron a rate-limit tajemství jsou pouze ve Vercelu a byla rotována;
 - [ ] VAPID pár je vygenerovaný, soukromý klíč je pouze ve Vercelu a push byl ověřen na fyzickém Androidu/iOS i desktopu;
 - [ ] původní Android package ID, vyšší versionCode, upload keystore a App Signing SHA-256 odpovídají Play Console; podepsaný AAB prošel interním testem aktualizace;
@@ -383,9 +378,9 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 - `lib/publication-feed.ts` – interní read-only výstup ověřeného veřejného obsahu bez PII;
 - `lib/sources/` a `lib/job-feed/` – registr, SSRF-safe fetch, akademické parsery a oddělený bezpečný smluvní import brigád;
 - `lib/external-content-providers.ts` – ve výchozím stavu vypnutá rozhraní budoucích smluvních feedů bez scrapování;
-- `lib/user-auth.ts`, `lib/profile-server.ts`, `lib/profile-types.ts` – jednotný účet, bezpečná veřejná identita, soukromé avatary a expirace parťáků; starší anonymní vlastnické tokeny zůstávají jen pro zpětnou kompatibilitu;
+- `lib/user-auth.ts`, `lib/auth-route-client.ts`, `lib/auth-cookies.ts`, `lib/profile-server.ts` – jednotný Supabase účet, SSR session cookies, bezpečná veřejná identita a soukromé avatary;
 - `lib/chat-server.ts`, `app/api/chat/`, `app/chat/` a `components/chat-*` – serverově autorizovaný chat, soukromá API, mobilní obrazovky, desktopové okno a moderace hlášení;
-- `scripts/invite-superadmin.mjs` – jednorázová bezpečná pozvánka a obnova hlavního správce bez hesla v kódu;
+- `scripts/audit-auth-roles.mjs` – audit, oprava odvozených metadat a jednorázový bootstrap prvního již potvrzeného superadmina;
 - `lib/verified-data.ts` – kurátorovaný fallback ověřených veřejných záznamů;
 - `supabase/migrations/` a `supabase/seed.sql` – schéma, RLS a produkční startovní data;
 - `scripts/check-pwa.mjs` – kontrola manifestu, rozměrů ikon, bezpečného workeru a živé HTTPS instalovatelnosti;

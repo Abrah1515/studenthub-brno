@@ -15,11 +15,11 @@ describe("regrese produkční administrace", () => {
     expect(route).toContain('parsed.data.action === "suspend_profile"');
   });
 
-  it("odhlášení ukončí Supabase relaci a smaže i starý lokální cookie", () => {
-    const route = readFileSync("app/api/admin/logout/route.ts", "utf8");
-    expect(route).toContain("createServerClient");
-    expect(route).toContain('supabase.auth.signOut({ scope: "local" })');
-    expect(route).toContain("adminCookie.name");
+  it("společné odhlášení ukončí globální Supabase relaci a smaže všechny cookie chunky", () => {
+    const route = readFileSync("app/api/auth/logout/route.ts", "utf8");
+    expect(route).toContain('signOut({scope:"global"})');
+    expect(route).toContain("clearSupabaseSessionCookies");
+    expect(route).not.toMatch(/sh_admin|adminCookie/);
   });
 
   it("nepovolenou admin sekci zastaví už serverová stránka", () => {
@@ -33,8 +33,9 @@ describe("regrese produkční administrace", () => {
     for (const label of ["hlavní superadministrátor", "administrátor města", "městský editor", "fakultní editor"]) expect(dashboard).toContain(label);
   });
 
-  it("migrace chrání jediného superadmina, citlivá městská data a městský chat", () => {
-    const migration = readFileSync("supabase/migrations/202608310033_admin_role_scope_hardening.sql", "utf8");
-    for (const marker of ["profiles_single_super_admin_idx", "cannot_demote_only_superadmin", "profiles_admin_scope_required", "can_manage_sensitive_city", "chat_conversations alter column city_id set not null", "scoped moderators read chat action audit"]) expect(migration).toContain(marker);
+  it("nová migrace chrání posledního superadmina a změnu role provádí jen service role", () => {
+    const migration = readFileSync("supabase/migrations/202609090035_unified_supabase_auth.sql", "utf8");
+    for (const marker of ["protect_last_active_super_admin", "last_active_superadmin", "profiles_admin_scope_required", "service_role_required", "set_profile_admin_role", "delete from auth.sessions"]) expect(migration).toContain(marker);
+    expect(migration).toContain("revoke all on function public.set_profile_admin_role");
   });
 });

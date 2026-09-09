@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buddyPostSchema, communityEventSchema, contactMessageSchema, jobSubmissionSchema, pageViewSchema, placeCommentSchema, placeSuggestionSchema, reportSchema, serviceRequestSchema, serviceRequestUpdateSchema } from "@/lib/schemas";
+import { buddyPostSchema, communityEventSchema, contactMessageSchema, jobSubmissionSchema, pageViewSchema, placeCommentSchema, placeSuggestionSchema, reportSchema, serviceRequestSchema } from "@/lib/schemas";
 
 const validRequest = { publicTitle: "Pomoc se zálohou notebooku", publicAlias: "Honza", name: "Jan Novák", email: "jan@example.cz", phone: "", serviceType: "backup", description: "Potřebuji bezpečně zazálohovat celý notebook.", location: "Brno-střed", preferredDate: "2026-08-10", consent: true, publishConsent: true, company: "" };
 
@@ -8,9 +8,8 @@ describe("validace poptávky", () => {
   it("odmítne krátký popis", () => expect(serviceRequestSchema.safeParse({ ...validRequest, description: "Nefunguje" }).success).toBe(false));
   it("vyžaduje alespoň jeden kontakt", () => expect(serviceRequestSchema.safeParse({ ...validRequest, email: "", phone: "" }).success).toBe(false));
   it("odmítne vyplněný honeypot", () => expect(serviceRequestSchema.safeParse({ ...validRequest, company: "spam" }).success).toBe(false));
-  it("nepustí kontaktní údaj do veřejného popisu ani při pozdější úpravě", () => {
+  it("nepustí kontaktní údaj do veřejného popisu", () => {
     expect(serviceRequestSchema.safeParse({ ...validRequest, description: "Napište mi prosím na jan@example.cz kvůli opravě notebooku." }).success).toBe(false);
-    expect(serviceRequestUpdateSchema.safeParse({ description: "Ozvěte se mi na telefon 777 123 456 kvůli podrobnostem." }).success).toBe(false);
   });
 });
 
@@ -37,7 +36,6 @@ describe("validace veřejné komunitní akce", () => {
 });
 
 describe("validace veřejné pomoci, parťáků a soukromé analytiky", () => {
-  it("povolí jen bezpečně omezenou úpravu vlastní žádosti", () => { expect(serviceRequestUpdateSchema.safeParse({ publicTitle: "Opravený veřejný název" }).success).toBe(true); expect(serviceRequestUpdateSchema.safeParse({}).success).toBe(false); expect(serviceRequestUpdateSchema.safeParse({ email: "cizi@example.cz" }).success).toBe(false); });
   it("odmítne minulý termín a vyplněný honeypot parťáka", () => { const valid = { activityType: "study", approximateLocation: "Brno-střed", startsAt: new Date(Date.now() + 86_400_000).toISOString(), description: "Společné učení v knihovně na zkoušku z matematiky.", maxParticipants: 4, company: "" }; expect(buddyPostSchema.safeParse(valid).success).toBe(true); expect(buddyPostSchema.safeParse({ ...valid, startsAt: "2020-01-01T10:00:00.000Z" }).success).toBe(false); expect(buddyPostSchema.safeParse({ ...valid, company: "robot" }).success).toBe(false); });
   it("nepovolí analytice query, fragment ani celý referrer", () => { const valid = { path: "/brno/partak", cityId: "brno", sessionId: "11111111-1111-4111-8111-111111111111", referrerDomain: "studentsky-spolek.cz" }; expect(pageViewSchema.safeParse(valid).success).toBe(true); expect(pageViewSchema.safeParse({ ...valid, path: "/brno?email=test" }).success).toBe(false); expect(pageViewSchema.safeParse({ ...valid, referrerDomain: "https://example.cz/path?q=1" }).success).toBe(false); });
   it("hlášení vyžaduje známý typ, důvod a UUID", () => { expect(reportSchema.safeParse({ targetType: "buddy_post", targetId: "11111111-1111-4111-8111-111111111111", reason: "privacy", detail: "Obsah zveřejňuje osobní údaj.", cityId: "brno" }).success).toBe(true); expect(reportSchema.safeParse({ targetType: "offer", targetId: "neni-uuid", reason: "other" }).success).toBe(false); });

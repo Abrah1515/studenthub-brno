@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { allowRequest, requestFingerprint } from "@/lib/rate-limit";
 import { insertRecord, listRecords, updateRecord } from "@/lib/data-store";
 import { publicMarketplaceListing } from "@/lib/marketplace-public";
@@ -17,11 +17,6 @@ export function cleanMarketplaceText(value: string, multiline = false) {
 }
 
 export function marketplaceHash(value: string) { return createHash("sha256").update(value).digest("hex"); }
-export function newMarketplaceToken() { const token = randomBytes(32).toString("hex"); return { token, hash: marketplaceHash(token) }; }
-export function marketplaceTokenMatches(token: string | null, expected: unknown) {
-  if (!token || !/^[a-f0-9]{64}$/.test(token) || typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) return false;
-  return timingSafeEqual(Buffer.from(marketplaceHash(token)), Buffer.from(expected));
-}
 export function marketplaceDuplicateFingerprint(input: { title: string; category: string; subjectCode?: string }) { return marketplaceHash([input.title, input.category, input.subjectCode || ""].map((value) => cleanMarketplaceText(value).normalize("NFKD").replace(/\p{Diacritic}/gu, "").toLowerCase()).join("|")); }
 
 export function prohibitedMarketplaceReason(input: { title: string; shortDescription: string; description: string }) {
@@ -43,10 +38,6 @@ async function sendMarketplaceEmail(input: { to: string; subject: string; text: 
   if (!response?.ok) return { ok: false, reason: "delivery_failed" as const };
   const payload = await response.json().catch(() => ({})) as { id?: string };
   return { ok: true, id: payload.id || null } as const;
-}
-
-export async function emailMarketplaceVerification(input: { email: string; title: string; verifyUrl: string }) {
-  return sendMarketplaceEmail({ to: input.email, subject: `[StudentHub Burza] Ověřte inzerát: ${input.title}`, text: `Dokončete zveřejnění inzerátu kliknutím na tento jednorázový odkaz:\n\n${input.verifyUrl}\n\nOdkaz platí 2 hodiny. Pokud jste inzerát nevytvořili, zprávu ignorujte. StudentHub nezpracovává platby a tento odkaz nikomu neposílejte.` });
 }
 
 export async function relayMarketplaceContact(input: { sellerEmail: string; buyerEmail: string; title: string; message: string }) {
@@ -121,11 +112,6 @@ export async function getPublicMarketplaceListings(cityId = "brno", viewerId?: s
 }
 
 export async function getPublicMarketplaceListing(id: string) { return (await getPublicMarketplaceListings()).find((item) => item.id === id) || null; }
-
-export async function marketplaceListingByManagementToken(id: string, token: string | null) {
-  const row = (await listRecords("marketplace_listings")).find((item) => String(item.id) === id);
-  return row && !["deleted", "rejected"].includes(String(row.status)) && marketplaceTokenMatches(token, row.management_token_hash) ? row : null;
-}
 
 export async function marketplaceAbuseBlocked(emailHash: string, requestHash: string) {
   return (await listRecords("marketplace_abuse_blocks")).some((row) => row.active && [emailHash, marketplaceHash(requestHash)].includes(String(row.identifier_hash)));

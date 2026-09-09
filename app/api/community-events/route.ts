@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { communityEventFingerprint, newManagementToken, publicCommunityEvent, removeCommunityImage, sanitizeAndUploadCommunityImage, sanitizePlainText } from "@/lib/community-events";
+import { communityEventFingerprint, publicCommunityEvent, removeCommunityImage, sanitizeAndUploadCommunityImage, sanitizePlainText } from "@/lib/community-events";
 import { defaultCitySlug } from "@/lib/cities";
 import { getPublishedCity } from "@/lib/city-data";
 import { insertRecord, listRecords } from "@/lib/data-store";
@@ -35,11 +35,10 @@ export async function POST(request: Request) {
   const fingerprint = communityEventFingerprint({ cityId: city.id, title: clean.title, startsAt: parsed.data.startsAt, venue: clean.venue });
   const duplicate = (await listRecords("community_events")).some((row) => row.author_id === account.id && row.city_id === city.id && row.duplicate_fingerprint === fingerprint && ["pending", "published", "hidden"].includes(String(row.status)));
   if (duplicate) return NextResponse.json({ message: "Stejná akce už byla přidána." }, { status: 409 });
-  const id = randomUUID(); const management = newManagementToken(); const image = form.get("image"); let imageUrl: string | undefined;
+  const id = randomUUID(); const image = form.get("image"); let imageUrl: string | undefined;
   try {
     if (image instanceof File && image.size) imageUrl = await sanitizeAndUploadCommunityImage(image, id);
-    const { token: _discarded, ...managementPrivate } = management; void _discarded;
-    const saved = await insertRecord("community_events", { id, author_id: account.id, city_id: city.id, title: clean.title, category: parsed.data.category, starts_at: parsed.data.startsAt, ends_at: parsed.data.endsAt || null, venue: clean.venue, description: clean.description, is_free: parsed.data.isFree, price_amount: parsed.data.isFree ? null : parsed.data.priceAmount, currency: "CZK", event_url: parsed.data.eventUrl || null, image_url: imageUrl || null, organizer: account.displayName, source_type: "community", author_email: account.email.toLowerCase(), management_token_hash: managementPrivate.hash, duplicate_fingerprint: fingerprint, status: account.trustedEventPublisher ? "published" : "pending", report_count: 0 }) as Record<string, unknown>;
+    const saved = await insertRecord("community_events", { id, author_id: account.id, city_id: city.id, title: clean.title, category: parsed.data.category, starts_at: parsed.data.startsAt, ends_at: parsed.data.endsAt || null, venue: clean.venue, description: clean.description, is_free: parsed.data.isFree, price_amount: parsed.data.isFree ? null : parsed.data.priceAmount, currency: "CZK", event_url: parsed.data.eventUrl || null, image_url: imageUrl || null, organizer: account.displayName, source_type: "community", duplicate_fingerprint: fingerprint, status: account.trustedEventPublisher ? "published" : "pending", report_count: 0 }) as Record<string, unknown>;
     const identity = (await publicIdentityForRows([account.id], account.id)).get(account.id) || legacyProfileIdentity;
     const published = saved.status === "published";
     return NextResponse.json({ item: publicCommunityEvent(saved, identity), published, status: saved.status, message: published ? "Akce je zveřejněná a můžete ji spravovat ze svého profilu." : "Akce byla bezpečně uložena a čeká na schválení moderátorem." }, { status: 201 });

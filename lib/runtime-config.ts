@@ -1,6 +1,6 @@
 type RuntimeEnvironment = Record<string, string | undefined>;
 
-const productionSecrets = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "CRON_SECRET", "ADMIN_COOKIE_SECRET", "RATE_LIMIT_SALT"] as const;
+const productionSecrets = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "CRON_SECRET", "RATE_LIMIT_SALT"] as const;
 const unsafeProductionFlags = ["DEMO_MODE", "ALLOW_LOCAL_FILE_STORE", "ALLOW_VERIFIED_FALLBACK"] as const;
 
 export function isProductionDeployment(environment: RuntimeEnvironment) {

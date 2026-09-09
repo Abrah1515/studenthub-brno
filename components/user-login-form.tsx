@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Globe2, KeyRound, Loader2, LogIn, MailPlus, RotateCw } from "lucide-react";
+import { CheckCircle2, KeyRound, Loader2, LogIn, MailPlus, RotateCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Mode="login"|"signup"|"recover";
@@ -13,20 +13,10 @@ export function UserLoginForm({next="/nastaveni",description="Pro tuto akci je p
   const [pending,setPending]=useState(false);
   const [completion,setCompletion]=useState<Completion>(null);
   const [error,setError]=useState("");
-  const [googleEnabled,setGoogleEnabled]=useState(false);
   const [resendPending,setResendPending]=useState(false);
   const [resendMessage,setResendMessage]=useState("");
   const [resendError,setResendError]=useState("");
   const [cooldown,setCooldown]=useState(0);
-
-  useEffect(()=>{
-    const controller=new AbortController();
-    fetch("/api/auth/providers",{cache:"no-store",signal:controller.signal})
-      .then((response)=>response.ok?response.json():null)
-      .then((value)=>setGoogleEnabled(Boolean(value?.google)))
-      .catch(()=>undefined);
-    return ()=>controller.abort();
-  },[]);
 
   useEffect(()=>{
     if(cooldown<=0)return;
@@ -57,21 +47,6 @@ export function UserLoginForm({next="/nastaveni",description="Pro tuto akci je p
       setCompletion({kind:mode,message:result.message});
     }catch{
       setError("Síťové připojení selhalo. Zkuste to prosím znovu.");
-    }finally{
-      setPending(false);
-    }
-  }
-
-  async function google(){
-    setPending(true);
-    setError("");
-    try{
-      const response=await fetch("/api/auth/google",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({next})});
-      const result=await response.json().catch(()=>({}));
-      if(!response.ok||!result.url){setError(result.message||"Google přihlášení se nepodařilo spustit.");return;}
-      window.location.assign(result.url);
-    }catch{
-      setError("Google přihlášení se nepodařilo spustit kvůli síťové chybě.");
     }finally{
       setPending(false);
     }
@@ -119,7 +94,6 @@ export function UserLoginForm({next="/nastaveni",description="Pro tuto akci je p
   return <form className={`form-card auth-card${compact?" auth-card-compact":""}`} onSubmit={submit} noValidate>
     <h2>{mode==="signup"?"Vytvořit účet e-mailem":mode==="recover"?"Obnovit heslo":"Přihlásit se e-mailem"}</h2>
     <p>{description} Heslo spravuje výhradně Supabase Auth.</p>
-    {googleEnabled&&mode!=="recover"&&<><button type="button" className="button button-google" onClick={google} disabled={pending}><Globe2 size={17}/>Pokračovat přes Google</button><div className="auth-divider" aria-hidden="true"><span>nebo</span></div></>}
     <div className="auth-mode-switch" role="group" aria-label="Způsob přihlášení">
       <button type="button" className={mode==="signup"?"active":""} onClick={()=>switchMode("signup")}><MailPlus size={15}/>Vytvořit účet e-mailem</button>
       <button type="button" className={mode==="login"?"active":""} onClick={()=>switchMode("login")}><LogIn size={15}/>Přihlásit se e-mailem</button>

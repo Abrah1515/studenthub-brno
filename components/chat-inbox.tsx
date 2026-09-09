@@ -4,12 +4,13 @@
 
 import Link from "next/link";
 import { Archive, MessageCircle, RefreshCw, UserRound, X } from "lucide-react";
-import { createBrowserClient } from "@supabase/ssr";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ChatConversation } from "@/lib/chat-types";
 import { ChatComposerCard } from "@/components/chat-composer-card";
 import { createChatRealtimeTopic } from "@/lib/chat-realtime";
+import { createAuthenticatedRealtimeClient } from "@/lib/authenticated-realtime";
 
 export function ChatInbox() {
   const router = useRouter();
@@ -44,12 +45,12 @@ export function ChatInbox() {
   useEffect(() => {
     const visible = () => document.visibilityState === "visible" && void refresh();
     window.addEventListener("focus", visible); window.addEventListener("online", visible); document.addEventListener("visibilitychange", visible);
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; const client = url && key ? createBrowserClient(url, key) : null;
-    const channel = client?.channel(createChatRealtimeTopic("inbox"))
+    let disposed=false; let realtime: Awaited<ReturnType<typeof createAuthenticatedRealtimeClient>>=null; let channel: RealtimeChannel|null=null;
+    void createAuthenticatedRealtimeClient().then((client)=>{ if(disposed||!client)return; realtime=client; channel=client.channel(createChatRealtimeTopic("inbox"))
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, refresh)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_conversations" }, refresh)
-      .subscribe();
-    return () => { window.removeEventListener("focus", visible); window.removeEventListener("online", visible); document.removeEventListener("visibilitychange", visible); if (client && channel) void client.removeChannel(channel); };
+      .subscribe(); });
+    return () => { disposed=true; window.removeEventListener("focus", visible); window.removeEventListener("online", visible); document.removeEventListener("visibilitychange", visible); if (realtime && channel) void realtime.removeChannel(channel); };
   }, [refresh]);
   function selectTab(next: "messages" | "requests" | "archived") { if (next === tab) return; controller.current?.abort(); setLoading(true); setError(""); setItems([]); setTab(next); }
   return <div className="chat-page"><div className="page-heading"><div><p className="eyebrow">Soukromé zprávy</p><h1>Chat</h1><p>Konverzace jsou viditelné jen jejich účastníkům. StudentHub nepoužívá end-to-end šifrování.</p></div><button className="button button-secondary" onClick={refresh}><RefreshCw size={16} />Obnovit</button></div>{target && <ChatComposerCard target={target} onClose={() => router.replace("/chat")} />}

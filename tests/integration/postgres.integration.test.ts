@@ -38,11 +38,14 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         create role service_role nologin bypassrls;
         create schema auth;
         create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz, raw_user_meta_data jsonb not null default '{}'::jsonb);
+        create table auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade);
         create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+        create function auth.role() returns text language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), current_user)::text $$;
         grant usage on schema public, auth to anon, authenticated, service_role;
+        grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(34);
+      expect(files).toHaveLength(35);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -64,12 +67,34 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
           ('71111111-1111-4111-8111-111111111114','student@example.cz',now());
         update public.profiles set role='faculty_editor', university_id='vut', faculty_id='vut-fekt', city_id='brno' where id='71111111-1111-4111-8111-111111111111';
         update public.profiles set role='city_editor', city_id='brno' where id='71111111-1111-4111-8111-111111111112';
-        update public.profiles set role='super_admin', city_id=null where id='71111111-1111-4111-8111-111111111113';
         update public.profiles set username='trusted_student',display_name='Trusted Student',community_rules_accepted_at=now(),account_status='active',is_blocked=false where id='71111111-1111-4111-8111-111111111114';
       `);
+      await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+      await db.exec("set role service_role");
+      expect((await db.query<{ bootstrap_first_super_admin:{changed:boolean;role:string} }>("select public.bootstrap_first_super_admin($1,$2)",['71111111-1111-4111-8111-111111111113','První potvrzený superadmin'])).rows[0].bootstrap_first_super_admin).toEqual({changed:true,role:"super_admin"});
+      expect((await db.query<{ bootstrap_first_super_admin:{changed:boolean;role:string} }>("select public.bootstrap_first_super_admin($1,$2)",['71111111-1111-4111-8111-111111111113','Idempotentní opakování'])).rows[0].bootstrap_first_super_admin).toEqual({changed:false,role:"super_admin"});
+      await db.exec("reset role");
+      await db.query("select set_config('request.jwt.claim.role','',false)");
       await expect(db.exec("update public.profiles set city_id=null where id='71111111-1111-4111-8111-111111111112'")).rejects.toThrow(/profiles_admin_scope_required/i);
       await expect(db.exec("update public.profiles set faculty_id=null where id='71111111-1111-4111-8111-111111111111'")).rejects.toThrow(/profiles_admin_scope_required/i);
-      await expect(db.exec("update public.profiles set role='admin' where id='71111111-1111-4111-8111-111111111113'")).rejects.toThrow(/cannot_demote_only_superadmin/i);
+      await expect(db.exec("update public.profiles set role='admin' where id='71111111-1111-4111-8111-111111111113'")).rejects.toThrow(/last_active_superadmin/i);
+      await db.exec("insert into auth.sessions(user_id) values ('71111111-1111-4111-8111-111111111114')");
+      await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+      await db.exec("set role service_role");
+      for (const [role,cityId,facultyId] of [
+        ["faculty_editor",null,"vut-fekt"],
+        ["city_editor","brno",null],
+        ["admin","brno",null],
+        ["user",null,null],
+      ] as const) {
+        const changed=await db.query<{ set_profile_admin_role: { role:string;city_id:string|null;faculty_id:string|null } }>("select public.set_profile_admin_role($1,$2,$3,$4,$5,$6)",['71111111-1111-4111-8111-111111111113','71111111-1111-4111-8111-111111111114',role,cityId,facultyId,`Integrační změna role ${role}`]);
+        expect(changed.rows[0].set_profile_admin_role).toMatchObject({role,city_id:cityId,faculty_id:facultyId});
+      }
+      expect((await db.query<{ count:number }>("select count(*)::int as count from auth.sessions where user_id='71111111-1111-4111-8111-111111111114'")).rows[0].count).toBe(0);
+      expect((await db.query<{ count:number }>("select count(*)::int as count from public.admin_role_audit where target_id='71111111-1111-4111-8111-111111111114'")).rows[0].count).toBe(4);
+      await expect(db.query("select public.set_profile_admin_role($1,$2,'faculty_editor',null,null,$3)",['71111111-1111-4111-8111-111111111113','71111111-1111-4111-8111-111111111114','Chybějící rozsah'])).rejects.toThrow(/invalid_role_scope/i);
+      await db.exec("reset role");
+      await db.query("select set_config('request.jwt.claim.role','',false)");
 
       await db.exec(`
         insert into public.place_submissions(id,author_id,city_id,name,category,address,latitude,longitude,location_confirmed_at,description,usefulness_reason,source_url,status,author_consent_at,photo_rights_confirmed_at,submitted_at)
@@ -97,15 +122,15 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query<{ status:string;report_count:number }>("select status,report_count from public.place_comments where id='75333333-3333-4333-8333-333333333332'")).rows[0]).toEqual({status:"hidden",report_count:3});
 
       await db.exec(`
-        insert into public.community_events(id,author_id,city_id,title,category,starts_at,venue,description,is_free,author_email,management_token_hash,duplicate_fingerprint,status)
-        values ('94111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111114','brno','Trusted integration před přidělením','Studium','2032-09-20 18:00:00+02','Veřejná knihovna','Akce vložená před přidělením oprávnění musí čekat na kontrolu.',true,'trusted@example.cz',repeat('2',64),repeat('e',64),'published');
+        insert into public.community_events(id,author_id,city_id,title,category,starts_at,venue,description,is_free,duplicate_fingerprint,status)
+        values ('94111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111114','brno','Trusted integration před přidělením','Studium','2032-09-20 18:00:00+02','Veřejná knihovna','Akce vložená před přidělením oprávnění musí čekat na kontrolu.',true,repeat('e',64),'published');
       `);
       expect((await db.query<{ status: string }>("select status from public.community_events where id='94111111-1111-4111-8111-111111111111'")).rows[0].status).toBe("pending");
       await db.query("select public.manage_trusted_event_publisher($1,'grant',$2,$3)", ['71111111-1111-4111-8111-111111111114','Ověřený zástupce studentského spolku','71111111-1111-4111-8111-111111111113']);
       expect((await db.query<{ status: string }>("select status from public.community_events where id='94111111-1111-4111-8111-111111111111'")).rows[0].status).toBe("pending");
       await db.exec(`
-        insert into public.community_events(id,author_id,city_id,title,category,starts_at,venue,description,is_free,author_email,management_token_hash,duplicate_fingerprint,status)
-        values ('94111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111114','brno','Trusted integration po přidělení','Kultura','2032-09-21 18:00:00+02','Veřejný klub','Akce oprávněného profilu se musí zveřejnit okamžitě.',true,'trusted@example.cz',repeat('3',64),repeat('f',64),'pending');
+        insert into public.community_events(id,author_id,city_id,title,category,starts_at,venue,description,is_free,duplicate_fingerprint,status)
+        values ('94111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111114','brno','Trusted integration po přidělení','Kultura','2032-09-21 18:00:00+02','Veřejný klub','Akce oprávněného profilu se musí zveřejnit okamžitě.',true,repeat('f',64),'pending');
       `);
       expect((await db.query<{ status: string }>("select status from public.community_events where id='94111111-1111-4111-8111-111111111112'")).rows[0].status).toBe("published");
       await db.query("select public.manage_trusted_event_publisher($1,'suspend',$2,$3)", ['71111111-1111-4111-8111-111111111114','Dočasná kontrola oprávnění','71111111-1111-4111-8111-111111111113']);
@@ -113,13 +138,13 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await db.query("select public.manage_trusted_event_publisher($1,'reactivate',$2,$3)", ['71111111-1111-4111-8111-111111111114','Opětovné ověření vydavatele','71111111-1111-4111-8111-111111111113']);
       await db.query("select public.manage_trusted_event_publisher($1,'revoke',$2,$3)", ['71111111-1111-4111-8111-111111111114','Ukončení spolupráce s vydavatelem','71111111-1111-4111-8111-111111111113']);
       await db.exec(`
-        insert into public.community_events(id,author_id,city_id,title,category,starts_at,venue,description,is_free,author_email,management_token_hash,duplicate_fingerprint,status)
-        values ('94111111-1111-4111-8111-111111111113','71111111-1111-4111-8111-111111111114','brno','Trusted integration po odebrání','Sport','2032-09-22 18:00:00+02','Veřejné hřiště','Akce po odebrání oprávnění musí znovu čekat na schválení.',true,'trusted@example.cz',repeat('4',64),repeat('1',64),'published');
+        insert into public.community_events(id,author_id,city_id,title,category,starts_at,venue,description,is_free,duplicate_fingerprint,status)
+        values ('94111111-1111-4111-8111-111111111113','71111111-1111-4111-8111-111111111114','brno','Trusted integration po odebrání','Sport','2032-09-22 18:00:00+02','Veřejné hřiště','Akce po odebrání oprávnění musí znovu čekat na schválení.',true,repeat('1',64),'published');
       `);
       expect((await db.query<{ status: string }>("select status from public.community_events where id='94111111-1111-4111-8111-111111111113'")).rows[0].status).toBe("pending");
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.profile_permission_audit where profile_id='71111111-1111-4111-8111-111111111114'")).rows[0].count).toBe(4);
       expect((await db.query<{ role: string }>("select role from public.profiles where id='71111111-1111-4111-8111-111111111114'")).rows[0].role).toBe("user");
-      expect((await db.query("update public.community_events set author_id=null,author_email='deleted@invalid.local' where id='94111111-1111-4111-8111-111111111111' returning id")).rows).toHaveLength(1);
+      expect((await db.query("update public.community_events set status='deleted',archived_at=now(),author_id=null where id='94111111-1111-4111-8111-111111111111' returning id")).rows).toHaveLength(1);
       await expect(db.query("select public.manage_trusted_event_publisher($1,'grant',$2,$1)", ['71111111-1111-4111-8111-111111111113','Zakázané přidělení sobě'])).rejects.toThrow(/cannot grant.*self/i);
 
       await db.exec(`
@@ -177,10 +202,10 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
           ('92111111-1111-4111-8111-111111111111','91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111112','První žádost','pending'),
           ('92111111-1111-4111-8111-111111111112','91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111113','Druhá žádost','pending');
         update public.buddy_join_requests set status='accepted' where id='92111111-1111-4111-8111-111111111111';
-        insert into public.community_events(id,city_id,title,category,starts_at,venue,description,is_free,author_email,management_token_hash,duplicate_fingerprint,status)
+        insert into public.community_events(id,city_id,title,category,starts_at,venue,description,is_free,duplicate_fingerprint,status,source_type,organizer,source_url,source_external_id,last_verified_at)
         values
-          ('93111111-1111-4111-8111-111111111111','brno','Veřejná studentská akce','Studium','2030-09-20 18:00:00+02','Veřejná knihovna','Bezpečný veřejný popis komunitní studentské akce.',true,'private@example.cz',repeat('a',64),repeat('b',64),'published'),
-          ('93111111-1111-4111-8111-111111111112','brno','Ukončená studentská akce','Kultura','2020-09-20 18:00:00+02','Centrum Brna','Bezpečný popis již ukončené komunitní akce.',true,'archive@example.cz',repeat('c',64),repeat('d',64),'published');
+          ('93111111-1111-4111-8111-111111111111','brno','Veřejná studentská akce','Studium','2030-09-20 18:00:00+02','Veřejná knihovna','Bezpečný veřejný popis komunitní studentské akce.',true,repeat('b',64),'published','external','Veřejná knihovna','https://example.com/events/1','external-1',now()),
+          ('93111111-1111-4111-8111-111111111112','brno','Ukončená studentská akce','Kultura','2020-09-20 18:00:00+02','Centrum Brna','Bezpečný popis již ukončené komunitní akce.',true,repeat('d',64),'published','external','Veřejný pořadatel','https://example.com/events/2','external-2',now());
         insert into public.content_reports(target_type,target_id,reporter_session_hash,reason,city_id) values
           ('community_event','93111111-1111-4111-8111-111111111111',repeat('1',64),'spam','brno'),
           ('community_event','93111111-1111-4111-8111-111111111111',repeat('2',64),'spam','brno'),
@@ -223,12 +248,12 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.source_review_queue where source_id='src-vetuni-fvl' and status='superseded'")).rows[0].count).toBe(1);
 
       await db.exec(`
-        insert into public.marketplace_listings(id,city_id,listing_type,category,title,short_description,description,price_mode,price_amount,price_scope,university_id,faculty_id,semester,material_format,item_condition,handoff_method,handoff_location,public_alias,seller_email,seller_email_hash,request_fingerprint,management_token_hash,duplicate_fingerprint,copyright_confirmed,privacy_consent_at,status,email_verified_at,published_at,expires_at)
+        insert into public.marketplace_listings(id,seller_id,city_id,listing_type,category,title,short_description,description,price_mode,price_amount,price_scope,university_id,faculty_id,semester,material_format,item_condition,handoff_method,handoff_location,public_alias,seller_email,seller_email_hash,request_fingerprint,duplicate_fingerprint,copyright_confirmed,privacy_consent_at,status,email_verified_at,published_at,expires_at)
         values
-          ('c1111111-1111-4111-8111-111111111111','brno','offer','textbook','Integrační učebnice','Zachovalá fyzická učebnice.','Zachovalá fyzická učebnice určená k bezpečnému integračnímu testu.','fixed',250,'item','vut','vut-fekt','winter','printed','used','in_person','Technická','Student', 'seller@example.cz',repeat('a',64),repeat('b',24),repeat('c',64),repeat('d',64),true,now(),'active',now(),now(),now()+interval '30 days'),
-          ('c1111111-1111-4111-8111-111111111112','brno','wanted','other','Expirovaná poptávka','Poptávka určená k expiraci.','Poptávka určená pouze k ověření databázové automatické expirace.','negotiable',null,'item',null,null,'not_applicable','printed','used','shipping',null,'Student', 'expired@example.cz',repeat('e',64),repeat('f',24),repeat('1',64),repeat('2',64),true,now(),'sold',now(),now(),now()-interval '1 hour');
-        insert into public.marketplace_messages(listing_id,buyer_email,message,consent_at,request_fingerprint)
-          values ('c1111111-1111-4111-8111-111111111111','buyer@example.cz','Soukromá zpráva zájemce nesmí být dostupná přes přímé RLS čtení.',now(),repeat('3',24));
+          ('c1111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111114','brno','offer','textbook','Integrační učebnice','Zachovalá fyzická učebnice.','Zachovalá fyzická učebnice určená k bezpečnému integračnímu testu.','fixed',250,'item','vut','vut-fekt','winter','printed','used','in_person','Technická','Student', 'seller@example.cz',repeat('a',64),repeat('b',24),repeat('d',64),true,now(),'active',now(),now(),now()+interval '30 days'),
+          ('c1111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111114','brno','wanted','other','Expirovaná poptávka','Poptávka určená k expiraci.','Poptávka určená pouze k ověření databázové automatické expirace.','negotiable',null,'item',null,null,'not_applicable','printed','used','shipping',null,'Student', 'expired@example.cz',repeat('e',64),repeat('f',24),repeat('2',64),true,now(),'sold',now(),now(),now()-interval '1 hour');
+        insert into public.marketplace_messages(listing_id,buyer_id,buyer_email,message,consent_at,request_fingerprint)
+          values ('c1111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111112','buyer@example.cz','Soukromá zpráva zájemce nesmí být dostupná přes přímé RLS čtení.',now(),repeat('3',24));
         insert into public.marketplace_reports(listing_id,reporter_hash,reason) values
           ('c1111111-1111-4111-8111-111111111111',repeat('4',24),'copyright'),
           ('c1111111-1111-4111-8111-111111111111',repeat('5',24),'academic_integrity'),
@@ -325,7 +350,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query("select distinct academic_event_id from public.academic_event_changes")).rows).toHaveLength(2);
       expect((await db.query("select id from public.place_live_reports")).rows).toHaveLength(1);
       expect((await db.query("select id from public.place_submissions where city_id='brno'")).rows).toHaveLength(1);
-      expect((await db.query("select id from public.service_requests where id='81111111-1111-4111-8111-111111111111'")).rows).toHaveLength(0); expect((await db.query("select author_email from public.community_events where source_type='community'")).rows).toHaveLength(5); await db.exec("reset role");
+      expect((await db.query("select id from public.service_requests where id='81111111-1111-4111-8111-111111111111'")).rows).toHaveLength(0); expect((await db.query("select id from public.community_events where source_type='community'")).rows).toHaveLength(3); await db.exec("reset role");
 
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111113"]); await db.exec("set role authenticated");
       expect((await db.query<{ title: string }>("select title from public.academic_events where title like 'RLS %' order by title")).rows.map((row) => row.title)).toEqual(["RLS FEKT", "RLS FIT"]);

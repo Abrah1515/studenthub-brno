@@ -79,7 +79,7 @@ async function canEdit(resource: TableName, id: string, user: AdminUser) {
   if (!user.cityId) return false;
   if (resource === "cities") return id === user.cityId && user.role === "admin";
   if (row?.city_id === user.cityId || (row?.content as Record<string, unknown> | undefined)?.cityId === user.cityId) return true;
-  if (!isSupabaseConfigured()) return user.mode === "local" && user.cityId === "brno";
+  if (!isSupabaseConfigured()) return false;
   const client = createServiceClient();
   if (resource === "offers") { const { data } = await client.from("offer_cities").select("offer_id").eq("offer_id", id).eq("city_id", user.cityId).maybeSingle(); return Boolean(data); }
   if (resource === "academic_events" && row?.university_id) { const { data } = await client.from("university_cities").select("university_id").eq("university_id", row.university_id).eq("city_id", user.cityId).maybeSingle(); return Boolean(data); }

@@ -37,7 +37,7 @@ export async function getCurrentUser() {
   const client = createServerClient(url, anon, { cookies: { getAll: () => store.getAll(), setAll: () => undefined } });
   const { data: { user } } = await client.auth.getUser();
   if (!user || !user.email_confirmed_at) return null;
-  return { id: user.id, email: user.email || "", verified: true as const, provider: String(user.app_metadata?.provider || "email"), lastSignInAt: user.last_sign_in_at || null };
+  return { id: user.id, email: user.email || "", verified: true as const, provider: "email" as const, lastSignInAt: user.last_sign_in_at || null };
 }
 
 export async function getCurrentAccount(): Promise<AccountProfile | null> {

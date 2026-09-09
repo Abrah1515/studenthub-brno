@@ -59,8 +59,8 @@ test("filtruje text, obor, rozsah, lokalitu, typ odměny a pouze hodinovou sazbu
   await page.getByRole("checkbox", { name: /jiné typy odměny/ }).uncheck(); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(0);
 });
 
-test("administrace ukáže bezpečný stav konektoru bez neveřejné URL", async ({ page }) => {
-  await page.goto("/admin/prihlaseni"); await page.getByLabel("E-mail").fill("e2e-admin@studenthub.local"); await page.getByLabel("Heslo").fill("local-test-password-2026"); await page.getByRole("button", { name: "Přihlásit se" }).click(); await page.waitForURL(/\/admin(?:\?|$)/);
-  await page.goto("/admin?section=content_sources"); await expect(page.getByRole("heading", { name: "Pokrytí datových zdrojů" })).toBeVisible(); await expect(page.getByText("Čeká na ostrý XML feed.").last()).toBeVisible();
-  await expect(page.locator("body")).not.toContainText(/vzor_detail\.xml|production-secret\.xml/i); expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+test("stav konektoru není dostupný bez Supabase administrační relace", async ({ page, request }) => {
+  expect((await request.get("/api/admin/data")).status()).toBe(401);
+  await page.goto("/admin?section=content_sources"); await expect(page).toHaveURL(/\/admin\/prihlaseni/);
+  await expect(page.locator("body")).not.toContainText(/vzor_detail\.xml|production-secret\.xml|Pokrytí datových zdrojů/i); expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 });

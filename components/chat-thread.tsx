@@ -4,12 +4,13 @@
 
 import Link from "next/link";
 import { Archive, ArchiveRestore, ArrowUp, Ban, BellOff, Check, ChevronLeft, Flag, LogOut, MoreVertical, Send, UserRound, WifiOff } from "lucide-react";
-import { createBrowserClient } from "@supabase/ssr";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import type { ChatConversation, ChatMessage } from "@/lib/chat-types";
 import { chatUnreadEvent } from "@/components/chat-badge";
 import { createChatRealtimeTopic } from "@/lib/chat-realtime";
+import { createAuthenticatedRealtimeClient } from "@/lib/authenticated-realtime";
 
 const reportReasons = [
   ["harassment", "Obtěžování"], ["spam", "Spam"], ["fraud", "Podvod"], ["unsafe_meeting", "Nebezpečné setkání"], ["prohibited_sale", "Zakázaný prodej"], ["other", "Jiný důvod"],
@@ -27,9 +28,9 @@ export function ChatThread({ conversationId, dock = false, onClose }: { conversa
     if (scroll) requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }));
   }, [conversationId]);
   useEffect(() => { void refresh(true); const focused = () => document.visibilityState === "visible" && void refresh(); window.addEventListener("focus", focused); window.addEventListener("online", focused); document.addEventListener("visibilitychange", focused); const timer = window.setInterval(focused, 20000);
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; const client = url && key ? createBrowserClient(url, key) : null;
-    const channel = client?.channel(createChatRealtimeTopic(conversationId)).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh(true)).on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh()).subscribe();
-    return () => { window.removeEventListener("focus", focused); window.removeEventListener("online", focused); document.removeEventListener("visibilitychange", focused); window.clearInterval(timer); if (client && channel) void client.removeChannel(channel); };
+    let disposed=false; let realtime: Awaited<ReturnType<typeof createAuthenticatedRealtimeClient>>=null; let channel: RealtimeChannel|null=null;
+    void createAuthenticatedRealtimeClient().then((client)=>{ if(disposed||!client)return; realtime=client; channel=client.channel(createChatRealtimeTopic(conversationId)).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh(true)).on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh()).subscribe(); });
+    return () => { disposed=true; window.removeEventListener("focus", focused); window.removeEventListener("online", focused); document.removeEventListener("visibilitychange", focused); window.clearInterval(timer); if (realtime && channel) void realtime.removeChannel(channel); };
   }, [conversationId, refresh]);
   async function loadOlder() { if (!cursor) return; const response = await fetch(`/api/chat/conversations/${conversationId}/messages?before=${encodeURIComponent(cursor)}`, { cache: "no-store" }); if (!response.ok) return; const body = await response.json(); setMessages((current) => [...(body.items || []), ...current]); setCursor(body.nextCursor || null); }
   async function send(event: React.FormEvent) { event.preventDefault(); if (!message.trim() || sending) return; const value = message.trim(); setSending(true); setMessage(""); setError(""); const response = await fetch(`/api/chat/conversations/${conversationId}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: value, clientNonce: crypto.randomUUID() }) }).catch(() => null); setSending(false); if (!response?.ok) { const body = await response?.json().catch(() => ({})); setMessage(value); setError(body?.message || "Zprávu se nepodařilo odeslat."); return; } await refresh(true); editorRef.current?.focus(); }

@@ -80,7 +80,7 @@ export async function GET() {
   const placeLiveReports = values.place_live_reports.filter((row) => cityPlaceIds.has(String(row.place_id))).map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => key !== "installation_id")));
   const placeReportIds = new Set(placeLiveReports.map((row) => String(row.id)));
   const liveModerationActions = values.moderation_actions.filter((row) => row.target_type === "place_live_report" && placeReportIds.has(String(row.target_id)));
-  const marketplaceListings = user.role === "faculty_editor" ? [] : scoped(values.marketplace_listings).map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => !["seller_email", "seller_email_hash", "request_fingerprint", "verification_token_hash", "management_token_hash", "duplicate_fingerprint", "moderation_note"].includes(key))));
+  const marketplaceListings = user.role === "faculty_editor" ? [] : scoped(values.marketplace_listings).map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => !["seller_email", "seller_email_hash", "request_fingerprint", "duplicate_fingerprint", "moderation_note"].includes(key))));
   const marketplaceIds = new Set(marketplaceListings.map((row) => String(row.id)));
   const marketplaceReports = user.role === "faculty_editor" ? [] : values.marketplace_reports.filter((row) => marketplaceIds.has(String(row.listing_id))).map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => key !== "reporter_hash")));
   const marketplaceHistory = user.role === "faculty_editor" ? [] : values.marketplace_history.filter((row) => marketplaceIds.has(String(row.listing_id)));
