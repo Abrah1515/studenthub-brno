@@ -23,10 +23,13 @@ for (const [path, size] of [
 }
 
 const manifestSource = read("lib/pwa-manifest.ts").toString("utf8");
+const brandSource = read("lib/brand.ts").toString("utf8");
 const workerSource = read("public/sw.js").toString("utf8");
 ok(manifestSource.includes('short_name: brand.platformName'), "Manifest musí používat krátký název StudentHub.");
 ok(manifestSource.includes('scope: "/"'), "Manifest musí mít scope /.");
 ok((manifestSource.match(/purpose: "maskable"/g) || []).length === 2, "Manifest musí obsahovat obě maskable ikony.");
+ok(brandSource.includes('primary: "#B88918"'), "PWA musí používat schválenou zlatou primární barvu.");
+ok(brandSource.includes('lightTheme: "#F8FAFC"') && brandSource.includes('darkTheme: "#090D18"'), "PWA musí používat schválené neutrální pozadí.");
 ok(workerSource.includes('request.mode === "navigate"'), "Service worker musí obsloužit offline navigaci.");
 ok(workerSource.includes("isPrivatePath(url.pathname)"), "Service worker musí vyloučit soukromé cesty.");
 ok(workerSource.includes('url.pathname.startsWith("/_next/static/")'), "Service worker smí cachovat verzované Next.js assety.");
@@ -42,7 +45,7 @@ if (target) {
   ok(manifest.name === "StudentHub Brno", "Manifest name není StudentHub Brno.");
   ok(manifest.short_name === "StudentHub", "Manifest short_name není StudentHub.");
   ok(manifest.start_url === "/brno" && manifest.scope === "/" && manifest.display === "standalone", "Manifest nemá správný start_url, scope nebo display.");
-  ok(manifest.theme_color && manifest.background_color, "Manifest nemá barvy aplikace.");
+  ok(manifest.theme_color === "#B88918" && manifest.background_color === "#F8FAFC", "Manifest nemá schválenou zlato-neutrální paletu.");
   const icons = Array.isArray(manifest.icons) ? manifest.icons : [];
   ok(icons.some((icon) => icon.sizes === "192x192" && icon.purpose === "any"), "Chybí běžná ikona 192×192.");
   ok(icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "any"), "Chybí běžná ikona 512×512.");

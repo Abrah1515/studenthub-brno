@@ -12,7 +12,7 @@ export const brand = {
     openGraph: "/brand/brno/og.png",
   },
   legacyAssets: { icon192: "/icon-192.png", icon512: "/icon-512.png", openGraph: "/og.png" },
-  colors: { primary: "#0b6b4d", lightTheme: "#f3f7f5", darkTheme: "#101915" },
+  colors: { primary: "#B88918", lightTheme: "#F8FAFC", darkTheme: "#090D18" },
   seo: {
     title: "StudentHub Brno – prakticky pro studenty",
     description: "Nezávislý praktický rozcestník pro studenty v Brně: termíny, místa, brigády, komunita a studentská burza.",

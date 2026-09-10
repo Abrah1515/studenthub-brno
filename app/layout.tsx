@@ -55,7 +55,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: brand.editionName, description: `Praktický studentský přehled pro ${brand.editionShortName}.`, images: [new URL(brand.assets.openGraph, siteUrl)] },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f3f7f5" }, { media: "(prefers-color-scheme: dark)", color: "#101915" }] };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: [{ media: "(prefers-color-scheme: light)", color: brand.colors.lightTheme }, { media: "(prefers-color-scheme: dark)", color: brand.colors.darkTheme }] };
 
 const structuredData = {
   "@context": "https://schema.org",
