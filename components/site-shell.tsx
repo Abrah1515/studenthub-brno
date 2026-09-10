@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Bell, BookOpen, BriefcaseBusiness, CalendarDays, Home, Info, MapPinned, Menu, MessageCircle, Monitor, Moon, Settings, ShoppingBag, Sun, Users, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -20,6 +19,7 @@ import { featureFlags } from "@/lib/feature-flags";
 import { WatcherBadge } from "@/components/watcher-badge";
 import { ChatBadge } from "@/components/chat-badge";
 import { ChatDock } from "@/components/chat-dock";
+import { BrandLogo, BrandSymbol } from "@/components/brand-logo";
 
 function navigationFor(citySlug: string, cityName: string) {
   const cityBase = `/${citySlug}`;
@@ -59,7 +59,7 @@ function useThemePreference() {
   return [theme, selectTheme] as const;
 }
 
-function Brand({ href }: { href: string }) { return <Link href={href} className="brand" aria-label={`${brand.editionName} – přehled`}><span className="brand-mark" aria-hidden="true"><Image src={brand.assets.icon192} alt="" width={38} height={38} priority /></span><span><strong>{brand.platformName}</strong><small>{brand.editionShortName}</small></span></Link>; }
+function Brand({ href, compact = false }: { href: string; compact?: boolean }) { return <Link href={href} className="brand" aria-label={`${brand.editionName} – přehled`}>{compact ? <BrandSymbol priority /> : <BrandLogo width={108} priority />}</Link>; }
 function ThemeToggle() {
   const [theme, selectTheme] = useThemePreference();
   const options: Array<{ value: Theme; label: string; icon: typeof Monitor }> = [{ value: "system", label: "Podle zařízení", icon: Monitor }, { value: "light", label: "Světlý režim", icon: Sun }, { value: "dark", label: "Tmavý režim", icon: Moon }];
@@ -116,7 +116,7 @@ export function SiteShell({ children, cities, catalog }: { children: React.React
     <aside className="sidebar desktop-sidebar" aria-label="Postranní panel"><div className="sidebar-head"><div className="brand-context"><Brand href={cityRoot} /><SelectedStudyContext /></div></div><nav className="desktop-nav" aria-label="Hlavní navigace">{navigation.map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} />)}</nav><div className="sidebar-note"><Info size={18} aria-hidden="true" /><p>Nezávislý projekt. Není oficiálně spojený s žádnou univerzitou.</p></div><nav className="sidebar-legal" aria-label="Doplňkové odkazy"><Link href="/o-projektu">O projektu</Link><PwaInstallButton /><button type="button" onClick={() => window.dispatchEvent(new Event(openTutorialEvent))}><BookOpen size={15} />Návod</button><Link href="/kontakt">Kontakt</Link><Link href="/admin">Administrace</Link></nav></aside>
     <MobileMenu open={menuOpen} close={() => setMenuOpen(false)} navigation={navigation} pathname={pathname} cityRoot={cityRoot} returnFocus={() => menuTriggerRef.current} />
     {cities.length > 1 && <CitySwitcher cities={cities} pathname={pathname} />}
-    <div className="main-column"><header className="topbar"><button ref={menuTriggerRef} className="icon-button mobile-only" aria-label="Otevřít nabídku" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><div className="mobile-brand"><Brand href={cityRoot} /></div><div className="topbar-spacer" /><Link href="/chat" className="icon-button mobile-chat-link" aria-label="Otevřít chat"><MessageCircle size={20} /><ChatBadge compact /></Link><ThemeToggle /><Link href={`${cityRoot}/burza`} className="button button-primary topbar-help" aria-label="Studentská burza"><ShoppingBag size={18} /><span>Burza</span></Link></header><main id="hlavni-obsah" className="content">{children}</main><footer className="footer"><p>{brand.editionName} · nezávislý studentský projekt</p><div><Link href="/soukromi">Soukromí</Link><Link href="/cookies">Cookies</Link><Link href="/podminky">Podmínky</Link><button type="button" onClick={() => window.dispatchEvent(new Event("open-cookie-settings"))}>Nastavení cookies</button></div></footer></div>
+    <div className="main-column"><header className="topbar"><button ref={menuTriggerRef} className="icon-button mobile-only" aria-label="Otevřít nabídku" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><div className="mobile-brand"><Brand href={cityRoot} compact /></div><div className="topbar-spacer" /><Link href="/chat" className="icon-button mobile-chat-link" aria-label="Otevřít chat"><MessageCircle size={20} /><ChatBadge compact /></Link><ThemeToggle /><Link href={`${cityRoot}/burza`} className="button button-primary topbar-help" aria-label="Studentská burza"><ShoppingBag size={18} /><span>Burza</span></Link></header><main id="hlavni-obsah" className="content">{children}</main><footer className="footer"><p><BrandSymbol size={22} />{brand.editionName} · nezávislý studentský projekt</p><div><Link href="/soukromi">Soukromí</Link><Link href="/cookies">Cookies</Link><Link href="/podminky">Podmínky</Link><button type="button" onClick={() => window.dispatchEvent(new Event("open-cookie-settings"))}>Nastavení cookies</button></div></footer></div>
     <nav className="bottom-nav" aria-label="Mobilní navigace">{navigation.filter((item) => [cityRoot, `${cityRoot}/kalendar`, `${cityRoot}/mista`, "/komunita", `${cityRoot}/brigady`].includes(item.href)).map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} compact />)}</nav><Link href="/partak" className="floating-help" title="Hledám parťáka" aria-label="Hledám parťáka"><Users size={22} /><span>Hledám parťáka</span></Link>{!pathname.startsWith("/chat") && <ChatDock />}
   </div></AcademicCatalogProvider>;
 }

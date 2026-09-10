@@ -1,11 +1,11 @@
-const STATIC_CACHE = "studenthub-static-v6";
+const STATIC_CACHE = "studenthub-static-v7";
 const OFFLINE_PAGE = "/offline.html";
 const PRECACHE = [
   OFFLINE_PAGE,
-  "/brand/brno/icon-192.png",
-  "/brand/brno/icon-512.png",
-  "/brand/brno/icon-maskable-192.png",
-  "/brand/brno/icon-maskable-512.png",
+  "/brand/brno/studenthub-icon-v2-192.png",
+  "/brand/brno/studenthub-icon-v2-512.png",
+  "/brand/brno/studenthub-icon-maskable-v2-192.png",
+  "/brand/brno/studenthub-icon-maskable-v2-512.png",
 ];
 const PRIVATE_PREFIXES = ["/admin", "/api", "/auth", "/ucet", "/partak/moje", "/chat"];
 
@@ -55,7 +55,7 @@ self.addEventListener("push", (event) => {
   let payload;
   try { payload = event.data.json(); } catch { payload = { title: "StudentHub", body: event.data.text(), url: "/hlidac" }; }
   event.waitUntil(self.registration.showNotification(payload.title || "StudentHub", {
-    body: payload.body || "Máte nové upozornění.", icon: "/brand/brno/icon-192.png", badge: "/brand/brno/icon-maskable-192.png",
+    body: payload.body || "Máte nové upozornění.", icon: "/brand/brno/studenthub-icon-v2-192.png", badge: "/brand/brno/studenthub-icon-maskable-v2-192.png",
     tag: payload.tag || "studenthub-notification", data: { url: payload.url || "/hlidac" }, renotify: false,
   }));
 });

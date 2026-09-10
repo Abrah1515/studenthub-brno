@@ -185,7 +185,7 @@ test("neaktivní nebo neznámé město není veřejné", async ({ page }) => { c
 test("PWA manifest, ikony a service worker jsou dostupné a necachují dynamické HTML", async ({ page, request }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
   const manifestResponse = await request.get("/manifest.webmanifest"); expect(manifestResponse.status()).toBe(200); expect(manifestResponse.headers()["content-type"]).toContain("manifest+json");
-  const manifest = await manifestResponse.json(); expect(manifest).toMatchObject({ name: "StudentHub Brno", short_name: "StudentHub", start_url: "/brno", scope: "/", display: "standalone" }); expect(manifest.icons.filter((icon: { purpose?: string }) => icon.purpose === "maskable")).toHaveLength(2);
+  const manifest = await manifestResponse.json(); expect(manifest).toMatchObject({ name: "StudentHub Brno", short_name: "StudentHub", start_url: "/brno", scope: "/", display: "standalone" }); expect(manifest.icons.filter((icon: { purpose?: string }) => icon.purpose === "maskable")).toHaveLength(2); expect(manifest.icons.every((icon: { src: string }) => icon.src.includes("studenthub-icon") && icon.src.includes("v2"))).toBe(true);
   for (const icon of manifest.icons) { const response = await request.get(icon.src); expect(response.status(), icon.src).toBe(200); expect(response.headers()["content-type"]).toContain("image/png"); }
   const workerResponse = await request.get("/sw.js"); expect(workerResponse.status()).toBe(200); expect(workerResponse.headers()["cache-control"]).toMatch(/no-cache|no-store/);
   await page.goto("/brno");
@@ -193,7 +193,7 @@ test("PWA manifest, ikony a service worker jsou dostupné a necachují dynamick�
   await page.reload();
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   const cacheAudit = await page.evaluate(async () => ({ keys: await caches.keys(), dynamic: Boolean(await caches.match("/brno")), admin: Boolean(await caches.match("/admin")), api: Boolean(await caches.match("/api/service-requests")) }));
-  expect(cacheAudit.keys).toEqual(["studenthub-static-v6"]); expect(cacheAudit.dynamic).toBe(false); expect(cacheAudit.admin).toBe(false); expect(cacheAudit.api).toBe(false);
+  expect(cacheAudit.keys).toEqual(["studenthub-static-v7"]); expect(cacheAudit.dynamic).toBe(false); expect(cacheAudit.admin).toBe(false); expect(cacheAudit.api).toBe(false);
 });
 
 test("instalační nabídka zavře mobilní menu, drží focus a je nad mapou", async ({ page }, testInfo) => {

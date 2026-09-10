@@ -19,8 +19,8 @@ export function manifestForCity(city: City): MetadataRoute.Manifest {
     icons: [
       { src: brand.assets.icon192, sizes: "192x192", type: "image/png", purpose: "any" },
       { src: brand.assets.icon512, sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/brand/brno/icon-maskable-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
-      { src: "/brand/brno/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: brand.assets.maskable192, sizes: "192x192", type: "image/png", purpose: "maskable" },
+      { src: brand.assets.maskable512, sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }

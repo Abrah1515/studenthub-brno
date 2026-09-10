@@ -42,7 +42,15 @@ export const metadata: Metadata = {
   verification: { google: "60df659d3c8fefaa" },
   alternates: { canonical: "/brno" },
   manifest: "/manifest.webmanifest",
-  icons: { icon: [{ url: brand.assets.icon192, sizes: "192x192", type: "image/png" }], apple: brand.assets.icon192 },
+  icons: {
+    icon: [
+      { url: brand.assets.favicon16, sizes: "16x16", type: "image/png" },
+      { url: brand.assets.favicon32, sizes: "32x32", type: "image/png" },
+      { url: brand.assets.favicon48, sizes: "48x48", type: "image/png" },
+      { url: brand.assets.icon192, sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: brand.assets.appleTouch, sizes: "180x180", type: "image/png" }],
+  },
   appleWebApp: { capable: true, title: brand.editionName, statusBarStyle: "default" },
   openGraph: {
     type: "website",
@@ -50,7 +58,7 @@ export const metadata: Metadata = {
     siteName: brand.editionName,
     title: brand.seo.title,
     description: "Termíny, místa, brigády, komunita a studentská burza v jednom klidném přehledu.",
-    images: [{ url: new URL(brand.assets.openGraph, siteUrl), width: 1734, height: 907, alt: `${brand.editionName} – termíny, místa, slevy a brigády` }],
+    images: [{ url: new URL(brand.assets.openGraph, siteUrl), width: 1200, height: 630, alt: `${brand.editionName} – termíny, místa, brigády a komunita` }],
   },
   twitter: { card: "summary_large_image", title: brand.editionName, description: `Praktický studentský přehled pro ${brand.editionShortName}.`, images: [new URL(brand.assets.openGraph, siteUrl)] },
 };

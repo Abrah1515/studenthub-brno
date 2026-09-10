@@ -12,7 +12,6 @@ const lightPalette = {
   textSecondary: "#64748b",
   textMuted: "#94a3b8",
   border: "#e2e8f0",
-  brandLogo: "#4f46e5",
 };
 
 const darkPalette = {
@@ -27,7 +26,6 @@ const darkPalette = {
   textSecondary: "#cbd5e1",
   textMuted: "#94a3b8",
   border: "#273244",
-  brandLogo: "#6366f1",
 };
 
 async function renderedPalette(page: import("@playwright/test").Page) {
@@ -45,7 +43,6 @@ async function renderedPalette(page: import("@playwright/test").Page) {
       textSecondary: style.getPropertyValue("--text-secondary").trim(),
       textMuted: style.getPropertyValue("--text-muted").trim(),
       border: style.getPropertyValue("--border").trim(),
-      brandLogo: style.getPropertyValue("--brand-logo").trim(),
     };
   });
 }
@@ -64,7 +61,7 @@ test("Campus Indigo se vykreslí ve světle i tmě bez overflow", async ({ page 
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   expect(await renderedPalette(page)).toEqual(lightPalette);
-  await expect(page.locator(".brand-mark img").first()).toHaveAttribute("src", /brand%2Fbrno%2Ficon-192\.png|brand\/brno\/icon-192\.png/);
+  await expect(page.locator(".brand img").first()).toHaveAttribute("src", /studenthub-(?:logo|icon)-v2/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 
   await page.evaluate(() => localStorage.setItem("studenthub-theme", "dark"));
@@ -86,4 +83,30 @@ test("systémový režim reaguje na změnu zařízení", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   expect(await renderedPalette(page)).toEqual(lightPalette);
+});
+
+test("nové logo je čitelné v navigaci, účtu, administraci a tmavém režimu", async ({ page }) => {
+  await page.goto("/brno", { waitUntil: "domcontentloaded" });
+  const mobile = (page.viewportSize()?.width || 0) <= 860;
+  if (mobile) {
+    await expect(page.locator(".mobile-brand .brand-mark img")).toBeVisible();
+    await expect(page.locator(".mobile-brand .brand-mark img")).toHaveAttribute("src", /studenthub-icon-v2-192\.png/);
+  } else {
+    await expect(page.locator(".desktop-sidebar .brand-logo-light")).toBeVisible();
+    await expect(page.locator(".desktop-sidebar .brand-logo-light")).toHaveAttribute("src", /studenthub-logo-v2\.png/);
+  }
+
+  await page.goto("/ucet/prihlaseni", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".auth-brand-logo .brand-logo-light")).toBeVisible();
+  await page.evaluate(() => localStorage.setItem("studenthub-theme", "dark"));
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator(".auth-brand-logo .brand-logo-light")).toBeHidden();
+  await expect(page.locator(".auth-brand-logo .brand-logo-dark")).toBeVisible();
+  await expect(page.locator(".auth-brand-logo .brand-logo-dark")).toHaveAttribute("src", /studenthub-logo-dark-v2\.png/);
+
+  await page.goto("/admin/prihlaseni", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".admin-login-logo .brand-logo-dark")).toBeVisible();
+  await page.goto("/o-projektu", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".about-brand-logo .brand-logo-dark")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 });
