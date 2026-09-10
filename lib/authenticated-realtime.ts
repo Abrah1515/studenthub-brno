@@ -4,8 +4,16 @@ import { createClient } from "@supabase/supabase-js";
 
 let cached: { token: string; expiresAt: number } | null = null;
 
+async function hasAuthenticatedUser() {
+  const response = await fetch("/api/auth/me", { cache: "no-store", credentials: "same-origin" }).catch(() => null);
+  if (!response?.ok) return false;
+  const body = await response.json().catch(() => ({}));
+  return Boolean(body.user);
+}
+
 async function accessToken() {
   if (cached && cached.expiresAt > Date.now()) return cached.token;
+  if (!await hasAuthenticatedUser()) return null;
   const response = await fetch("/api/auth/realtime-token", { cache: "no-store", credentials: "same-origin" });
   if (!response.ok) return null;
   const body = await response.json().catch(() => ({}));
