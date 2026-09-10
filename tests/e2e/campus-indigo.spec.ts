@@ -92,8 +92,15 @@ test("nové logo je čitelné v navigaci, účtu, administraci a tmavém režimu
     await expect(page.locator(".mobile-brand .brand-mark img")).toBeVisible();
     await expect(page.locator(".mobile-brand .brand-mark img")).toHaveAttribute("src", /studenthub-icon-v2-192\.png/);
   } else {
+    const horizontalLogo = page.locator(".desktop-sidebar .brand-logo-horizontal");
+    const symbol = horizontalLogo.locator(".brand-logo-horizontal-symbol");
+    const wordmark = horizontalLogo.locator(".brand-logo-wordmark");
+    await expect(horizontalLogo).toBeVisible();
     await expect(page.locator(".desktop-sidebar .brand-logo-light")).toBeVisible();
     await expect(page.locator(".desktop-sidebar .brand-logo-light")).toHaveAttribute("src", /studenthub-logo-v2\.png/);
+    const [logoBox, symbolBox, wordmarkBox] = await Promise.all([horizontalLogo.boundingBox(), symbol.boundingBox(), wordmark.boundingBox()]);
+    expect(logoBox && logoBox.width > logoBox.height * 2.5).toBeTruthy();
+    expect(symbolBox && wordmarkBox && symbolBox.x + symbolBox.width < wordmarkBox.x).toBeTruthy();
   }
 
   await page.goto("/ucet/prihlaseni", { waitUntil: "domcontentloaded" });

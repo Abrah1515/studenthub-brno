@@ -19,7 +19,7 @@ import { featureFlags } from "@/lib/feature-flags";
 import { WatcherBadge } from "@/components/watcher-badge";
 import { ChatBadge } from "@/components/chat-badge";
 import { ChatDock } from "@/components/chat-dock";
-import { BrandLogo, BrandSymbol } from "@/components/brand-logo";
+import { BrandHorizontalLogo, BrandSymbol } from "@/components/brand-logo";
 
 function navigationFor(citySlug: string, cityName: string) {
   const cityBase = `/${citySlug}`;
@@ -59,7 +59,7 @@ function useThemePreference() {
   return [theme, selectTheme] as const;
 }
 
-function Brand({ href, compact = false }: { href: string; compact?: boolean }) { return <Link href={href} className="brand" aria-label={`${brand.editionName} – přehled`}>{compact ? <BrandSymbol priority /> : <BrandLogo width={108} priority />}</Link>; }
+function Brand({ href, compact = false }: { href: string; compact?: boolean }) { return <Link href={href} className="brand" aria-label={`${brand.editionName} – přehled`}>{compact ? <BrandSymbol priority /> : <BrandHorizontalLogo priority />}</Link>; }
 function ThemeToggle() {
   const [theme, selectTheme] = useThemePreference();
   const options: Array<{ value: Theme; label: string; icon: typeof Monitor }> = [{ value: "system", label: "Podle zařízení", icon: Monitor }, { value: "light", label: "Světlý režim", icon: Sun }, { value: "dark", label: "Tmavý režim", icon: Moon }];
