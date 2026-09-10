@@ -12,7 +12,7 @@ export const databasePlaceCategoryLabels: Record<string,(typeof placeCategoryLab
 };
 export const placeCategoryColors: Record<PlaceCategoryCode,string> = {
   restaurant: "#dc6b2f", cafe: "#9a6735", pub_bar: "#7b4bb7", fast_food: "#e0a11b", canteen: "#d65c43", library: "#315ba6",
-  study_room: "#805d0e", coworking: "#397b9b", public_toilet: "#64748b", sport: "#2563eb", student_service: "#b45309", other: "#6b7280",
+  study_room: "#4f46e5", coworking: "#397b9b", public_toilet: "#64748b", sport: "#2563eb", student_service: "#b45309", other: "#6b7280",
 };
 
 export const placeTraitCodes = ["quiet_study","group_work","good_wifi","many_outlets","low_price","accessible","evening_open","good_food"] as const;

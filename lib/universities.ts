@@ -4,7 +4,7 @@ const verifiedAt = "2026-08-02T00:00:00.000Z";
 
 export const universities: University[] = [
   { id: "muni", slug: "muni", name: "Masarykova univerzita", shortName: "MUNI", color: "#2856a4", officialUrl: "https://www.muni.cz/", active: true, lastVerifiedAt: verifiedAt },
-  { id: "vut", slug: "vut", name: "Vysoké učení technické v Brně", shortName: "VUT", color: "#805d0e", officialUrl: "https://www.vut.cz/", active: true, lastVerifiedAt: verifiedAt },
+  { id: "vut", slug: "vut", name: "Vysoké učení technické v Brně", shortName: "VUT", color: "#4f46e5", officialUrl: "https://www.vut.cz/", active: true, lastVerifiedAt: verifiedAt },
   { id: "mendelu", slug: "mendelu", name: "Mendelova univerzita v Brně", shortName: "MENDELU", color: "#475569", officialUrl: "https://mendelu.cz/", active: true, lastVerifiedAt: verifiedAt },
   { id: "vetuni", slug: "vetuni", name: "Veterinární univerzita Brno", shortName: "VETUNI", color: "#7b4e2d", officialUrl: "https://www.vetuni.cz/", active: true, lastVerifiedAt: verifiedAt },
   { id: "jamu", slug: "jamu", name: "Janáčkova akademie múzických umění", shortName: "JAMU", color: "#7c3a68", officialUrl: "https://www.jamu.cz/", active: true, lastVerifiedAt: verifiedAt },
