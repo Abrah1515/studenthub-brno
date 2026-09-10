@@ -21,8 +21,7 @@
   --control-border: #64748b;
   --focus-ring: #4f46e5;
   --link: #4338ca;
-  --brand-green: #22c55e;
-  --brand-green-strong: #047857;
+  --brand-logo: #4f46e5;
   --success: #166534;
   --success-subtle: #dcfce7;
   --warning: #9a6700;
@@ -72,8 +71,7 @@
   --control-border: #64748b;
   --focus-ring: #818cf8;
   --link: #a5b4fc;
-  --brand-green: #22c55e;
-  --brand-green-strong: #4ade80;
+  --brand-logo: #6366f1;
   --success: #4ade80;
   --success-subtle: #12351f;
   --warning: #fbbf24;
@@ -127,7 +125,7 @@ button { color: inherit; }
 .selected-study-context span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .selected-study-context:hover, .selected-study-context:focus-visible { color: var(--accent-2); }
 .brand { display: inline-flex; gap: 11px; align-items: center; min-height: 44px; }
-.brand-mark { width: 38px; height: 38px; border-radius: 9px; display: grid; place-items: center; overflow: hidden; background: var(--brand-green); }.brand-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.brand-mark { width: 38px; height: 38px; border-radius: 9px; display: grid; place-items: center; overflow: hidden; background: var(--brand-logo); }.brand-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .brand strong, .brand small { display: block; line-height: 1.05; }
 .brand strong { font-size: 15px; }
 .brand small { margin-top: 4px; color: var(--muted); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 10px; }

@@ -12,7 +12,7 @@ const lightPalette = {
   textSecondary: "#64748b",
   textMuted: "#94a3b8",
   border: "#e2e8f0",
-  brandGreen: "#22c55e",
+  brandLogo: "#4f46e5",
 };
 
 const darkPalette = {
@@ -27,7 +27,7 @@ const darkPalette = {
   textSecondary: "#cbd5e1",
   textMuted: "#94a3b8",
   border: "#273244",
-  brandGreen: "#22c55e",
+  brandLogo: "#6366f1",
 };
 
 async function renderedPalette(page: import("@playwright/test").Page) {
@@ -45,7 +45,7 @@ async function renderedPalette(page: import("@playwright/test").Page) {
       textSecondary: style.getPropertyValue("--text-secondary").trim(),
       textMuted: style.getPropertyValue("--text-muted").trim(),
       border: style.getPropertyValue("--border").trim(),
-      brandGreen: style.getPropertyValue("--brand-green").trim(),
+      brandLogo: style.getPropertyValue("--brand-logo").trim(),
     };
   });
 }

@@ -18,10 +18,10 @@ function contrast(foreground: string, background: string) {
 
 describe("Campus Indigo značka", () => {
   it("udržuje schválené barvy v jednom významovém systému", () => {
-    for (const token of ["background", "surface", "surface-muted", "surface-elevated", "primary", "primary-hover", "primary-bright", "primary-soft", "primary-ultra-soft", "primary-action", "primary-action-hover", "primary-foreground", "accent", "text", "text-secondary", "text-muted", "border", "focus-ring", "brand-green", "brand-green-strong", "success", "warning", "error", "info"]) {
+    for (const token of ["background", "surface", "surface-muted", "surface-elevated", "primary", "primary-hover", "primary-bright", "primary-soft", "primary-ultra-soft", "primary-action", "primary-action-hover", "primary-foreground", "accent", "text", "text-secondary", "text-muted", "border", "focus-ring", "brand-logo", "success", "warning", "error", "info"]) {
       expect(css).toContain(`--${token}:`);
     }
-    expect(brand.colors).toEqual({ primary: "#4F46E5", lightTheme: "#F8FAFC", darkTheme: "#0F172A", logoGreen: "#22C55E" });
+    expect(brand.colors).toEqual({ primary: "#4F46E5", lightTheme: "#F8FAFC", darkTheme: "#0F172A", logo: "#4F46E5" });
   });
 
   it("neobsahuje bývalé zlaté ani dominantní zelené značkové literály", () => {

@@ -30,7 +30,7 @@ ok(manifestSource.includes('scope: "/"'), "Manifest musí mít scope /.");
 ok((manifestSource.match(/purpose: "maskable"/g) || []).length === 2, "Manifest musí obsahovat obě maskable ikony.");
 ok(brandSource.includes('primary: "#4F46E5"'), "PWA musí používat primární barvu Campus Indigo.");
 ok(brandSource.includes('lightTheme: "#F8FAFC"') && brandSource.includes('darkTheme: "#0F172A"'), "PWA musí používat schválená pozadí Campus Indigo.");
-ok(brandSource.includes('logoGreen: "#22C55E"'), "Logo PWA musí zachovat zelenou identitu StudentHubu.");
+ok(brandSource.includes('logo: "#4F46E5"'), "Logo PWA musí používat jednotnou Campus Indigo identitu.");
 ok(workerSource.includes('request.mode === "navigate"'), "Service worker musí obsloužit offline navigaci.");
 ok(workerSource.includes("isPrivatePath(url.pathname)"), "Service worker musí vyloučit soukromé cesty.");
 ok(workerSource.includes('url.pathname.startsWith("/_next/static/")'), "Service worker smí cachovat verzované Next.js assety.");
