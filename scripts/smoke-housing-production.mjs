@@ -16,6 +16,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || local.NEXT_PUBLIC_SU
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || local.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || local.SUPABASE_SERVICE_ROLE_KEY;
 const baseUrl = (process.env.PRODUCTION_BASE_URL || "https://studenthubapp.cz").replace(/\/$/, "");
+const productionUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 const confirmation = process.env.CONFIRM_PRODUCTION_HOUSING_SMOKE || process.argv.find((value) => value.startsWith("--confirm="))?.slice("--confirm=".length);
 if (!supabaseUrl || !anonKey || !serviceKey) throw new Error("Produkční test Bydlení vyžaduje lokální Supabase URL, anon key a service-role key.");
 if (confirmation !== "studenthub-brno") throw new Error("Pro vědomý produkční test nastavte CONFIRM_PRODUCTION_HOUSING_SMOKE=studenthub-brno.");
@@ -28,6 +29,23 @@ const createdUsers = [];
 const listingIds = [];
 const conversationIds = [];
 
+const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function retryNetwork(operation, attempts = 4) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try { return await operation(); }
+    catch (error) {
+      lastError = error;
+      const cause = error && typeof error === "object" && "cause" in error ? error.cause : null;
+      const detail = `${error instanceof Error ? error.message : error} ${cause instanceof Error ? cause.message : ""} ${cause && typeof cause === "object" && "code" in cause ? cause.code : ""}`;
+      if (attempt === attempts - 1 || !/(fetch failed|ECONNRESET|ETIMEDOUT|UND_ERR|network)/i.test(detail)) throw error;
+      await pause(500 * (2 ** attempt));
+    }
+  }
+  throw lastError;
+}
+
 function authCookies(session) {
   const key = `sb-${projectRef}-auth-token`;
   const encoded = `base64-${Buffer.from(JSON.stringify(session), "utf8").toString("base64url")}`;
@@ -37,7 +55,7 @@ function authCookies(session) {
 
 async function createSyntheticUser(label) {
   const email = `studenthub-housing-smoke-${label}-${suffix}@example.com`;
-  const result = await service.auth.admin.createUser({ email, password, email_confirm: true });
+  const result = await retryNetwork(() => service.auth.admin.createUser({ email, password, email_confirm: true }));
   if (result.error || !result.data.user) throw result.error || new Error("Syntetický účet se nepodařilo vytvořit.");
   const id = result.data.user.id;
   createdUsers.push(id);
@@ -54,17 +72,18 @@ async function createSyntheticUser(label) {
   }).eq("id", id);
   if (profile.error) throw profile.error;
   const client = createClient(supabaseUrl, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const signed = await client.auth.signInWithPassword({ email, password });
+  const signed = await retryNetwork(() => client.auth.signInWithPassword({ email, password }));
   if (signed.error || !signed.data.session) throw signed.error || new Error("Syntetický účet se nepodařilo přihlásit.");
   return { id, client, cookie: authCookies(signed.data.session) };
 }
 
 async function api(user, path, options = {}) {
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers: { ...(options.headers || {}), cookie: user.cookie },
+  const { networkRetries = 0, ...fetchOptions } = options;
+  const response = await retryNetwork(() => fetch(`${baseUrl}${path}`, {
+    ...fetchOptions,
+    headers: { "user-agent": productionUserAgent, accept: "application/json", ...(fetchOptions.headers || {}), cookie: user.cookie },
     redirect: "manual",
-  });
+  }), networkRetries + 1);
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }
@@ -136,7 +155,7 @@ try {
   if (wanted.status !== 201 || wanted.body?.status !== "active") throw new Error(`Produkční poptávka nevznikla jako aktivní (HTTP ${wanted.status}, stav ${wanted.body?.status || "?"}).`);
   listingIds.push(wanted.body.id);
 
-  const publicFeed = await fetch(`${baseUrl}/api/housing/listings?type=offer&q=${encodeURIComponent(`[E2E ${suffix}]`)}`);
+  const publicFeed = await retryNetwork(() => fetch(`${baseUrl}/api/housing/listings?type=offer&q=${encodeURIComponent(`[E2E ${suffix}]`)}`, { headers: { "user-agent": productionUserAgent, accept: "application/json" } }));
   const publicJson = await publicFeed.json();
   if (!publicFeed.ok || publicJson.items?.length !== 1 || /moderation_note|duplicate_fingerprint|email|phone/.test(JSON.stringify(publicJson))) throw new Error("Veřejný feed nepotvrdil nabídku nebo propustil neveřejné údaje.");
   await productionScreenshots();
@@ -145,10 +164,11 @@ try {
   if (chat.status !== 201 || !chat.body?.conversation?.id) throw new Error(`Chatová žádost nevznikla (HTTP ${chat.status}).`);
   const conversationId = chat.body.conversation.id;
   conversationIds.push(conversationId);
-  const reply = await api(author, `/api/chat/conversations/${conversationId}/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Přijímám žádost odpovědí.", clientNonce: randomUUID() }) });
-  if (reply.status !== 201 || reply.body?.acceptedRequest !== true) throw new Error("Odpověď nepřijala žádost o kontakt.");
+  const reply = await api(author, `/api/chat/conversations/${conversationId}/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Přijímám žádost odpovědí.", clientNonce: randomUUID() }), networkRetries: 3 });
+  const activeConversation = await service.from("chat_conversations").select("status").eq("id", conversationId).single();
+  if (reply.status !== 201 || activeConversation.error || activeConversation.data.status !== "active") throw new Error("Odpověď nepřijala žádost o kontakt.");
 
-  const blocked = await api(seeker, `/api/chat/conversations/${conversationId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "block" }) });
+  const blocked = await api(seeker, `/api/chat/conversations/${conversationId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "block" }), networkRetries: 3 });
   if (blocked.status !== 200) throw new Error("Blokování v produkčním chatu selhalo.");
   const blockedMessage = await api(author, `/api/chat/conversations/${conversationId}/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Tato zpráva nesmí projít.", clientNonce: randomUUID() }) });
   if (blockedMessage.status < 400) throw new Error("Blokování nezastavilo další zprávu.");
