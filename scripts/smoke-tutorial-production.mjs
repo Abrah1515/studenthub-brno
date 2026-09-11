@@ -36,8 +36,8 @@ try {
     if (await tour.getAttribute("data-tour-step") !== item.expectedStep) throw new Error(`${item.width}x${item.height}: nesprávný krok tutorialu`);
     if (await page.locator('[role="dialog"][aria-modal="true"]').count() !== 1) throw new Error(`${item.width}x${item.height}: aktivní není právě jeden modál`);
     const geometry = await page.evaluate(() => {
-      const popover = document.querySelector<HTMLElement>(".tutorial-popover")?.getBoundingClientRect();
-      const spotlight = document.querySelector<HTMLElement>(".tutorial-spotlight")?.getBoundingClientRect();
+      const popover = document.querySelector(".tutorial-popover")?.getBoundingClientRect();
+      const spotlight = document.querySelector(".tutorial-spotlight")?.getBoundingClientRect();
       return {
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         inert: document.querySelector(".app-shell")?.hasAttribute("inert") || false,
