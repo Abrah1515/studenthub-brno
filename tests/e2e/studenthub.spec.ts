@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
     if (sessionStorage.getItem("studenthub-e2e-overlays") === "manual") return;
     localStorage.setItem("studenthub-consent", JSON.stringify({ analytics: false, marketing: false }));
     if (!localStorage.getItem("studenthub-preference-v4")) localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: null, facultyId: null, studyYear: null, studyYearCycleStart: null, completed: true }));
-    localStorage.setItem("studenthub-tutorial-version", "studenthub-marketplace-v4");
+    localStorage.setItem("studenthub-tutorial-state", JSON.stringify({ tutorialVersion: 2, introConfirmed: true, status: "completed", lastCompletedStep: "complete" }));
   });
   await page.goto("/brno", { waitUntil: "domcontentloaded" }); await dismissOverlays(page);
 });
@@ -152,9 +152,63 @@ test("obnova administrátorského účtu používá společné API a nic neprozr
 
 test("cookie souhlas je opt-in a lze jej změnit", async ({ page }) => { await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.clear(); }); await page.reload(); const dialog = page.getByTestId("cookie-consent"); await expect(dialog).toBeVisible(); await dialog.getByRole("button", { name: "Odmítnout volitelné" }).click(); expect(await page.evaluate(() => localStorage.getItem("studenthub-consent"))).toContain('"analytics":false'); const picker = page.getByTestId("first-run-picker"); await expect(picker).toBeVisible(); await picker.getByRole("button", { name: "Pokračovat vědomě bez výběru školy pro celé město Brno" }).click(); await page.getByRole("button", { name: "Nastavení cookies" }).click(); await expect(page.getByText("Analytické")).toBeVisible(); });
 
-test("cookies, onboarding a povinný verzovaný návod se zobrazí postupně po jediném modálu", async ({ page }) => { await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.clear(); }); await page.reload(); const modals = page.locator('[role="dialog"][aria-modal="true"]'); await expect(modals).toHaveCount(1); await expect(page.getByTestId("cookie-consent")).toBeVisible(); await expect(page.getByRole("button", { name: "Přijmout vše" })).toBeFocused(); expect(await page.evaluate(() => document.querySelector(".app-shell")?.hasAttribute("inert"))).toBe(true); await page.keyboard.press("Escape"); const picker = page.getByTestId("first-run-picker"); await expect(picker).toBeVisible(); await expect(modals).toHaveCount(1); await expect(picker.getByLabel("Moje město")).toBeFocused(); await page.keyboard.press("Escape"); await expect(picker).toBeVisible(); await expect(modals).toHaveCount(1); await picker.getByRole("button", { name: "Pokračovat vědomě bez výběru školy pro celé město Brno" }).click(); await expect(page.getByText("Vítejte ve StudentHubu")).toBeVisible(); await expect(modals).toHaveCount(1); await expect(page.getByRole("button", { name: "Rozumím" })).toBeFocused(); await expect(page.getByRole("dialog").getByRole("button")).toHaveCount(1); await page.keyboard.press("Escape"); await expect(modals).toHaveCount(1); await page.getByRole("button", { name: "Rozumím" }).click(); await expect(modals).toHaveCount(0); expect(await page.evaluate(() => localStorage.getItem("studenthub-tutorial-version"))).toBe("studenthub-marketplace-v4"); });
+test("cookies, onboarding, úvodní potvrzení a prohlídka se zobrazí postupně po jediném modálu", async ({ page }) => {
+  await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.clear(); });
+  await page.reload();
+  const modals = page.locator('[role="dialog"][aria-modal="true"]');
+  await expect(modals).toHaveCount(1);
+  await expect(page.getByTestId("cookie-consent")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Přijmout vše" })).toBeFocused();
+  expect(await page.evaluate(() => document.querySelector(".app-shell")?.hasAttribute("inert"))).toBe(true);
+  await page.keyboard.press("Escape");
+  const picker = page.getByTestId("first-run-picker");
+  await expect(picker).toBeVisible();
+  await expect(modals).toHaveCount(1);
+  await expect(picker.getByLabel("Moje město")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(picker).toBeVisible();
+  await picker.getByRole("button", { name: "Pokračovat vědomě bez výběru školy pro celé město Brno" }).click();
+  const intro = page.getByTestId("tutorial-intro");
+  await expect(intro).toBeVisible();
+  await expect(modals).toHaveCount(1);
+  await expect(intro.getByRole("button", { name: "Rozumím" })).toBeFocused();
+  await expect(intro.getByRole("button")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(intro).toBeVisible();
+  await intro.getByRole("button", { name: "Rozumím" }).click();
+  const tour = page.getByTestId("guided-tutorial");
+  await expect(tour).toBeVisible();
+  await expect(tour).toHaveAttribute("data-tour-step", "welcome");
+  await expect(tour.getByText("1 z 10")).toBeVisible();
+  await expect(page.getByTestId("tour-spotlight")).toBeVisible();
+  await expect(modals).toHaveCount(1);
+  await tour.getByRole("button", { name: "Přeskočit" }).click();
+  await expect(modals).toHaveCount(0);
+  const state = await page.evaluate(() => JSON.parse(localStorage.getItem("studenthub-tutorial-state") || "null"));
+  expect(state).toMatchObject({ tutorialVersion: 2, introConfirmed: true, status: "skipped", lastCompletedStep: null });
+});
 
-test("existující uživatel dostane jednorázový návod a může jej znovu otevřít z menu", async ({ page }, testInfo) => { test.skip(testInfo.project.name !== "desktop-1440"); await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.setItem("studenthub-consent", JSON.stringify({ analytics: false, marketing: false })); localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "muni", facultyId: "muni-fi", studyYear: 2, studyYearCycleStart: 2026, completed: true })); localStorage.removeItem("studenthub-tutorial-version"); }); await page.reload(); await expect(page.getByText("Průvodce StudentHubem")).toBeVisible(); await expect(page.getByText("Vítejte ve StudentHubu")).toHaveCount(0); await page.getByRole("button", { name: "Rozumím" }).click(); await page.getByRole("navigation", { name: "Doplňkové odkazy" }).getByRole("button", { name: "Návod" }).click(); const tutorial = page.getByRole("dialog", { name: "Každý typ komunitního obsahu má své místo" }); await expect(tutorial).toBeVisible(); await expect(tutorial.getByRole("button")).toHaveCount(1); await page.keyboard.press("Escape"); await expect(tutorial).toBeVisible(); await tutorial.getByRole("button", { name: "Rozumím" }).click(); });
+test("existující uživatel dostane novou prohlídku a může ji znovu otevřít z menu", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
+  await page.evaluate(() => {
+    sessionStorage.setItem("studenthub-e2e-overlays", "manual");
+    localStorage.setItem("studenthub-consent", JSON.stringify({ analytics: false, marketing: false }));
+    localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "muni", facultyId: "muni-fi", studyYear: 2, studyYearCycleStart: 2026, completed: true }));
+    localStorage.removeItem("studenthub-tutorial-version");
+    localStorage.setItem("studenthub-tutorial-state", JSON.stringify({ tutorialVersion: 1, introConfirmed: true, status: "completed", lastCompletedStep: "complete" }));
+  });
+  await page.reload();
+  const tour = page.getByTestId("guided-tutorial");
+  await expect(tour).toHaveAttribute("data-tour-step", "welcome");
+  await expect(page.getByTestId("tutorial-intro")).toHaveCount(0);
+  await tour.getByRole("button", { name: "Přeskočit" }).click();
+  const guideTrigger = page.getByRole("navigation", { name: "Doplňkové odkazy" }).getByRole("button", { name: "Návod" });
+  await guideTrigger.click();
+  await expect(tour).toHaveAttribute("data-tour-step", "welcome");
+  await page.keyboard.press("Escape");
+  await expect(tour).toHaveCount(0);
+  await expect(guideTrigger).toBeFocused();
+});
 
 test("modal brigády a mobilní menu drží focus, inert a historii", async ({ page }, testInfo) => { await page.goto("/brno/brigady"); const proposal = page.getByRole("button", { name: "Navrhnout brigádu" }); await proposal.click(); await expect(page.getByRole("dialog", { name: "Navrhnout brigádu" })).toBeVisible(); await expect(page.getByRole("button", { name: "Zavřít formulář" })).toBeFocused(); await page.keyboard.press("Escape"); await expect(proposal).toBeFocused(); if (testInfo.project.name !== "desktop-1440") { const menu = page.getByRole("button", { name: "Otevřít nabídku" }); await menu.click(); const menuDialog = page.getByRole("dialog", { name: "Mobilní nabídka" }); await expect(menuDialog).toBeVisible(); await expect(menuDialog.getByRole("button", { name: "Zavřít nabídku" })).toBeFocused(); expect(await page.evaluate(() => document.querySelector(".app-shell")?.hasAttribute("inert"))).toBe(true); await page.keyboard.press("Escape"); await expect(menu).toBeFocused(); await menu.click(); await menuDialog.getByRole("link", { name: "O projektu" }).click(); await expect(page).toHaveURL(/\/o-projektu$/); await expect(menuDialog).toHaveCount(0); await page.goBack(); await expect(page).toHaveURL(/\/brno\/brigady$/); await expect(page.getByRole("dialog", { name: "Mobilní nabídka" })).toHaveCount(0); } });
 

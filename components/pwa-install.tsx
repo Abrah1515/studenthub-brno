@@ -116,11 +116,11 @@ export function PwaInstallProvider({ children }: { children: React.ReactNode }) 
   return <InstallContext.Provider value={value}>{children}<InstallDialog open={dialogOpen} close={closeDialog} environment={environment} /></InstallContext.Provider>;
 }
 
-export function PwaInstallButton({ placement = "menu", onBeforeOpen, returnFocus }: { placement?: "menu" | "action"; onBeforeOpen?: () => void; returnFocus?: () => HTMLElement | null }) {
+export function PwaInstallButton({ placement = "menu", onBeforeOpen, returnFocus, tourId }: { placement?: "menu" | "action"; onBeforeOpen?: () => void; returnFocus?: () => HTMLElement | null; tourId?: string }) {
   const context = useContext(InstallContext);
   const buttonRef = useRef<HTMLButtonElement>(null);
   if (!context) return null;
   const label = context.ready && context.installed ? "Aplikace je nainstalovaná" : "Nainstalovat aplikaci";
   const Icon = context.ready && context.installed ? CheckCircle2 : Download;
-  return <button ref={buttonRef} type="button" className={placement === "action" ? "button button-secondary pwa-install-action" : "pwa-install-link"} disabled={context.ready && context.installed} aria-label={label} onClick={() => void context.openInstall(onBeforeOpen, returnFocus || (() => buttonRef.current))}><Icon size={placement === "action" ? 18 : 14} aria-hidden="true" />{label}</button>;
+  return <button ref={buttonRef} type="button" className={placement === "action" ? "button button-secondary pwa-install-action" : "pwa-install-link"} disabled={context.ready && context.installed} aria-label={label} data-tour-id={tourId} onClick={() => void context.openInstall(onBeforeOpen, returnFocus || (() => buttonRef.current))}><Icon size={placement === "action" ? 18 : 14} aria-hidden="true" />{label}</button>;
 }
