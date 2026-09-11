@@ -34,6 +34,8 @@ const reservedTopLevelRoutes = new Set([
   "_sites-preview",
 ]);
 
+const removedAuthEndpoints = new Set(["/api/auth/google", "/api/auth/otp"]);
+
 function publishedCitySlugs() {
   const defaultCity = process.env.DEFAULT_CITY_SLUG?.trim().toLowerCase() || "brno";
   if (process.env.MULTI_CITY_ENABLED !== "true") return new Set([defaultCity]);
@@ -63,6 +65,13 @@ function cityNotFoundResponse() {
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isInternalCityRewrite = request.headers.get("x-studenthub-city-rewrite") === "brno";
+
+  if (removedAuthEndpoints.has(pathname)) {
+    return NextResponse.json(
+      { message: "Tato přihlašovací metoda není dostupná." },
+      { status: 404, headers: { "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow" } },
+    );
+  }
 
   const canonicalTarget = canonicalRedirectTarget(request.nextUrl.hostname, pathname);
   if (canonicalTarget) {
