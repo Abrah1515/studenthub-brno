@@ -14,7 +14,7 @@ export function ChatStartButton({ contextType, contextId, recipientUsername, lab
     const detail = { contextType, contextId, recipientUsername, label };
     if (window.matchMedia("(max-width: 860px)").matches) {
       const query = new URLSearchParams({ compose: contextType }); if (contextId) query.set("contextId", contextId); if (recipientUsername) query.set("to", recipientUsername); if (label) query.set("label", label);
-      router.push(`/chat?${query}`); return;
+      router.push(`/brno/chat?${query}`); return;
     }
     window.dispatchEvent(new CustomEvent<ChatComposerTarget>(openChatComposerEvent, { detail }));
   }

@@ -1,4 +1,4 @@
-export const productionSiteUrl = "https://studenthub-brno.vercel.app";
+export const productionSiteUrl = "https://studenthubapp.cz";
 
 export function getPublicSiteUrl() {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();

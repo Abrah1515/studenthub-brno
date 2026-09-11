@@ -13,5 +13,5 @@ export function SelectedStudyContext() {
   const year = preference.studyYear ? ` · ${preference.studyYear}. ročník` : "";
   const compact = (university ? `${university.shortName} · ${faculty?.shortName || "všechny fakulty"}` : "Celé Brno · všechny školy") + year;
   const full = (university ? `${university.name} · ${faculty?.name || "všechny fakulty"}` : "Celé Brno · všechny školy") + year;
-  return <Link href="/nastaveni" className="selected-study-context" aria-label={`Aktuální studijní nastavení: ${full}`} title={full} data-testid="selected-study-context"><GraduationCap size={14} aria-hidden="true" /><span>{compact}</span></Link>;
+  return <Link href="/brno/nastaveni" className="selected-study-context" aria-label={`Aktuální studijní nastavení: ${full}`} title={full} data-testid="selected-study-context"><GraduationCap size={14} aria-hidden="true" /><span>{compact}</span></Link>;
 }

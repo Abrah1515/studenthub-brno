@@ -68,7 +68,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="studenthub-brno.vercel.app" android:pathPrefix="/" />
+                <data android:scheme="https" android:host="studenthubapp.cz" android:pathPrefix="/brno" />
             </intent-filter>
         </activity>
 

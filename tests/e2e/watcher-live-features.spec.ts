@@ -67,6 +67,7 @@ test("telefonní menu obsahuje jen doplňkové funkce v určeném pořadí", asy
     "Chat",
     "Hlídač",
     "Moje škola a profil",
+    "Změnit město",
     "Nainstalovat aplikaci",
     "Návod",
     "Nastavení vzhleduPodle zařízeníSvětlý režimTmavý režim",

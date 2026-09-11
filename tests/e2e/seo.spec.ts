@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("SEO a serverové HTML", () => {
+  test("staré veřejné cesty přesměrují přímo a zachovají query", async ({ request }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop-1440");
+    const response = await request.get("/komunita?post=abc", { maxRedirects: 0 });
+    expect(response.status()).toBe(308);
+    expect(response.headers().location).toBe("/brno/komunita?post=abc");
+  });
+
   test("ověření, robots a sitemap jsou veřejně dostupné a správně filtrované", async ({ request }) => {
     const verification = await request.get("/google60df659d3c8fefaa.html");
     expect(verification.status()).toBe(200);
@@ -14,16 +21,16 @@ test.describe("SEO a serverové HTML", () => {
     expect(robots.status()).toBe(200);
     expect(robotsText).toContain("User-Agent: *");
     expect(robotsText).toContain("Allow: /");
-    for (const path of ["/admin/", "/api/", "/ucet/", "/partak/moje"]) {
+    for (const path of ["/admin/", "/api/", "/ucet/", "/brno/partak/moje"]) {
       expect(robotsText).toContain(`Disallow: ${path}`);
     }
-    expect(robotsText).toContain("Sitemap: https://studenthub-brno.vercel.app/sitemap.xml");
+    expect(robotsText).toContain("Sitemap: https://studenthubapp.cz/sitemap.xml");
 
     const sitemap = await request.get("/sitemap.xml");
     const sitemapText = await sitemap.text();
     expect(sitemap.status()).toBe(200);
-    for (const path of ["/brno", "/brno/kalendar", "/brno/mista", "/komunita", "/brno/brigady", "/brno/burza", "/partak", "/o-projektu", "/kontakt"]) {
-      expect(sitemapText).toContain(`https://studenthub-brno.vercel.app${path}`);
+    for (const path of ["", "/brno", "/brno/kalendar", "/brno/mista", "/brno/komunita", "/brno/brigady", "/brno/burza", "/brno/partak", "/o-projektu", "/kontakt"]) {
+      expect(sitemapText).toContain(`https://studenthubapp.cz${path}`);
     }
     expect(sitemapText).not.toMatch(/\/(admin|api|ucet|nastaveni|hlidac)(\/|&lt;)/);
     expect(sitemapText).not.toContain("/nabidky");
@@ -34,10 +41,10 @@ test.describe("SEO a serverové HTML", () => {
       ["/brno", "StudentHub Brno"],
       ["/brno/kalendar", "Kalendář"],
       ["/brno/mista", "Užitečná místa"],
-      ["/komunita", "Studentská komunita"],
+      ["/brno/komunita", "Studentská komunita"],
       ["/brno/brigady", "Brigády · Brno"],
       ["/brno/burza", "Studentská burza"],
-      ["/partak", "Hledám parťáka"],
+      ["/brno/partak", "Hledám parťáka"],
       ["/o-projektu", "O StudentHub Brno"],
       ["/kontakt", "Kontakt"],
     ] as const;
@@ -53,7 +60,7 @@ test.describe("SEO a serverové HTML", () => {
   });
 
   test("soukromé stránky mají noindex na serveru", async ({ request }) => {
-    for (const path of ["/nastaveni", "/hlidac", "/partak/moje", "/brno/burza/novy", "/brno/burza/overit", "/brno/burza/sprava"]) {
+    for (const path of ["/brno/nastaveni", "/brno/hlidac", "/brno/partak/moje", "/brno/burza/novy", "/brno/burza/overit", "/brno/burza/sprava"]) {
       const response = await request.get(path);
       const html = await response.text();
       expect(response.headers()["x-robots-tag"], path).toContain("noindex");

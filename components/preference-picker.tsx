@@ -28,7 +28,7 @@ export function ResetPreferenceButton() { const [done, setDone] = useState(false
 
 export function FirstRunPicker({ cities = [brnoCity], catalog = fallbackAcademicCatalog }: { cities?: City[]; catalog?: AcademicCatalog }) {
   const pathname = usePathname(); const [open, setOpen] = useState(false);
-  useEffect(() => { const show = () => { if (!pathname.startsWith("/admin") && hasResolvedCookieConsent() && !readPreference(catalog).completed) setOpen(true); }; show(); window.addEventListener("studenthub-consent-changed", show); return () => window.removeEventListener("studenthub-consent-changed", show); }, [catalog, pathname]);
+  useEffect(() => { if (pathname === "/") { setOpen(false); return; } const show = () => { if (!pathname.startsWith("/admin") && hasResolvedCookieConsent() && !readPreference(catalog).completed) setOpen(true); }; show(); window.addEventListener("studenthub-consent-changed", show); return () => window.removeEventListener("studenthub-consent-changed", show); }, [catalog, pathname]);
   const skip = () => { savePreference({ cityId: cities[0]?.id || "brno", universityId: null, facultyId: null, studyYear: null, completed: true }, catalog); setOpen(false); };
   const dialogRef = useModalDialog(open, undefined, { closeOnEscape: false });
   if (!open) return null;

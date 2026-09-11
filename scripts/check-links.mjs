@@ -1,7 +1,7 @@
 const { contentSources: registeredSources } = await import("../lib/sources/registry.ts");
 const { robotsAllowsPath } = await import("../lib/sources/robots.ts");
 const contentSources = registeredSources.filter((source) => source.sourceType === "academic_calendar");
-const userAgent = process.env.SYNC_USER_AGENT || "StudentHub-Brno/1.0 (+https://studenthub-brno.cz/kontakt)";
+const userAgent = process.env.SYNC_USER_AGENT || "StudentHub-Brno/1.0 (+https://studenthubapp.cz/kontakt)";
 const now = new Date();
 const currentStartYear = now.getUTCMonth() >= 5 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
 const expectedAcademicYear = `${currentStartYear}/${currentStartYear + 1}`;

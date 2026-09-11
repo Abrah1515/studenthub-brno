@@ -21,7 +21,7 @@ describe("SEO a indexace", () => {
   });
 
   it("povoluje veřejný web, ale blokuje procházení neveřejných částí", () => {
-    process.env.NEXT_PUBLIC_SITE_URL = "https://studenthub-brno.vercel.app/";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://studenthubapp.cz/";
     const result = robots();
     const rules = Array.isArray(result.rules) ? result.rules[0] : result.rules;
 
@@ -30,18 +30,18 @@ describe("SEO a indexace", () => {
       "/admin/",
       "/api/",
       "/ucet/",
-      "/partak/moje",
+      "/brno/partak/moje",
       "/*/burza/novy",
       "/*/burza/overit",
       "/*/burza/sprava",
-      "/nastaveni",
+      "/brno/nastaveni",
     ]));
-    expect(result.sitemap).toBe("https://studenthub-brno.vercel.app/sitemap.xml");
+    expect(result.sitemap).toBe("https://studenthubapp.cz/sitemap.xml");
   });
 
   it("nepropíše localhost do veřejné sitemap ani robots.txt", () => {
     process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
-    expect(getPublicSiteUrl()).toBe("https://studenthub-brno.vercel.app");
+    expect(getPublicSiteUrl()).toBe("https://studenthubapp.cz");
   });
 
   it("definuje důležité veřejné stránky a vynechává soukromé přehledy", () => {
@@ -50,7 +50,7 @@ describe("SEO a indexace", () => {
     for (const path of ["/kalendar", "/mista", "/brigady", "/burza", "/komunita", "/partak", "/o-projektu", "/kontakt"]) {
       expect(source, path).toContain(`"${path}"`);
     }
-    for (const path of ["/admin", "/api", "/ucet", "/nastaveni", "/hlidac", "/partak/moje", "/navrhnout-obsah"]) {
+    for (const path of ["/admin", "/api", "/ucet", "/brno/nastaveni", "/brno/hlidac", "/brno/partak/moje", "/navrhnout-obsah"]) {
       expect(source, path).not.toContain(`"${path}"`);
     }
     expect(source).toContain("featureFlags.offersEnabled ? [\"/nabidky\"] : []");

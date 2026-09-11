@@ -10,7 +10,7 @@ export async function POST(request:Request){
   if(!await allowAuthRequest(request,"signup",5,60*60)) return NextResponse.json({message:"Příliš mnoho pokusů. Zkuste to později."},{status:429});
   const parsed=schema.safeParse(await request.json().catch(()=>null)); if(!parsed.success) return NextResponse.json({message:"Zkontrolujte e-mail a heslo.",issues:parsed.error.flatten().fieldErrors},{status:422});
   const response=NextResponse.json({message:pendingConfirmationMessage,requiresEmailConfirmation:true,deliveryRequested:true},{status:201}); const client=await authRouteClient(response); if(!client) return NextResponse.json({message:"Registrace bude dostupná po připojení Supabase."},{status:503});
-  const origin=(process.env.NEXT_PUBLIC_SITE_URL||new URL(request.url).origin).replace(/\/$/,""); const requestedNext=safeNextPath(parsed.data.next); const next=requestedNext==="/ucet/obnova"?"/nastaveni":requestedNext;
+  const origin=(process.env.NEXT_PUBLIC_SITE_URL||new URL(request.url).origin).replace(/\/$/,""); const requestedNext=safeNextPath(parsed.data.next); const next=requestedNext==="/ucet/obnova"?"/brno/nastaveni":requestedNext;
   const {data,error}=await client.auth.signUp({email:parsed.data.email,password:parsed.data.password,options:{emailRedirectTo:`${origin}/auth/callback?next=${encodeURIComponent(next)}`}});
   if(error){
     if(isAccountExistenceError(error)) return NextResponse.json({message:pendingConfirmationMessage,requiresEmailConfirmation:true,deliveryRequested:false},{status:202});

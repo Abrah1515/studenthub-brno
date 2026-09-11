@@ -82,7 +82,7 @@ export async function resolveChatContext(service: SupabaseClient, type: ChatCont
     const { data } = await service.from("buddy_posts").select("id,activity_type,approximate_location,description,status,moderation_status,expires_at").eq("id", id).maybeSingle();
     const active = Boolean(data && data.status === "active" && data.moderation_status === "approved" && new Date(String(data.expires_at)).getTime() > Date.now());
     const title = data ? String(data.description || "Hledám parťáka").replace(/\s+/g, " ").slice(0, 80) : "Původní příspěvek Hledám parťáka";
-    return { type, id, title: `Reakce na: ${title}`, detail: data?.approximate_location ? String(data.approximate_location) : undefined, href: active ? `/partak?post=${id}` : null, active };
+    return { type, id, title: `Reakce na: ${title}`, detail: data?.approximate_location ? String(data.approximate_location) : undefined, href: active ? `/brno/partak?post=${id}` : null, active };
   }
   const { data } = await service.from("marketplace_listings").select("id,title,price_mode,price_amount,status,expires_at").eq("id", id).maybeSingle();
   const active = Boolean(data && ["active", "reserved"].includes(String(data.status)) && (!data.expires_at || new Date(String(data.expires_at)).getTime() > Date.now()));
@@ -182,7 +182,7 @@ export async function notifyChatRecipient(conversationId: string, messageId: str
     kind: requestKind ? "chat_request" : "chat_message",
     title: requestKind ? "Nová žádost o kontakt" : "Nová soukromá zpráva",
     body: requestKind ? "Někdo vám chce napsat ve StudentHubu." : "Máte novou soukromou zprávu ve StudentHubu.",
-    destination_url: `/chat/${conversationId}`, dedupe_key: `chat:${messageId}`, available_at: new Date().toISOString(),
+    destination_url: `/brno/chat/${conversationId}`, dedupe_key: `chat:${messageId}`, available_at: new Date().toISOString(),
   })), { onConflict: "installation_id,dedupe_key", ignoreDuplicates: true });
   await sendPendingPushNotifications(20).catch((error) => console.error("chat_push_delivery_failed", { conversationId, messageId, error: error instanceof Error ? error.message : "unknown" }));
 }

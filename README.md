@@ -1,6 +1,6 @@
-# StudentHub Brno
+# StudentHub
 
-Nezávislá PWA pro studenty všech brněnských vysokých škol. Spojuje ověřené veřejné akademické termíny, užitečná místa, brigády, Studentskou burzu, hledání parťáků a Studentskou komunitu. Není oficiální službou žádné univerzity a nepřihlašuje se do školních informačních systémů.
+Nezávislá studentská platforma s hlavní adresou `https://studenthubapp.cz`. Kořenová stránka slouží k výběru města; jedinou aktivní edicí je nyní StudentHub Brno pod `/brno`. Brněnská PWA spojuje ověřené veřejné akademické termíny, užitečná místa, brigády, Studentskou burzu, hledání parťáků a Studentskou komunitu. Není oficiální službou žádné univerzity a nepřihlašuje se do školních informačních systémů.
 
 ## Co aplikace obsahuje
 
@@ -10,16 +10,16 @@ Nezávislá PWA pro studenty všech brněnských vysokých škol. Spojuje ověř
 - povinný sekvenční onboarding města/školy/fakulty bez registrace, vědomé pokračování pro celé město a aktuální studijní kontext pod značkou v desktopové i mobilní navigaci;
 - Leaflet/OpenStreetMap mapu i plně použitelný seznam ověřených míst ve 12 kategoriích; přihlášené dokončené profily mohou poslat komunitní návrh s bodem, zdrojem a fotografiemi ke schválení a přidávat moderované zkušenosti bez hvězdiček;
 - brigády s moderací, expirací a označením zvýraznění; modul nabídek zůstává v kódu a databázi, ale ve veřejném webu je výchozím produkčním příznakem vypnutý;
-- dobrovolný jednotný účet přes Supabase Auth s potvrzeným e-mailem a heslem a bezpečným opětovným odesláním potvrzení; nastavení školy a profilu je na `/nastaveni`, veřejné profily `/profil/<jméno>` a adresář `/profily`; prohlížení, onboarding, mapa, kalendář, oblíbené a Hlídač fungují bez účtu;
+- dobrovolný jednotný účet přes Supabase Auth s potvrzeným e-mailem a heslem a bezpečným opětovným odesláním potvrzení; nastavení školy a profilu je na `/brno/nastaveni`, veřejné profily `/brno/profil/<jméno>` a adresář `/brno/profily`; prohlížení, onboarding, mapa, kalendář, oblíbené a Hlídač fungují bez účtu;
 - Studentskou burzu pro nabídku i poptávku učebnic, fyzických skript, vlastních poznámek a studijního vybavení: bez plateb přes StudentHub, výhradně s jednotným účtem a dokončeným profilem, 30denní expirací, soukromým chatem, nahlášením a až třemi fotografiemi překódovanými do WebP bez EXIF;
 - soukromý textový chat dvou profilů navázaný na veřejný profil, Hledám parťáka nebo Burzu: jedna úvodní zpráva, žádosti o kontakt, blokace, archivace, ztlumení, stránkování, Realtime s obnovou po návratu do aplikace, obecná push upozornění bez textu zprávy a moderace pouze po nahlášení omezeného kontextu;
 - historické technické žádosti zůstávají v databázi jako neveřejný administrativní archiv; veřejná cesta `/pomoc` vede na Burzu a API už nové technické žádosti nepřijímá;
-- oblíbené termíny a akce bez registrace, sekci `/hlidac`, interní upozornění, ztlumení vybraných kategorií push zpráv a dobrovolný Web Push s unikátním doručením a automatickým odstraněním neplatných odběrů;
+- oblíbené termíny a akce bez registrace, sekci `/brno/hlidac`, interní upozornění, ztlumení vybraných kategorií push zpráv a dobrovolný Web Push s unikátním doručením a automatickým odstraněním neplatných odběrů;
 - skutečný obnovovaný ICS/Webcal odběr podle města, školy, fakulty a ročníku se stabilním UID, `SEQUENCE`, `LAST-MODIFIED` a podporou zrušených termínů;
 - GPS řazení podle vzdálenosti bez ukládání přesné polohy a komunitní živý stav menz, knihoven a studoven, který vyžaduje alespoň dvě čerstvá nezávislá hlášení;
 - agregovaný zájem o komunitní akce s unikátností instalace, konzervativními štítky popularity a serverovým limitem;
 - sekci „Hledám parťáka“ pro ověřené Supabase účty s filtry, kapacitou, žádostmi o připojení, expirací, moderací a bezpečnostními doporučeními;
-- sekci `/komunita` s průběžně stránkovaným feedem, školními filtry, komentáři, reakcemi „Užitečné“, nejužitečnější odpovědí, obrázkem po bezpečné konverzi a moderací po nahlášení;
+- sekci `/brno/komunita` s průběžně stránkovaným feedem, školními filtry, komentáři, reakcemi „Užitečné“, nejužitečnější odpovědí, obrázkem po bezpečné konverzi a moderací po nahlášení;
 - komunitní akce přihlášených profilů s moderací a odděleným oprávněním důvěryhodného vydavatele;
 - administraci pro role `super_admin`, brněnský `admin`, městsky omezený `city_editor` a fakultně omezený `faculty_editor`;
 - registr zdrojů, synchronizační historii, snapshoty, frontu nejistých změn a kontrolu odkazů;
@@ -116,7 +116,7 @@ Výchozí SMTP Supabase není veřejná produkční e-mailová služba: doručuj
 1. U poskytovatele (například Resend, Postmark nebo Brevo) ověřte vlastní odesílací doménu pomocí předepsaných DNS záznamů. Doménu `vercel.app` nelze použít jako vlastní odesílací doménu.
 2. Do Supabase vložte SMTP host, podporovaný TLS port, uživatelské jméno, heslo/API token, ověřenou adresu odesílatele a jméno `StudentHub Brno`. SMTP heslo nepatří do Vercelu, `.env`, klienta ani Gitu.
 3. V Email provideru ponechte `Confirm Email` zapnuté. Nastavte české šablony potvrzení, pozvánky a obnovy tak, aby používaly Supabase potvrzovací URL.
-4. V URL Configuration nastavte Site URL `https://studenthub-brno.vercel.app` a allowlist `https://studenthub-brno.vercel.app/auth/callback` a `http://localhost:3000/auth/callback`. Při přidání vlastní domény doplňte její přesnou `/auth/callback` URL a aktualizujte `NEXT_PUBLIC_SITE_URL`.
+4. V URL Configuration nastavte Site URL `https://studenthubapp.cz` a allowlist `https://studenthubapp.cz/auth/callback` a `http://localhost:3000/auth/callback`. Původní Vercel callback ponechte během přechodného období jen pro již odeslané odkazy. Ve Vercel Production nastavte `NEXT_PUBLIC_SITE_URL=https://studenthubapp.cz`.
 5. Až potom otestujte novou adresu mimo tým projektu: registraci, skutečné doručení, potvrzení, profil, odhlášení/přihlášení, obnovu hesla a resend po 60 sekundách. Stav `201` nebo `202` sám doručení nedokazuje.
 
 Aktivní metoda přihlášení je pouze e-mail a heslo. Google OAuth nemá v aplikaci tlačítko, route ani konfigurační příznak; v Supabase ponechte Google provider vypnutý.
@@ -263,7 +263,7 @@ Regresní sada dále ověřuje číslo stránky PDF, honeypot, bezpečné vlastn
 `pnpm check:pwa` provede statickou kontrolu. Pro kontrolu běžícího webu předejte URL:
 
 ```powershell
-pnpm check:pwa https://studenthub-brno.vercel.app
+pnpm check:pwa https://studenthubapp.cz
 ```
 
 `pnpm check:links` používá bezpečný GET s limitem velikosti, respektuje `robots.txt` a u ročních rozcestníků prochází stránkování i cestu seznam → detail → finální PDF. Kontroluje finální URL, skutečný MIME typ, akademický rok, PDF hlavičku a očekávanou strukturu obsahu. Sdílené IS stránky načítá jednou s omezeným backoff retry a při dočasné nedostupnosti nic nemění. Produkční cron uchovává historii a za definitivně rozbitý označí odkaz až po třech selháních.
@@ -316,7 +316,7 @@ ANDROID_SHA256_CERT_FINGERPRINTS=<SHA-256 App Signing certifikátu>
 ```
 
 4. Vygenerujte tajemství například `openssl rand -base64 48` pro `CRON_SECRET` a `RATE_LIMIT_SALT`.
-5. Deployněte a ověřte `/`, `/admin`, `/api/cron/sync-sources` (bez tokenu musí vrátit 401), Supabase logy a `pnpm check:pwa https://studenthub-brno.vercel.app`.
+5. Deployněte a ověřte `/`, `/brno`, `/admin`, `/api/cron/sync-sources` (bez tokenu musí vrátit 401), Supabase logy a `pnpm check:pwa https://studenthubapp.cz`.
 
 CLI varianta:
 
@@ -387,10 +387,10 @@ Akademické údaje pocházejí pouze z veřejných zdrojů. Aplikace nevyžaduje
 - `tests/fixtures`, `tests/unit`, `tests/e2e` – fixture, unit a Playwright testy;
 - `vercel.json` – region, crony a cache pravidlo service workeru.
 
-Závazná červená značka StudentHub Brno je uložena ve verzovaných souborech `public/brand/brno/studenthub-*-v2.*`. Hlavičky používají samostatný symbol, větší plochy světlou nebo tmavou variantu kompletního loga a manifest samostatné ikony 192/512, maskable varianty s bezpečným okrajem a Apple Touch Icon. Historické veřejné cesty zůstávají jen jako kompatibilní kopie stejné nové značky; aktivní metadata a service worker odkazují na verzované cesty, aby se nevracela stará ikona z cache. Rozhraní zůstává v paletě Campus Indigo a nepoužívá univerzitní loga.
+Závazná sada červených městských značek je uložena v `public/brand/cities/`; aktivní brněnská PWA používá verzované soubory `public/brand/brno/studenthub-*-v3.*`. Hlavičky používají samostatný symbol, větší plochy světlou nebo tmavou variantu kompletního loga a manifest samostatné ikony 192/512, maskable varianty s bezpečným okrajem a Apple Touch Icon. Historické veřejné cesty zůstávají jen jako kompatibilní kopie stejné nové značky; aktivní metadata a service worker odkazují na verzované cesty, aby se nevracela stará ikona z cache. Rozhraní zůstává v paletě Campus Indigo a nepoužívá univerzitní loga.
 ## Studentská komunita
 
-`/komunita`, Hledám parťáka, Burza a komunitní akce používají jeden dobrovolný Supabase účet. Veřejné API vrací bezpečný výřez profilu; e-mail, telefon, role ani interní `author_id` neposílá. Pro publikování, komentář, reakci nebo kontaktování je nutný potvrzený e-mail, aktivní účet, uživatelské jméno, přezdívka a přijetí pravidel. Autor spravuje všechen svůj obsah na `/nastaveni#profil`. Blokovaný autor se přihlášenému uživateli ve feedech nezobrazí. Starší nepřiřazené řádky zůstávají jako „Původní anonymní příspěvek“. Automatické i ruční zásahy se zapisují do auditní historie. Obrázky se dekódují a znovu ukládají jako WebP bez původních metadat.
+`/brno/komunita`, Hledám parťáka, Burza a komunitní akce používají jeden dobrovolný Supabase účet. Veřejné API vrací bezpečný výřez profilu; e-mail, telefon, role ani interní `author_id` neposílá. Pro publikování, komentář, reakci nebo kontaktování je nutný potvrzený e-mail, aktivní účet, uživatelské jméno, přezdívka a přijetí pravidel. Autor spravuje všechen svůj obsah na `/brno/nastaveni#profil`. Blokovaný autor se přihlášenému uživateli ve feedech nezobrazí. Starší nepřiřazené řádky zůstávají jako „Původní anonymní příspěvek“. Automatické i ruční zásahy se zapisují do auditní historie. Obrázky se dekódují a znovu ukládají jako WebP bez původních metadat.
 
 ## Komunitní místa
 

@@ -27,7 +27,7 @@ test.describe("produkční StudentHub", () => {
       if (!url.includes("tile.openstreetmap.org")) failedRequests.push(`${requestItem.failure()?.errorText}: ${url}`);
     });
     page.on("response", (response) => {
-      if (response.status() >= 400 && response.url().startsWith("https://studenthub-brno.vercel.app")) httpErrors.push(`${response.status()} ${response.request().method()} ${response.url()}`);
+      if (response.status() >= 400 && response.url().startsWith("https://studenthubapp.cz")) httpErrors.push(`${response.status()} ${response.request().method()} ${response.url()}`);
     });
 
     await page.goto(`/brno?production-audit=${Date.now()}`, { waitUntil: "networkidle" });

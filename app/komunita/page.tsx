@@ -3,7 +3,7 @@ import { CommunityFeed } from "@/components/community-feed";
 import { PageHeading } from "@/components/page-heading";
 import { getPlaces } from "@/lib/public-data";
 
-export const metadata: Metadata = { title: "Studentská komunita", description: "Otázky, rady, zkušenosti a doporučení studentů v Brně.", alternates: { canonical: "/komunita" }, openGraph: { title: "Studentská komunita · StudentHub Brno", description: "Bezpečný studentský feed pro otázky, rady a zkušenosti napříč brněnskými školami.", url: "/komunita" } };
+export const metadata: Metadata = { title: "Studentská komunita", description: "Otázky, rady, zkušenosti a doporučení studentů v Brně.", alternates: { canonical: "/brno/komunita" }, openGraph: { title: "Studentská komunita · StudentHub Brno", description: "Bezpečný studentský feed pro otázky, rady a zkušenosti napříč brněnskými školami.", url: "/brno/komunita" } };
 export const dynamic = "force-dynamic";
 
 export default async function CommunityPage() {

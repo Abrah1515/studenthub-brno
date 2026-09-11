@@ -46,7 +46,7 @@ async function syncOne(client: SupabaseClient, row: Record<string, unknown>): Pr
       await updateHealth(client, id, { source_sync_status: "needs_review" });
       return { ...base, status: "needs_review", message: "PDF zdroj zůstává v ruční kontrole." };
     }
-    const response = await fetch(sourceUrl, { redirect: "follow", cache: "no-store", headers: { accept: "text/html,application/xhtml+xml", "user-agent": "StudentHubBrno/1.0 (+https://studenthub-brno.vercel.app/o-projektu)" }, signal: AbortSignal.timeout(18_000) });
+    const response = await fetch(sourceUrl, { redirect: "follow", cache: "no-store", headers: { accept: "text/html,application/xhtml+xml", "user-agent": "StudentHubBrno/1.0 (+https://studenthubapp.cz/o-projektu)" }, signal: AbortSignal.timeout(18_000) });
     const finalUrl = response.url; const contentType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() || "";
     if (!response.ok) throw new Error(`Zdroj odpověděl HTTP ${response.status}.`);
     if (!finalUrl.startsWith("https://") || !["text/html", "application/xhtml+xml"].includes(contentType)) {

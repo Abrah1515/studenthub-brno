@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { authCookieOptions } from "@/lib/auth-cookies";
 
-export function safeNextPath(value: unknown, fallback = "/nastaveni") {
+export function safeNextPath(value: unknown, fallback = "/brno/nastaveni") {
   if (typeof value !== "string" || value.length > 300 || !value.startsWith("/") || value.startsWith("//") || value.includes("\\") || /[\u0000-\u001f\u007f]/.test(value)) return fallback;
   try {
     const parsed = new URL(value, "https://studenthub.invalid");

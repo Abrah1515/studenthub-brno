@@ -11,7 +11,7 @@ const schema=z.object({email:accountEmailSchema,password:z.string().min(1).max(1
 export async function POST(request:Request){
   if(!await allowAuthRequest(request,"login",10,60*60)) return NextResponse.json({message:"Příliš mnoho pokusů. Zkuste to později."},{status:429});
   const parsed=schema.safeParse(await request.json().catch(()=>null)); if(!parsed.success) return NextResponse.json({message:"Zadejte platný e-mail a heslo."},{status:422});
-  const fallback=parsed.data.audience==="admin"?"/admin":"/nastaveni";
+  const fallback=parsed.data.audience==="admin"?"/admin":"/brno/nastaveni";
   const next=safeNextPath(parsed.data.next,fallback);
   const response=NextResponse.json({ok:true,next},{headers:{"Cache-Control":"private, no-store"}}); const client=await authRouteClient(response); if(!client||!isSupabaseConfigured()) return NextResponse.json({message:"Přihlášení bude dostupné po připojení Supabase."},{status:503});
   const {data,error}=await client.auth.signInWithPassword({email:parsed.data.email,password:parsed.data.password});

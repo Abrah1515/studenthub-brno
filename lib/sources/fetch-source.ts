@@ -7,7 +7,7 @@ import { robotsAllowsPath } from "@/lib/sources/robots";
 
 const maxBytes = 5 * 1024 * 1024;
 const timeoutMs = 15_000;
-const userAgent = process.env.SYNC_USER_AGENT || "StudentHub-Brno/1.0 (+https://studenthub-brno.cz/kontakt)";
+const userAgent = process.env.SYNC_USER_AGENT || "StudentHub-Brno/1.0 (+https://studenthubapp.cz/kontakt)";
 
 function privateAddress(address: string) {
   if (address === "::1" || address === "0:0:0:0:0:0:0:1" || address.startsWith("fe80:") || address.startsWith("fc") || address.startsWith("fd")) return true;

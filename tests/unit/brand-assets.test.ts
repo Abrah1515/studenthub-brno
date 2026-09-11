@@ -11,24 +11,24 @@ function pngSize(path: string) {
 describe("červené logo StudentHub Brno", () => {
   it("používá verzované assety ve všech aktivních integračních bodech", () => {
     expect(brand.assets).toMatchObject({
-      logo: "/brand/brno/studenthub-logo-v2.png",
-      logoDark: "/brand/brno/studenthub-logo-dark-v2.png",
-      icon192: "/brand/brno/studenthub-icon-v2-192.png",
-      icon512: "/brand/brno/studenthub-icon-v2-512.png",
-      maskable512: "/brand/brno/studenthub-icon-maskable-v2-512.png",
-      appleTouch: "/brand/brno/studenthub-apple-touch-v2-180.png",
-      openGraph: "/brand/brno/studenthub-og-v2.png",
+      logo: "/brand/brno/studenthub-logo-v3.png",
+      logoDark: "/brand/brno/studenthub-logo-dark-v3.png",
+      icon192: "/brand/brno/studenthub-icon-v3-192.png",
+      icon512: "/brand/brno/studenthub-icon-v3-512.png",
+      maskable512: "/brand/brno/studenthub-icon-maskable-v3-512.png",
+      appleTouch: "/brand/brno/studenthub-apple-touch-v3-180.png",
+      openGraph: "/brand/brno/studenthub-og-v3.png",
     });
     const activeSources = ["app/layout.tsx", "lib/pwa-manifest.ts", "public/sw.js", "public/offline.html"].map((path) => readFileSync(path, "utf8")).join("\n");
     expect(activeSources).not.toMatch(/\/brand\/brno\/(?:icon|og|skyline-source)(?:-|\.)/);
   });
 
   it("má správné rozměry instalačních, Apple a Open Graph assetů", () => {
-    expect(pngSize("public/brand/brno/studenthub-icon-v2-192.png")).toEqual({ width: 192, height: 192 });
-    expect(pngSize("public/brand/brno/studenthub-icon-v2-512.png")).toEqual({ width: 512, height: 512 });
-    expect(pngSize("public/brand/brno/studenthub-icon-maskable-v2-512.png")).toEqual({ width: 512, height: 512 });
-    expect(pngSize("public/brand/brno/studenthub-apple-touch-v2-180.png")).toEqual({ width: 180, height: 180 });
-    expect(pngSize("public/brand/brno/studenthub-og-v2.png")).toEqual({ width: 1200, height: 630 });
+    expect(pngSize("public/brand/brno/studenthub-icon-v3-192.png")).toEqual({ width: 192, height: 192 });
+    expect(pngSize("public/brand/brno/studenthub-icon-v3-512.png")).toEqual({ width: 512, height: 512 });
+    expect(pngSize("public/brand/brno/studenthub-icon-maskable-v3-512.png")).toEqual({ width: 512, height: 512 });
+    expect(pngSize("public/brand/brno/studenthub-apple-touch-v3-180.png")).toEqual({ width: 180, height: 180 });
+    expect(pngSize("public/brand/brno/studenthub-og-v3.png")).toEqual({ width: 1200, height: 630 });
   });
 
   it("odděluje logo od barevného motivu Campus Indigo", () => {

@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
     if (!localStorage.getItem("studenthub-preference-v4")) localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: null, facultyId: null, studyYear: null, studyYearCycleStart: null, completed: true }));
     localStorage.setItem("studenthub-tutorial-version", "studenthub-marketplace-v4");
   });
-  await page.goto("/", { waitUntil: "domcontentloaded" }); await dismissOverlays(page);
+  await page.goto("/brno", { waitUntil: "domcontentloaded" }); await dismissOverlays(page);
 });
 
 test("načte použitelný dashboard bez veřejných demo dat", async ({ page }) => { await expect(page.getByRole("heading", { name: "StudentHub Brno" })).toBeVisible(); await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Studentská burza", exact: true })).toBeVisible(); await expect(page.getByText("DEMO DATA")).toHaveCount(0); await expect(page.getByText(/Nezávislý projekt\. Není oficiálně spojený/)).toHaveCount(1); await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/brno$/); });
@@ -44,7 +44,7 @@ test("komunitní kalendář publikuje přes jednotný účet bez e-mailu ve form
   await page.getByRole("button", { name: "Přidat akci" }).click(); const dialog = page.getByRole("dialog", { name: "Přidat akci" }); await expect(dialog).toBeVisible();
   const localFuture = await page.evaluate(() => { const date = new Date(Date.now() + 2 * 86_400_000); const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000); return shifted.toISOString().slice(0, 16); });
   await dialog.getByLabel("Název *").fill(title); await dialog.getByLabel("Začátek *").fill(localFuture); await dialog.getByLabel("Veřejné místo *").fill("Veřejná knihovna v Brně"); await dialog.getByLabel("Popis *").fill("Veřejná studentská akce vytvořená koncovým regresním testem."); await dialog.getByText(/Potvrzuji, že uvádím pouze veřejné místo/).click(); await expect(dialog.getByLabel(/E-mail autora/)).toHaveCount(0); await dialog.getByRole("button", { name: "Zveřejnit akci" }).click();
-  await expect(dialog.getByRole("heading", { name: "Akce je zveřejněná" })).toBeVisible(); await expect(dialog.getByRole("link", { name: "Otevřít moje akce" })).toHaveAttribute("href", "/nastaveni#profil"); expect(submitted).toContain(title); expect(submitted).not.toMatch(/authorEmail|e2e@example|managementToken/i);
+  await expect(dialog.getByRole("heading", { name: "Akce je zveřejněná" })).toBeVisible(); await expect(dialog.getByRole("link", { name: "Otevřít moje akce" })).toHaveAttribute("href", "/brno/nastaveni#profil"); expect(submitted).toContain(title); expect(submitted).not.toMatch(/authorEmail|e2e@example|managementToken/i);
 });
 
 test("filtruje místa a vypnuté nabídky přesměrují bez prázdného bloku", async ({ page }) => { await page.goto("/brno/mista"); await openDirectoryFilters(page); await page.getByRole("region", { name: "Filtry míst" }).getByLabel("Kategorie").selectOption("Knihovna"); await expect(page.getByText("Ústřední knihovna VUT")).toBeVisible(); await expect(page.getByText("DEMO")).toHaveCount(0); await page.goto("/brno/nabidky?q=neexistujici-nabidka"); await expect(page).toHaveURL(/\/brno$/); await expect(page.getByRole("heading", { name: "Aktuální nabídky" })).toHaveCount(0); await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: /Nabídky/ })).toHaveCount(0); });
@@ -185,7 +185,7 @@ test("neaktivní nebo neznámé město není veřejné", async ({ page }) => { c
 test("PWA manifest, ikony a service worker jsou dostupné a necachují dynamické HTML", async ({ page, request }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
   const manifestResponse = await request.get("/manifest.webmanifest"); expect(manifestResponse.status()).toBe(200); expect(manifestResponse.headers()["content-type"]).toContain("manifest+json");
-  const manifest = await manifestResponse.json(); expect(manifest).toMatchObject({ name: "StudentHub Brno", short_name: "StudentHub", start_url: "/brno", scope: "/", display: "standalone" }); expect(manifest.icons.filter((icon: { purpose?: string }) => icon.purpose === "maskable")).toHaveLength(2); expect(manifest.icons.every((icon: { src: string }) => icon.src.includes("studenthub-icon") && icon.src.includes("v2"))).toBe(true);
+  const manifest = await manifestResponse.json(); expect(manifest).toMatchObject({ name: "StudentHub Brno", short_name: "StudentHub", start_url: "/brno", scope: "/", display: "standalone" }); expect(manifest.icons.filter((icon: { purpose?: string }) => icon.purpose === "maskable")).toHaveLength(2); expect(manifest.icons.every((icon: { src: string }) => icon.src.includes("studenthub-icon") && icon.src.includes("v3"))).toBe(true);
   for (const icon of manifest.icons) { const response = await request.get(icon.src); expect(response.status(), icon.src).toBe(200); expect(response.headers()["content-type"]).toContain("image/png"); }
   const workerResponse = await request.get("/sw.js"); expect(workerResponse.status()).toBe(200); expect(workerResponse.headers()["cache-control"]).toMatch(/no-cache|no-store/);
   await page.goto("/brno");
@@ -193,7 +193,7 @@ test("PWA manifest, ikony a service worker jsou dostupné a necachují dynamick�
   await page.reload();
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   const cacheAudit = await page.evaluate(async () => ({ keys: await caches.keys(), dynamic: Boolean(await caches.match("/brno")), admin: Boolean(await caches.match("/admin")), api: Boolean(await caches.match("/api/service-requests")) }));
-  expect(cacheAudit.keys).toEqual(["studenthub-static-v7"]); expect(cacheAudit.dynamic).toBe(false); expect(cacheAudit.admin).toBe(false); expect(cacheAudit.api).toBe(false);
+  expect(cacheAudit.keys).toEqual(["studenthub-static-v8"]); expect(cacheAudit.dynamic).toBe(false); expect(cacheAudit.admin).toBe(false); expect(cacheAudit.api).toBe(false);
 });
 
 test("instalační nabídka zavře mobilní menu, drží focus a je nad mapou", async ({ page }, testInfo) => {

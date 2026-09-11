@@ -36,11 +36,11 @@ const themeBootstrap = `(function(){
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: { default: brand.seo.title, template: `%s | ${brand.editionName}` },
-  description: brand.seo.description,
-  applicationName: brand.editionName,
+  title: { default: "StudentHub | Studentský život ve tvém městě", template: "%s | StudentHub" },
+  description: "StudentHub spojuje studentské termíny, užitečná místa, komunitu a praktické služby podle města.",
+  applicationName: brand.platformName,
   verification: { google: "60df659d3c8fefaa" },
-  alternates: { canonical: "/brno" },
+  alternates: { canonical: "/" },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -55,12 +55,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "cs_CZ",
-    siteName: brand.editionName,
-    title: brand.seo.title,
-    description: "Termíny, místa, brigády, komunita a studentská burza v jednom klidném přehledu.",
-    images: [{ url: new URL(brand.assets.openGraph, siteUrl), width: 1200, height: 630, alt: `${brand.editionName} – termíny, místa, brigády a komunita` }],
+    siteName: brand.platformName,
+    title: "StudentHub | Studentský život ve tvém městě",
+    description: "Termíny, místa, komunita a praktické studentské služby přehledně podle města.",
+    url: "/",
+    images: [{ url: new URL("/brand/cities/studenthub-cities-og-v1.png", siteUrl), width: 1200, height: 630, alt: "StudentHub – Brno, Praha, Ostrava a Olomouc" }],
   },
-  twitter: { card: "summary_large_image", title: brand.editionName, description: `Praktický studentský přehled pro ${brand.editionShortName}.`, images: [new URL(brand.assets.openGraph, siteUrl)] },
+  twitter: { card: "summary_large_image", title: "StudentHub", description: "Studentský život přehledně podle města.", images: [new URL("/brand/cities/studenthub-cities-og-v1.png", siteUrl)] },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: [{ media: "(prefers-color-scheme: light)", color: brand.colors.lightTheme }, { media: "(prefers-color-scheme: dark)", color: brand.colors.darkTheme }] };
@@ -68,11 +69,11 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, them
 const structuredData = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: brand.editionName,
+  name: brand.platformName,
   applicationCategory: "EducationalApplication",
   operatingSystem: "Web",
   inLanguage: "cs",
-  description: "Nezávislý praktický rozcestník pro studenty v Brně.",
+  description: "Nezávislý studentský rozcestník s městskými edicemi.",
   url: siteUrl,
 };
 

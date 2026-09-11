@@ -50,7 +50,7 @@ test("přihlášený formulář drží layout, validuje obrázek a odešle škol
 });
 
 test("mobilní navigace má přesně pět požadovaných položek a aktivní komunitu", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-390"); await page.goto("/komunita"); const nav = page.getByRole("navigation", { name: "Mobilní navigace" });
+  test.skip(testInfo.project.name !== "mobile-390"); await page.goto("/brno/komunita"); const nav = page.getByRole("navigation", { name: "Mobilní navigace" });
   await expect(nav.getByRole("link")).toHaveCount(5); await expect(nav.getByRole("link").allTextContents()).resolves.toEqual(["Přehled", "Termíny", "Místa", "Komunita", "Brigády"]);
   await expect(nav.getByRole("link", { name: "Komunita" })).toHaveAttribute("aria-current", "page");
 });

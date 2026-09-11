@@ -1,13 +1,13 @@
-const STATIC_CACHE = "studenthub-static-v7";
+const STATIC_CACHE = "studenthub-static-v8";
 const OFFLINE_PAGE = "/offline.html";
 const PRECACHE = [
   OFFLINE_PAGE,
-  "/brand/brno/studenthub-icon-v2-192.png",
-  "/brand/brno/studenthub-icon-v2-512.png",
-  "/brand/brno/studenthub-icon-maskable-v2-192.png",
-  "/brand/brno/studenthub-icon-maskable-v2-512.png",
+  "/brand/brno/studenthub-icon-v3-192.png",
+  "/brand/brno/studenthub-icon-v3-512.png",
+  "/brand/brno/studenthub-icon-maskable-v3-192.png",
+  "/brand/brno/studenthub-icon-maskable-v3-512.png",
 ];
-const PRIVATE_PREFIXES = ["/admin", "/api", "/auth", "/ucet", "/partak/moje", "/chat"];
+const PRIVATE_PREFIXES = ["/admin", "/api", "/auth", "/ucet", "/partak/moje", "/chat", "/brno/partak/moje", "/brno/chat", "/brno/nastaveni", "/brno/hlidac"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -53,16 +53,16 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   if (!event.data) return;
   let payload;
-  try { payload = event.data.json(); } catch { payload = { title: "StudentHub", body: event.data.text(), url: "/hlidac" }; }
+  try { payload = event.data.json(); } catch { payload = { title: "StudentHub", body: event.data.text(), url: "/brno/hlidac" }; }
   event.waitUntil(self.registration.showNotification(payload.title || "StudentHub", {
-    body: payload.body || "Máte nové upozornění.", icon: "/brand/brno/studenthub-icon-v2-192.png", badge: "/brand/brno/studenthub-icon-maskable-v2-192.png",
-    tag: payload.tag || "studenthub-notification", data: { url: payload.url || "/hlidac" }, renotify: false,
+    body: payload.body || "Máte nové upozornění.", icon: "/brand/brno/studenthub-icon-v3-192.png", badge: "/brand/brno/studenthub-icon-maskable-v3-192.png",
+    tag: payload.tag || "studenthub-notification", data: { url: payload.url || "/brno/hlidac" }, renotify: false,
   }));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const destination = new URL(event.notification.data?.url || "/hlidac", self.location.origin).href;
+  const destination = new URL(event.notification.data?.url || "/brno/hlidac", self.location.origin).href;
   event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
     const existing = clients.find((client) => client.url.startsWith(self.location.origin));
     if (existing) { existing.navigate(destination); return existing.focus(); }

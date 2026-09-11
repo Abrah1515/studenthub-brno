@@ -15,7 +15,7 @@ export const openTutorialEvent = "studenthub-open-tutorial";
 export function FeatureTutorial() {
   const pathname = usePathname(); const firstVisit = useRef<boolean | null>(null); const [open, setOpen] = useState(false); const [full, setFull] = useState(false);
   useEffect(() => {
-    if (pathname.startsWith("/admin")) return;
+    if (pathname === "/" || pathname.startsWith("/admin")) { setOpen(false); return; }
     if (firstVisit.current == null) { const hadStoredPreference = [preferenceKey, previousPreferenceKey, olderPreferenceKey, legacyPreferenceKey].some((key) => localStorage.getItem(key)); firstVisit.current = !hadStoredPreference || !readPreference().completed; }
     let timer = 0;
     const tryOpen = (forced = false) => { window.clearTimeout(timer); timer = window.setTimeout(() => { if (!forced && localStorage.getItem(tutorialStorageKey) === tutorialVersion) return; if (!forced && (!hasResolvedCookieConsent() || !readPreference().completed)) return; if (document.querySelector('[aria-modal="true"]')) { if (!forced) timer = window.setTimeout(() => tryOpen(), 250); return; } setFull(forced || Boolean(firstVisit.current)); setOpen(true); }, forced ? 0 : 180); };

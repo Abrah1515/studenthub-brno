@@ -4,7 +4,7 @@ import { authCookieOptions } from "@/lib/auth-cookies";
 import { createPasswordRecoveryIntent, passwordRecoveryIntentCookie } from "@/lib/password-recovery-intent";
 
 export async function GET(request: Request) {
-  const source = new URL(request.url); const code = source.searchParams.get("code"); const next = safeNextPath(source.searchParams.get("next"),"/nastaveni");
+  const source = new URL(request.url); const code = source.searchParams.get("code"); const next = safeNextPath(source.searchParams.get("next"),"/brno/nastaveni");
   const response = NextResponse.redirect(new URL(next, source.origin),{headers:{"Cache-Control":"private, no-store","Referrer-Policy":"no-referrer"}});
   if (!code) return NextResponse.redirect(new URL("/ucet/prihlaseni?error=callback", source.origin));
   const client = await authRouteClient(response);

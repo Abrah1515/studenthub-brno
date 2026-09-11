@@ -21,7 +21,7 @@ export async function materializeWatcherReminder(installationId: string, row: Re
     kind: "reminder",
     title: `Sledovaná událost je ${when}`,
     body: String(snapshot?.title || "Blíží se uložená událost."),
-    destination_url: String(snapshot?.url || "/hlidac"),
+    destination_url: String(snapshot?.url || "/brno/hlidac"),
     dedupe_key: dedupe,
     available_at: now.toISOString(),
   });

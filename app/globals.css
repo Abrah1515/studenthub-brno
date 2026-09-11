@@ -107,6 +107,33 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 input:disabled, select:disabled, textarea:disabled { opacity: .62; cursor: not-allowed; background: color-mix(in srgb, var(--surface-2) 78%, var(--line)); }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { color: inherit; }
+
+/* Platform city selection */
+.city-selection-page { min-height: 100dvh; width: min(1480px, 100%); margin: 0 auto; padding: clamp(28px, 5vw, 72px) clamp(18px, 4vw, 54px) max(34px, env(safe-area-inset-bottom)); display: grid; align-content: center; gap: clamp(28px, 4vw, 48px); }
+.city-selection-heading { max-width: 720px; margin: 0 auto; text-align: center; }
+.city-selection-kicker { width: fit-content; margin: 0 auto 13px; display: inline-flex; align-items: center; gap: 8px; color: var(--primary); font-size: 12px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+.city-selection-heading h1 { margin: 0; font-size: clamp(2.25rem, 5vw, 4.25rem); line-height: 1; letter-spacing: -.055em; }
+.city-selection-lead { margin: 14px 0 4px !important; color: var(--ink) !important; font-size: clamp(1.2rem, 2vw, 1.55rem) !important; font-weight: 800; }
+.city-selection-heading > p:last-child { max-width: 620px; margin: 0 auto; color: var(--muted); font-size: 14px; line-height: 1.65; }
+.city-selection-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(12px, 1.8vw, 24px); }
+.city-selection-card { min-width: 0; min-height: 345px; padding: 17px clamp(14px, 2vw, 24px) 20px; display: grid; grid-template-rows: auto 1fr auto; align-items: center; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 12px 30px rgb(15 23 42 / 6%); }
+.city-selection-card-active { border-color: color-mix(in srgb, var(--primary) 52%, var(--line)); box-shadow: 0 16px 38px color-mix(in srgb, var(--primary) 13%, transparent); transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
+.city-selection-card-active:hover { transform: translateY(-3px); border-color: var(--primary); box-shadow: 0 20px 44px color-mix(in srgb, var(--primary) 18%, transparent); }
+.city-selection-card-active:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 4px; }
+.city-selection-card-inactive { background: color-mix(in srgb, var(--surface) 76%, var(--surface-2)); }
+.city-selection-status { justify-self: end; min-height: 28px; padding: 6px 9px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface-2); font-size: 10px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+.city-selection-status-active { color: var(--green); border-color: color-mix(in srgb, var(--green) 32%, var(--line)); background: var(--green-soft); }
+.city-selection-logo { position: relative; width: min(100%, 228px); justify-self: center; display: block; }
+.city-selection-logo img { object-fit: contain; }
+.city-selection-logo-dark { display: none; }
+:root[data-theme="dark"] .city-selection-logo-light { display: none; }
+:root[data-theme="dark"] .city-selection-logo-dark { display: block; }
+.city-selection-card-inactive .city-selection-logo { opacity: .78; }
+.city-selection-action { justify-self: center; min-height: 36px; display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; font-weight: 800; }
+.city-selection-card-active .city-selection-action { color: var(--primary); }
+.city-selection-footer { max-width: 720px; margin: 0 auto; color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; }
+@media (max-width: 1080px) { .city-selection-page { align-content: start; }.city-selection-grid { width: min(820px, 100%); margin: 0 auto; grid-template-columns: repeat(2, minmax(0, 1fr)); }.city-selection-card { min-height: 330px; } }
+@media (max-width: 560px) { .city-selection-page { gap: 25px; }.city-selection-grid { grid-template-columns: 1fr; }.city-selection-card { min-height: 300px; }.city-selection-logo { width: min(74vw, 220px); } }
 :focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
 ::selection { background: var(--accent-soft); }
 

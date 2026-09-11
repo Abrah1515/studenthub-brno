@@ -54,7 +54,7 @@ describe("soukromý chat", () => {
   });
 
   it("na samostatných chatových routách dock vůbec nevykreslí a nemá nepravý modální focus trap", () => {
-    expect(siteShell).toContain('!pathname.startsWith("/chat") && <ChatDock />');
+    expect(siteShell).toContain('!pathname.startsWith(`${cityRoot}/chat`) && <ChatDock />');
     expect(chatDock).toContain('aria-modal="false"');
     expect(chatDock).not.toContain('event.key !== "Tab"');
     expect(chatDock).toContain("chatDockPrioritySurfaceSelector");

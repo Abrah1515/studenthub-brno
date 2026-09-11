@@ -61,7 +61,7 @@ test("Campus Indigo se vykreslí ve světle i tmě bez overflow", async ({ page 
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   expect(await renderedPalette(page)).toEqual(lightPalette);
-  await expect(page.locator(".brand img").first()).toHaveAttribute("src", /studenthub-(?:logo|icon)-v2/);
+  await expect(page.locator(".brand img").first()).toHaveAttribute("src", /studenthub-(?:logo|icon|symbol)-v3/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 
   await page.evaluate(() => localStorage.setItem("studenthub-theme", "dark"));
@@ -90,14 +90,14 @@ test("nové logo je čitelné v navigaci, účtu, administraci a tmavém režimu
   const mobile = (page.viewportSize()?.width || 0) <= 860;
   if (mobile) {
     await expect(page.locator(".mobile-brand .brand-mark img")).toBeVisible();
-    await expect(page.locator(".mobile-brand .brand-mark img")).toHaveAttribute("src", /studenthub-icon-v2-192\.png/);
+    await expect(page.locator(".mobile-brand .brand-mark img")).toHaveAttribute("src", /studenthub-icon-v3-192\.png/);
   } else {
     const horizontalLogo = page.locator(".desktop-sidebar .brand-logo-horizontal");
     const symbol = horizontalLogo.locator(".brand-logo-horizontal-symbol");
     const wordmark = horizontalLogo.locator(".brand-logo-wordmark");
     await expect(horizontalLogo).toBeVisible();
     await expect(page.locator(".desktop-sidebar .brand-logo-light")).toBeVisible();
-    await expect(page.locator(".desktop-sidebar .brand-logo-light")).toHaveAttribute("src", /studenthub-logo-v2\.png/);
+    await expect(page.locator(".desktop-sidebar .brand-logo-light")).toHaveAttribute("src", /studenthub-logo-v3\.png/);
     const [logoBox, symbolBox, wordmarkBox] = await Promise.all([horizontalLogo.boundingBox(), symbol.boundingBox(), wordmark.boundingBox()]);
     expect(logoBox && logoBox.width > logoBox.height * 2.5).toBeTruthy();
     expect(symbolBox && wordmarkBox && symbolBox.x + symbolBox.width < wordmarkBox.x).toBeTruthy();
@@ -109,7 +109,7 @@ test("nové logo je čitelné v navigaci, účtu, administraci a tmavém režimu
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator(".auth-brand-logo .brand-logo-light")).toBeHidden();
   await expect(page.locator(".auth-brand-logo .brand-logo-dark")).toBeVisible();
-  await expect(page.locator(".auth-brand-logo .brand-logo-dark")).toHaveAttribute("src", /studenthub-logo-dark-v2\.png/);
+  await expect(page.locator(".auth-brand-logo .brand-logo-dark")).toHaveAttribute("src", /studenthub-logo-dark-v3\.png/);
 
   await page.goto("/admin/prihlaseni", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".admin-login-logo .brand-logo-dark")).toBeVisible();

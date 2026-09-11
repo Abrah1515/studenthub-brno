@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 type Mode="login"|"signup"|"recover";
 type Completion={kind:"signup"|"recover";message:string}|null;
 
-export function UserLoginForm({next="/nastaveni",description="Pro tuto akci je potřeba účet s ověřeným e-mailem.",compact=false}:{next?:string;description?:string;compact?:boolean}){
+export function UserLoginForm({next="/brno/nastaveni",description="Pro tuto akci je potřeba účet s ověřeným e-mailem.",compact=false}:{next?:string;description?:string;compact?:boolean}){
   const [mode,setMode]=useState<Mode>("login");
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
