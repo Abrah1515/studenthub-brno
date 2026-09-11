@@ -28,8 +28,10 @@ export async function POST(request: Request) {
     recipientId = data ? String(data.id) : null; contextId = recipientId;
   } else if (parsed.data.contextType === "buddy_post") {
     const { data } = await service.from("buddy_posts").select("owner_id").eq("id", contextId).maybeSingle(); recipientId = data ? String(data.owner_id) : null;
-  } else {
+  } else if (parsed.data.contextType === "marketplace_listing") {
     const { data } = await service.from("marketplace_listings").select("seller_id").eq("id", contextId).maybeSingle(); recipientId = data?.seller_id ? String(data.seller_id) : null;
+  } else {
+    const { data } = await service.from("housing_listings").select("author_id").eq("id", contextId).maybeSingle(); recipientId = data?.author_id ? String(data.author_id) : null;
   }
   if (!recipientId || !contextId) return NextResponse.json({ message: "Příjemce nebo původní obsah není dostupný." }, { status: 404 });
   try {
@@ -38,7 +40,10 @@ export async function POST(request: Request) {
     const { data: conversationId, error } = await client.rpc("start_chat_request", { target_profile: recipientId, target_context_type: parsed.data.contextType, target_context_id: contextId, first_body: parsed.data.message, message_nonce: messageNonce });
     if (error) throw error;
     const { data: first } = await service.from("chat_messages").select("id").eq("conversation_id", conversationId).eq("sender_id", account.id).eq("client_nonce", messageNonce).maybeSingle();
-    if (first) await notifyChatRecipient(String(conversationId), String(first.id), account.id, true);
+    if (first) {
+      await notifyChatRecipient(String(conversationId), String(first.id), account.id, true);
+      if (parsed.data.contextType === "housing_listing") await service.rpc("increment_housing_contact", { target_listing: contextId });
+    }
     return NextResponse.json({ conversation: await getChatConversation(account, String(conversationId)) }, { status: first ? 201 : 200, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const safe = chatError(error); console.error("chat_start_failed", { userId: account.id, code: safe.status });

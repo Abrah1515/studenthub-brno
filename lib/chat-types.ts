@@ -1,4 +1,4 @@
-export type ChatContextType = "profile" | "buddy_post" | "marketplace_listing";
+export type ChatContextType = "profile" | "buddy_post" | "marketplace_listing" | "housing_listing";
 export type ChatConversationStatus = "requested" | "active" | "declined" | "restricted" | "left";
 
 export type ChatIdentity = {

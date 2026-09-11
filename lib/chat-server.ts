@@ -84,6 +84,12 @@ export async function resolveChatContext(service: SupabaseClient, type: ChatCont
     const title = data ? String(data.description || "Hledám parťáka").replace(/\s+/g, " ").slice(0, 80) : "Původní příspěvek Hledám parťáka";
     return { type, id, title: `Reakce na: ${title}`, detail: data?.approximate_location ? String(data.approximate_location) : undefined, href: active ? `/brno/partak?post=${id}` : null, active };
   }
+  if (type === "housing_listing") {
+    const { data } = await service.from("housing_listings").select("id,title,price_monthly,utilities_included,status,expires_at").eq("id", id).maybeSingle();
+    const active = Boolean(data && data.status === "active" && (!data.expires_at || new Date(String(data.expires_at)).getTime() > Date.now()));
+    const price = data ? `${Number(data.price_monthly).toLocaleString("cs-CZ")} Kč / měsíc${data.utilities_included ? " včetně energií" : " + energie"}` : undefined;
+    return { type, id, title: data ? `Reakce na bydlení: ${String(data.title)}` : "Původní inzerát bydlení", detail: data ? `${price} · ${active ? "aktivní" : "obsah už není aktivní"}` : undefined, href: active ? `/brno/bydleni/${id}` : null, active };
+  }
   const { data } = await service.from("marketplace_listings").select("id,title,price_mode,price_amount,status,expires_at").eq("id", id).maybeSingle();
   const active = Boolean(data && ["active", "reserved"].includes(String(data.status)) && (!data.expires_at || new Date(String(data.expires_at)).getTime() > Date.now()));
   const price = data?.price_mode === "free" ? "Zdarma" : data?.price_amount != null ? `${Number(data.price_amount).toLocaleString("cs-CZ")} Kč` : "Dohodou";

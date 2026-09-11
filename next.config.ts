@@ -50,6 +50,8 @@ const nextConfig: NextConfig = {
       { source: "/:city/burza/novy", headers: noIndexHeaders },
       { source: "/:city/burza/overit", headers: noIndexHeaders },
       { source: "/:city/burza/sprava", headers: noIndexHeaders },
+      { source: "/:city/bydleni/novy", headers: noIndexHeaders },
+      { source: "/:city/bydleni/moje", headers: noIndexHeaders },
       { source: "/akce/sprava", headers: noIndexHeaders },
       { source: "/brno/akce/sprava", headers: noIndexHeaders },
       { source: "/nastaveni", headers: noIndexHeaders },

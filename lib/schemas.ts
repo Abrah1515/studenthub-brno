@@ -185,7 +185,7 @@ export const placeCommentSchema = z.object({ body:z.string().trim().min(2,"Napi�
 export const placeCommentUpdateSchema = placeCommentSchema.pick({body:true,traits:true});
 export const placeCommentReportSchema = z.object({ reason:z.enum(["spam","harassment","privacy","unsafe_link","false_information","other"]),detail:z.string().trim().max(800).default("") });
 
-export const chatContextTypes = ["profile","buddy_post","marketplace_listing"] as const;
+export const chatContextTypes = ["profile","buddy_post","marketplace_listing","housing_listing"] as const;
 export const chatStartSchema = z.object({
   contextType:z.enum(chatContextTypes), contextId:z.string().uuid().optional(), recipientUsername:z.string().trim().toLowerCase().max(30).optional(),
   message:z.string().trim().min(1,"Napište zprávu.").max(2000,"Zpráva může mít nejvýše 2 000 znaků."), clientNonce:z.string().uuid(),

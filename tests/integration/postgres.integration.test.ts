@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(36);
+      expect(files).toHaveLength(37);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -286,6 +286,37 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query("select id from public.chat_messages where conversation_id=$1", [chatId])).rows).toHaveLength(0);
       await db.exec("reset role");
 
+      // Bydlení: oddělený model, idempotentní expirace, deduplikace, hlášení,
+      // chatový kontext a ochrana proti přímým klientským zápisům.
+      await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+      await db.exec("set role service_role");
+      await db.exec(`
+        update public.profiles set username='housing_author',display_name='Housing Author',community_rules_accepted_at=now(),account_status='active',is_blocked=false,allow_chat_requests=true
+          where id='71111111-1111-4111-8111-111111111111';
+        insert into public.housing_listings(id,author_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,available_spots,current_occupants,furnished,features,wanted_person_count,duplicate_fingerprint,status,published_at,expires_at)
+        values
+          ('b4111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111111','offer','private_room','Integrační pokoj v Brně','Královo Pole','2032-10-01','6_12_months','Veřejný bezpečný popis integrační nabídky.','Integrační nabídka ověřuje bydlení, RLS, hlášení a chat bez přesné adresy nebo kontaktu.',7500,true,1,2,true,array['internet'],null,repeat('a',64),'active',now(),now()+interval '30 days'),
+          ('b4111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111114','wanted','apartment','Integrační poptávka po bytě','Bohunice','2032-09-20','over_year','Veřejný bezpečný popis integrační poptávky.','Integrační poptávka ověřuje automatickou expiraci bez opětovného zveřejnění starého obsahu.',11000,true,null,null,null,'{}',1,repeat('b',64),'active',now()-interval '40 days',now()-interval '1 day');
+      `);
+      expect((await db.query<{ expire_housing_listings:number }>("select public.expire_housing_listings()")).rows[0].expire_housing_listings).toBe(1);
+      expect((await db.query<{ expire_housing_listings:number }>("select public.expire_housing_listings()")).rows[0].expire_housing_listings).toBe(0);
+      expect((await db.query<{ status:string }>("select status from public.housing_listings where id='b4111111-1111-4111-8111-111111111112'")).rows[0].status).toBe("expired");
+      await expect(db.exec(`insert into public.housing_listings(author_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,available_spots,duplicate_fingerprint,status,published_at) values ('71111111-1111-4111-8111-111111111111','offer','private_room','Duplicitní pokoj','Žabovřesky','2032-10-01','agreement','Dostatečně dlouhý stručný text duplikátu.','Dostatečně dlouhý detailní text duplicitní nabídky studentského bydlení v Brně.',8000,true,1,repeat('a',64),'active',now())`)).rejects.toThrow();
+      expect((await db.query<{ consume_housing_rate_limit:boolean }>("select public.consume_housing_rate_limit($1,'report',2,3600)",["abcdefabcdefabcdefabcdef"])).rows[0].consume_housing_rate_limit).toBe(true);
+      expect((await db.query<{ consume_housing_rate_limit:boolean }>("select public.consume_housing_rate_limit($1,'report',2,3600)",["abcdefabcdefabcdefabcdef"])).rows[0].consume_housing_rate_limit).toBe(true);
+      expect((await db.query<{ consume_housing_rate_limit:boolean }>("select public.consume_housing_rate_limit($1,'report',2,3600)",["abcdefabcdefabcdefabcdef"])).rows[0].consume_housing_rate_limit).toBe(false);
+      await db.exec("reset role");
+      await db.query("select set_config('request.jwt.claim.role','',false)");
+
+      await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111114"]); await db.exec("set role authenticated");
+      const housingChat=await db.query<{ start_chat_request:string }>("select public.start_chat_request($1,'housing_listing',$2,$3,$4)",['71111111-1111-4111-8111-111111111111','b4111111-1111-4111-8111-111111111111','Mám zájem o prohlídku tohoto pokoje.','b4222222-2222-4222-8222-222222222222']);
+      expect((await db.query("select id from public.chat_conversations where id=$1 and context_type='housing_listing'",[housingChat.rows[0].start_chat_request])).rows).toHaveLength(1);
+      expect((await db.query("select id from public.chat_conversations where id=public.start_chat_request($1,'housing_listing',$2,$3,$4)",['71111111-1111-4111-8111-111111111111','b4111111-1111-4111-8111-111111111111','Opakovaný pokus vrátí stejnou konverzaci.','b4222222-2222-4222-8222-222222222223'])).rows).toHaveLength(1);
+      await expect(db.exec("update public.housing_listings set author_id='71111111-1111-4111-8111-111111111114' where id='b4111111-1111-4111-8111-111111111111'")).rejects.toThrow();
+      await expect(db.exec(`insert into public.housing_listings(author_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,available_spots,duplicate_fingerprint,status,published_at) values ('71111111-1111-4111-8111-111111111114','offer','private_room','Přímý klientský zápis','Brno','2032-10-01','agreement','Přímý zápis nesmí projít přes RLS klienta.','Přímý zápis do bydlení musí odmítnout databázová oprávnění a RLS ochrana.',8000,true,1,repeat('c',64),'active',now())`)).rejects.toThrow();
+      await db.exec("reset role");
+      await db.query("select set_config('request.jwt.claim.sub','',false)");
+
       await db.exec("set role anon");
       const publicEvents = await db.query<{ title: string }>("select title from public.academic_events where title like 'Integration %' order by title");
       expect(publicEvents.rows.map((row) => row.title)).toEqual([expect.stringMatching(/^Integration approved/)]);
@@ -300,6 +331,9 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await expect(db.query("select * from public.marketplace_listings")).rejects.toThrow();
       await expect(db.query("select * from public.marketplace_messages")).rejects.toThrow();
       await expect(db.query("select * from public.marketplace_reports")).rejects.toThrow();
+      await expect(db.query("select * from public.housing_listings")).rejects.toThrow();
+      await expect(db.query("select moderation_note from public.housing_listings")).rejects.toThrow();
+      expect((await db.query<{title:string}>("select title from public.housing_listings order by title")).rows).toEqual([{title:"Integrační pokoj v Brně"}]);
       await expect(db.query("select * from public.profile_permissions")).rejects.toThrow();
       await expect(db.query("select * from public.profile_permission_audit")).rejects.toThrow();
       expect((await db.query<{origin:string}>("select origin from public.places where id='75222222-2222-4222-8222-222222222222'")).rows).toEqual([{origin:"community"}]);

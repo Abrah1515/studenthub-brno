@@ -19,6 +19,8 @@ export default function robots(): MetadataRoute.Robots {
         "/*/burza/novy",
         "/*/burza/overit",
         "/*/burza/sprava",
+        "/*/bydleni/novy",
+        "/*/bydleni/moje",
         "/brno/akce/sprava",
         "/brno/nastaveni",
         "/brno/hlidac",

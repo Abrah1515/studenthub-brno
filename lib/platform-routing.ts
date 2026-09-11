@@ -25,6 +25,7 @@ const legacyCitySectionPrefixes = [
   "/mista",
   "/brigady",
   "/burza",
+  "/bydleni",
   "/nabidky",
   ...cityScopedPrefixes,
 ] as const;

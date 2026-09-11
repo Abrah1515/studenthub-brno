@@ -4,7 +4,8 @@
   "regions": ["fra1"],
   "crons": [
     { "path": "/api/cron/sync-sources", "schedule": "17 3 * * *" },
-    { "path": "/api/cron/check-links", "schedule": "45 4 * * *" }
+    { "path": "/api/cron/check-links", "schedule": "45 4 * * *" },
+    { "path": "/api/cron/housing-maintenance", "schedule": "23 2 * * *" }
   ],
   "headers": [
     { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }, { "key": "Service-Worker-Allowed", "value": "/" }] }
