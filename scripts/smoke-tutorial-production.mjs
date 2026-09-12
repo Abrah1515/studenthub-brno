@@ -33,7 +33,12 @@ async function prepare(page, theme) {
 async function assertStep(page, expected, total) {
   const tour = page.getByTestId("guided-tutorial");
   await tour.waitFor({ state: "visible" });
-  await page.waitForFunction((id) => document.querySelector('[data-testid="guided-tutorial"]')?.getAttribute("data-tour-step") === id && Boolean(document.querySelector(".tutorial-spotlight")), expected);
+  await page.waitForFunction((id) => {
+    const tutorial = document.querySelector('[data-testid="guided-tutorial"]');
+    return tutorial?.getAttribute("data-tour-step") === id
+      && tutorial?.getAttribute("data-tour-transitioning") === "false"
+      && Boolean(document.querySelector(".tutorial-spotlight"));
+  }, expected);
   if (await tour.getAttribute("data-tour-step") !== expected) throw new Error("Očekáván krok " + expected);
   if (!(await tour.getByText((sequences[await tour.getAttribute("data-tour-layout")].indexOf(expected) + 1) + " z " + total).isVisible())) throw new Error("Nesprávný průběh u " + expected);
   if (new URL(page.url()).pathname !== "/brno") throw new Error("Tutorial změnil routu na " + page.url());
