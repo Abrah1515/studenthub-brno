@@ -37,6 +37,7 @@ test("hlavní akce odpovídají telefonu, tabletu a počítači", async ({ page 
 
 test("ikona Chatu zůstává přesně vystředěná i při změně unread badge", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
+  await expect(page.locator("html")).toHaveAttribute("data-chat-dock-ready", "true");
   const viewports = [
     { width: 360, height: 800 },
     { width: 390, height: 844 },
