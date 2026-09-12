@@ -23,6 +23,7 @@ async function prepareTour(page: Page, state: Record<string, unknown> = { tutori
 async function waitForStep(page: Page, id: string) {
   const tour = page.getByTestId("guided-tutorial");
   await expect(tour).toHaveAttribute("data-tour-step", id);
+  await expect(tour).toHaveAttribute("data-tour-transitioning", "false");
   await expect(page.getByTestId("tour-spotlight")).toBeVisible();
   return tour;
 }
@@ -30,6 +31,7 @@ async function waitForStep(page: Page, id: string) {
 async function advanceTo(page: Page, id: string) {
   const tour = page.getByTestId("guided-tutorial");
   for (let guard = 0; guard < 30; guard += 1) {
+    await expect(tour).toHaveAttribute("data-tour-transitioning", "false");
     if (await tour.getAttribute("data-tour-step") === id) return;
     await tour.getByRole("button", { name: "Další" }).click();
   }
@@ -90,30 +92,30 @@ test("Zpět zachová přesné opačné pořadí přes hranice navigačních obla
   if (testInfo.project.name === "mobile-390") {
     await advanceTo(page, "chat");
     await tour.getByRole("button", { name: "Předchozí krok" }).click();
-    await expect(tour).toHaveAttribute("data-tour-step", "buddy");
+    await waitForStep(page, "buddy");
     await tour.getByRole("button", { name: "Předchozí krok" }).click();
-    await expect(tour).toHaveAttribute("data-tour-step", "jobs");
+    await waitForStep(page, "jobs");
     await advanceTo(page, "housing");
     await tour.getByRole("button", { name: "Předchozí krok" }).click();
-    await expect(tour).toHaveAttribute("data-tour-step", "menu");
+    await waitForStep(page, "menu");
     await expect(page.locator(".mobile-menu-panel")).toHaveCount(0);
     await tour.getByRole("button", { name: "Další" }).click();
-    await expect(tour).toHaveAttribute("data-tour-step", "housing");
+    await waitForStep(page, "housing");
     await expect(page.locator(".mobile-menu-panel")).toBeVisible();
   } else if (testInfo.project.name === "tablet-768") {
     await advanceTo(page, "chat");
     await tour.getByRole("button", { name: "Předchozí krok" }).click();
-    await expect(tour).toHaveAttribute("data-tour-step", "jobs");
+    await waitForStep(page, "jobs");
     await advanceTo(page, "watcher");
     await tour.getByRole("button", { name: "Předchozí krok" }).click();
-    await expect(tour).toHaveAttribute("data-tour-step", "menu");
+    await waitForStep(page, "menu");
     await expect(page.locator(".mobile-menu-panel")).toHaveCount(0);
   } else {
     await advanceTo(page, "appearance");
     await tour.getByRole("button", { name: "Předchozí krok" }).click();
-    await expect(tour).toHaveAttribute("data-tour-step", "admin");
+    await waitForStep(page, "admin");
     await tour.getByRole("button", { name: "Předchozí krok" }).click();
-    await expect(tour).toHaveAttribute("data-tour-step", "contact");
+    await waitForStep(page, "contact");
   }
   await expect(tour.getByText(/ z /)).toBeVisible();
   const currentId = await tour.getAttribute("data-tour-step");
@@ -161,9 +163,9 @@ test("obnovení stránky pokračuje za posledním dokončeným krokem", async ({
   const tour = page.getByTestId("guided-tutorial");
   await advanceTo(page, "calendar");
   await tour.getByRole("button", { name: "Další" }).click();
-  await expect(tour).toHaveAttribute("data-tour-step", "watcher");
+  await waitForStep(page, "watcher");
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("guided-tutorial")).toHaveAttribute("data-tour-step", "watcher");
+  await waitForStep(page, "watcher");
   await page.getByTestId("guided-tutorial").getByRole("button", { name: "Přeskočit" }).click();
 });
 
@@ -204,10 +206,101 @@ test("úvodní potvrzení je povinné, desktopové šipky fungují a psaní je n
   await tour.getByLabel("Test psaní").evaluate((element) => element.remove());
   await tour.getByRole("button", { name: "Další" }).focus();
   await page.keyboard.press("ArrowRight");
-  await expect(tour).toHaveAttribute("data-tour-step", "overview");
+  await waitForStep(page, "overview");
   await page.keyboard.press("ArrowLeft");
-  await expect(tour).toHaveAttribute("data-tour-step", "welcome");
+  await waitForStep(page, "welcome");
   await page.keyboard.press("Escape");
   await expect(tour).toHaveCount(0);
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe("hidden");
+});
+
+test("spotlight se plynule přesune, nebliká a rychlé kliknutí nespustí další krok", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-390");
+  await prepareTour(page);
+  await page.goto("/brno", { waitUntil: "domcontentloaded" });
+  const tour = await waitForStep(page, "welcome");
+  const rect = () => page.getByTestId("tour-spotlight").evaluate((element) => {
+    const value = element.getBoundingClientRect();
+    return { top: value.top, left: value.left, width: value.width, height: value.height };
+  });
+  const start = await rect();
+  await tour.getByRole("button", { name: "Další" }).evaluate((button) => {
+    if (!(button instanceof HTMLButtonElement)) throw new Error("Další není tlačítko.");
+    button.click();
+    button.click();
+    button.click();
+  });
+  await expect(tour).toHaveAttribute("data-tour-transitioning", "true");
+  await page.waitForTimeout(190);
+  const middle = await rect();
+  expect(Math.abs(middle.top - start.top) + Math.abs(middle.left - start.left)).toBeGreaterThan(2);
+  await waitForStep(page, "overview");
+  const end = await rect();
+  expect(Math.abs(middle.top - end.top) + Math.abs(middle.left - end.left)).toBeGreaterThan(2);
+  await expect(tour).toHaveAttribute("data-tour-step", "overview");
+  await expect(page.locator(".tutorial-spotlight")).toHaveCount(1);
+  await expect(page.locator(".tutorial-popover")).toHaveCount(1);
+  await expect(tour.getByRole("button", { name: "Další" })).toBeFocused();
+
+  await page.setViewportSize({ width: 740, height: 390 });
+  await page.waitForTimeout(180);
+  await expect(tour).toHaveAttribute("data-tour-transitioning", "true");
+  await waitForStep(page, "overview");
+  await assertGeometry(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(180);
+  await expect(tour).toHaveAttribute("data-tour-transitioning", "true");
+  await waitForStep(page, "overview");
+  await tour.getByRole("button", { name: "Přeskočit" }).click();
+});
+
+test("mobilní menu se otevře před zvýrazněním a roluje nezávisle na stránce", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-390");
+  test.setTimeout(60_000);
+  await prepareTour(page);
+  await page.goto("/brno", { waitUntil: "domcontentloaded" });
+  const tour = await waitForStep(page, "welcome");
+  await advanceTo(page, "menu");
+  await waitForStep(page, "menu");
+  const pageScrollBefore = await page.evaluate(() => window.scrollY);
+  await tour.getByRole("button", { name: "Další" }).click();
+  await expect(page.locator(".mobile-menu-panel")).toBeVisible();
+  await expect(tour).toHaveAttribute("data-tour-transitioning", "true");
+  await waitForStep(page, "housing");
+  await advanceTo(page, "admin");
+  await waitForStep(page, "admin");
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBefore);
+  expect(await page.locator(".mobile-menu-panel").evaluate((element) => element.scrollTop)).toBeGreaterThanOrEqual(0);
+  await assertGeometry(page);
+  await tour.getByRole("button", { name: "Předchozí krok" }).click();
+  await waitForStep(page, "contact");
+  await expect(page.locator(".tutorial-spotlight")).toHaveCount(1);
+  await expect(page.locator(".tutorial-popover")).toHaveCount(1);
+  await tour.getByRole("button", { name: "Přeskočit" }).click();
+});
+
+test("omezený pohyb vypne přesun a animovaný scroll, ale zachová krátké prolnutí", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-390");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await prepareTour(page);
+  await page.goto("/brno", { waitUntil: "domcontentloaded" });
+  const tour = await waitForStep(page, "welcome");
+  expect(await page.getByTestId("tour-spotlight").evaluate((element) => getComputedStyle(element).transitionDuration)).toBe("0s");
+  expect(await page.locator(".tutorial-popover-content").evaluate((element) => getComputedStyle(element).transitionDuration)).toContain("0.06s");
+  const transitionDuration = await tour.evaluate((element) => new Promise<number>((resolve, reject) => {
+    const button = [...element.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent?.includes("Další"));
+    if (!button) return reject(new Error("Tlačítko Další nebylo nalezeno."));
+    const startedAt = performance.now();
+    const observer = new MutationObserver(() => {
+      if (element.dataset.tourStep === "overview" && element.dataset.tourTransitioning === "false") {
+        observer.disconnect();
+        resolve(performance.now() - startedAt);
+      }
+    });
+    observer.observe(element, { attributes: true, attributeFilter: ["data-tour-step", "data-tour-transitioning"] });
+    button.click();
+  }));
+  expect(transitionDuration).toBeLessThan(500);
+  await waitForStep(page, "overview");
+  await tour.getByRole("button", { name: "Přeskočit" }).click();
 });

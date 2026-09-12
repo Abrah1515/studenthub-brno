@@ -6,6 +6,14 @@ export const tutorialMenuEvent = "studenthub-tutorial-menu";
 export const tutorialResetUiEvent = "studenthub-tutorial-reset-ui";
 
 export const tutorialBreakpoints = { mobileMax: 767, tabletMax: 860 } as const;
+export const tutorialMotion = {
+  spotlightMs: 360,
+  scrollMaxMs: 480,
+  textMs: 190,
+  textSwapMs: 110,
+  menuMs: 300,
+  easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+} as const;
 
 export type TutorialStatus = "not_started" | "in_progress" | "skipped" | "completed";
 export type TutorialLayout = "mobile" | "tablet" | "desktop";

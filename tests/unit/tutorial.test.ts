@@ -11,6 +11,7 @@ import {
   resumeTutorialIndex,
   tabletTourSteps,
   tutorialLayoutForWidth,
+  tutorialMotion,
   tutorialStorageKey,
   tutorialVersion,
 } from "@/lib/tutorial";
@@ -105,5 +106,26 @@ describe("pevně uspořádaný interaktivní návod", () => {
     expect(component).toContain("matchingStepAfterLayoutChange");
     for (const target of ["overview-navigation", "calendar-navigation", "watcher-navigation", "chat-navigation", "places-navigation", "community-navigation", "buddy-navigation", "jobs-navigation", "marketplace-navigation", "housing-navigation", "settings-navigation"]) expect(shell).toContain(target);
     for (const target of ["menu-trigger", "brand-compact", "brand-desktop", "appearance-navigation-topbar", "install-navigation-tablet", "admin-navigation-menu"]) expect(shell).toContain(target);
+  });
+
+  it("používá jeden plynulý, přerušitelný přechod s doporučeným časováním", () => {
+    expect(tutorialMotion.spotlightMs).toBeGreaterThanOrEqual(300);
+    expect(tutorialMotion.spotlightMs).toBeLessThanOrEqual(400);
+    expect(tutorialMotion.scrollMaxMs).toBeGreaterThanOrEqual(350);
+    expect(tutorialMotion.scrollMaxMs).toBeLessThanOrEqual(500);
+    expect(tutorialMotion.textMs).toBeGreaterThanOrEqual(150);
+    expect(tutorialMotion.textMs).toBeLessThanOrEqual(250);
+    expect(tutorialMotion.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
+
+    const component = readFileSync("components/feature-tutorial.tsx", "utf8");
+    const styles = readFileSync("app/globals.css", "utf8");
+    expect(component).toContain("new AbortController()");
+    expect(component).toContain("waitForScrollSettle");
+    expect(component).toContain("transitioningRef.current");
+    expect(component).toContain('behavior: "auto"');
+    expect(component).not.toContain("setTargetRect(null)");
+    expect(styles).toContain("transform 360ms var(--tutorial-motion-easing)");
+    expect(styles).toContain("tutorial-menu-panel-in 300ms");
+    expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
   });
 });
