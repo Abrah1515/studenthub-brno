@@ -4,7 +4,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("studenthub-consent", JSON.stringify({ analytics: false, marketing: false }));
     localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: null, facultyId: null, studyYear: null, studyYearCycleStart: null, completed: true }));
-    localStorage.setItem("studenthub-tutorial-state", JSON.stringify({ tutorialVersion: 2, introConfirmed: true, status: "completed", lastCompletedStep: "complete" }));
+    localStorage.setItem("studenthub-tutorial-state", JSON.stringify({ tutorialVersion: 3, introConfirmed: true, status: "completed", lastCompletedStep: "complete" }));
   });
   await page.goto("/brno", { waitUntil: "domcontentloaded" });
 });

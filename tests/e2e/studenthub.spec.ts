@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
     if (sessionStorage.getItem("studenthub-e2e-overlays") === "manual") return;
     localStorage.setItem("studenthub-consent", JSON.stringify({ analytics: false, marketing: false }));
     if (!localStorage.getItem("studenthub-preference-v4")) localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: null, facultyId: null, studyYear: null, studyYearCycleStart: null, completed: true }));
-    localStorage.setItem("studenthub-tutorial-state", JSON.stringify({ tutorialVersion: 2, introConfirmed: true, status: "completed", lastCompletedStep: "complete" }));
+    localStorage.setItem("studenthub-tutorial-state", JSON.stringify({ tutorialVersion: 3, introConfirmed: true, status: "completed", lastCompletedStep: "complete" }));
   });
   await page.goto("/brno", { waitUntil: "domcontentloaded" }); await dismissOverlays(page);
 });
@@ -152,7 +152,7 @@ test("obnova administrátorského účtu používá společné API a nic neprozr
 
 test("cookie souhlas je opt-in a lze jej změnit", async ({ page }) => { await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.clear(); }); await page.reload(); const dialog = page.getByTestId("cookie-consent"); await expect(dialog).toBeVisible(); await dialog.getByRole("button", { name: "Odmítnout volitelné" }).click(); expect(await page.evaluate(() => localStorage.getItem("studenthub-consent"))).toContain('"analytics":false'); const picker = page.getByTestId("first-run-picker"); await expect(picker).toBeVisible(); await picker.getByRole("button", { name: "Pokračovat vědomě bez výběru školy pro celé město Brno" }).click(); await page.getByRole("button", { name: "Nastavení cookies" }).click(); await expect(page.getByText("Analytické")).toBeVisible(); });
 
-test("cookies, onboarding, úvodní potvrzení a prohlídka se zobrazí postupně po jediném modálu", async ({ page }) => {
+test("cookies, onboarding, úvodní potvrzení a prohlídka se zobrazí postupně po jediném modálu", async ({ page }, testInfo) => {
   await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.clear(); });
   await page.reload();
   const modals = page.locator('[role="dialog"][aria-modal="true"]');
@@ -179,13 +179,13 @@ test("cookies, onboarding, úvodní potvrzení a prohlídka se zobrazí postupn�
   const tour = page.getByTestId("guided-tutorial");
   await expect(tour).toBeVisible();
   await expect(tour).toHaveAttribute("data-tour-step", "welcome");
-  await expect(tour.getByText("1 z 10")).toBeVisible();
+  await expect(tour.getByText(`1 z ${testInfo.project.name === "desktop-1440" ? 19 : 20}`)).toBeVisible();
   await expect(page.getByTestId("tour-spotlight")).toBeVisible();
   await expect(modals).toHaveCount(1);
   await tour.getByRole("button", { name: "Přeskočit" }).click();
   await expect(modals).toHaveCount(0);
   const state = await page.evaluate(() => JSON.parse(localStorage.getItem("studenthub-tutorial-state") || "null"));
-  expect(state).toMatchObject({ tutorialVersion: 2, introConfirmed: true, status: "skipped", lastCompletedStep: null });
+  expect(state).toMatchObject({ tutorialVersion: 3, introConfirmed: true, status: "skipped", lastCompletedStep: null });
 });
 
 test("existující uživatel dostane novou prohlídku a může ji znovu otevřít z menu", async ({ page }, testInfo) => {

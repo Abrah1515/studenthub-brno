@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("studenthub-consent", JSON.stringify({ analytics: false, marketing: false }));
     localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "vut", facultyId: "vut-fekt", studyYear: 2, studyYearCycleStart: 2026, completed: true }));
-    localStorage.setItem("studenthub-tutorial-state", JSON.stringify({ tutorialVersion: 2, introConfirmed: true, status: "completed", lastCompletedStep: "complete" }));
+    localStorage.setItem("studenthub-tutorial-state", JSON.stringify({ tutorialVersion: 3, introConfirmed: true, status: "completed", lastCompletedStep: "complete" }));
   });
   let status = "requested"; let archived = false; let mutedUntil: string | null = null; let messages = [{ id: messageId, senderId: "other", body: "Ahoj, můžeme se domluvit na společném učení?", state: "active", createdAt: new Date().toISOString(), own: false }];
   const conversation = () => ({ id: conversationId, status, requestedByMe: false, canSend: true, canAccept: status === "requested", archived, mutedUntil, other: { id: "other", username: "jana_studentka", displayName: "Jana Studentka" }, context: { type: "buddy_post", id: "e3333333-3333-4333-8333-333333333333", title: "Reakce na: Společné učení na zkoušku", detail: "Knihovna", href: "/partak", active: true }, lastMessage: messages.at(-1), unreadCount: 1, updatedAt: new Date().toISOString() });

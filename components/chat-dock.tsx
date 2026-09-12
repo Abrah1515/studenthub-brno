@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChatComposerCard } from "@/components/chat-composer-card";
 import { ChatThread } from "@/components/chat-thread";
 import { openChatComposerEvent, type ChatComposerTarget } from "@/components/chat-start-button";
+import { tutorialResetUiEvent } from "@/lib/tutorial";
 
 type DockState = { id?: string; target?: ChatComposerTarget; minimized?: boolean };
 const storageKey = "studenthub-chat-dock-v1";
@@ -24,6 +25,7 @@ export function ChatDock() {
   }, []);
   useEffect(() => { if (lastPath.current === pathname) return; lastPath.current = pathname; setState((current) => current && !current.minimized ? { ...current, minimized: true } : current); }, [pathname]);
   useEffect(() => { if (state) sessionStorage.setItem(storageKey, JSON.stringify(state)); else sessionStorage.removeItem(storageKey); }, [state]);
+  useEffect(() => { const reset = () => setState(null); window.addEventListener(tutorialResetUiEvent, reset); return () => window.removeEventListener(tutorialResetUiEvent, reset); }, []);
   useEffect(() => {
     if (!state || state.minimized) return;
     if (document.querySelector(chatDockPrioritySurfaceSelector)) { setState({ ...state, minimized: true }); return; }

@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from "react-dom";
 import { detectPwaInstallPlatform, pwaInstallGuide, type PwaEnvironment } from "@/lib/pwa-install";
 import { useModalDialog } from "@/lib/use-modal-dialog";
+import { tutorialResetUiEvent } from "@/lib/tutorial";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -87,6 +88,12 @@ export function PwaInstallProvider({ children }: { children: React.ReactNode }) 
       displayMode.removeEventListener("change", refreshEnvironment);
     };
   }, [refreshEnvironment]);
+
+  useEffect(() => {
+    const reset = () => setDialogOpen(false);
+    window.addEventListener(tutorialResetUiEvent, reset);
+    return () => window.removeEventListener(tutorialResetUiEvent, reset);
+  }, []);
 
   const closeDialog = useCallback(() => {
     setDialogOpen(false);

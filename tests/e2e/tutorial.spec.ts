@@ -1,145 +1,213 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { desktopTourSteps, mobileTourSteps, openTutorialEvent, tabletTourSteps, type TutorialStep } from "../../lib/tutorial";
 
-const titles = [
-  "Vítej ve StudentHub Brno",
-  "Moje škola a profil",
-  "Kalendář a Co se děje",
-  "Hlídač",
-  "Místa v Brně",
-  "Komunita a Hledám parťáka",
-  "Soukromý chat",
-  "Brigády, Burza a Bydlení",
-  "Nainstaluj si aplikaci",
-  "Máš hotovo",
-] as const;
+function configFor(testInfo: TestInfo): readonly TutorialStep[] {
+  if (testInfo.project.name === "mobile-390") return mobileTourSteps;
+  if (testInfo.project.name === "tablet-768") return tabletTourSteps;
+  return desktopTourSteps;
+}
 
-async function prepareTour(page: Page, options: { state?: Record<string, unknown>; theme?: "light" | "dark" } = {}) {
-  await page.addInitScript(({ state, theme }) => {
+async function prepareTour(page: Page, state: Record<string, unknown> = { tutorialVersion: 3, introConfirmed: true, status: "not_started", lastCompletedStep: null }) {
+  await page.addInitScript((tutorialState) => {
     localStorage.setItem("studenthub-consent", JSON.stringify({ analytics: false, marketing: false }));
     localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "muni", facultyId: "muni-fi", studyYear: 2, studyYearCycleStart: 2026, completed: true }));
-    localStorage.setItem("studenthub-theme", theme || "light");
-    localStorage.removeItem("studenthub-tutorial-version");
-    localStorage.setItem("studenthub-tutorial-state", JSON.stringify(state || { tutorialVersion: 2, introConfirmed: true, status: "not_started", lastCompletedStep: null }));
-  }, { state: options.state, theme: options.theme });
-}
-
-async function assertNoOverflow(page: Page) {
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
-}
-
-test("prohlídka projde všemi skutečnými kroky, umí Zpět a uloží dokončení", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-1440");
-  await prepareTour(page);
-  await page.goto("/brno", { waitUntil: "domcontentloaded" });
-  const tour = page.getByTestId("guided-tutorial");
-  for (let index = 0; index < titles.length; index += 1) {
-    await expect(tour.getByRole("heading", { name: titles[index] })).toBeVisible();
-    await expect(tour.getByText(`${index + 1} z ${titles.length}`)).toBeVisible();
-    await expect(page.getByTestId("tour-spotlight")).toBeVisible();
-    await expect(page.locator('[role="dialog"][aria-modal="true"]')).toHaveCount(1);
-    await assertNoOverflow(page);
-    if (index === 1) {
-      await tour.getByRole("button", { name: "Předchozí krok" }).click();
-      await expect(tour.getByRole("heading", { name: titles[0] })).toBeVisible();
-      await tour.getByRole("button", { name: "Další" }).click();
-      await expect(tour.getByRole("heading", { name: titles[1] })).toBeVisible();
+    localStorage.setItem("studenthub-theme", "light");
+    if (!sessionStorage.getItem("studenthub-tutorial-test-initialized")) {
+      localStorage.removeItem("studenthub-tutorial-version");
+      localStorage.setItem("studenthub-tutorial-state", JSON.stringify(tutorialState));
+      sessionStorage.setItem("studenthub-tutorial-test-initialized", "true");
     }
-    await tour.getByRole("button", { name: index === titles.length - 1 ? "Dokončit" : "Další" }).click();
-  }
-  await expect(tour).toHaveCount(0);
-  const state = await page.evaluate(() => JSON.parse(localStorage.getItem("studenthub-tutorial-state") || "null"));
-  expect(state).toMatchObject({ tutorialVersion: 2, introConfirmed: true, status: "completed", lastCompletedStep: "complete" });
-});
+  }, state);
+}
 
-test("kliknutí na zvýrazněný cíl změní routu a prohlídka pokračuje", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-1440");
-  await prepareTour(page);
-  await page.goto("/brno", { waitUntil: "domcontentloaded" });
+async function waitForStep(page: Page, id: string) {
   const tour = page.getByTestId("guided-tutorial");
-  await tour.getByRole("button", { name: "Další" }).click();
-  await expect(tour).toHaveAttribute("data-tour-step", "school-profile");
-  await page.getByTestId("tour-spotlight").click();
-  await expect(page).toHaveURL(/\/brno\/nastaveni$/);
-  await expect(tour).toHaveAttribute("data-tour-step", "calendar");
-  await expect(tour.getByRole("heading", { name: "Kalendář a Co se děje" })).toBeVisible();
-  await tour.getByRole("button", { name: "Přeskočit" }).click();
-});
-
-test("chybějící cíl se bezpečně přeskočí bez prázdného popoveru", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-1440");
-  await prepareTour(page);
-  await page.goto("/brno", { waitUntil: "domcontentloaded" });
-  const tour = page.getByTestId("guided-tutorial");
-  await page.locator('[data-tour-id="settings-navigation-desktop"]').evaluate((element) => element.remove());
-  await tour.getByRole("button", { name: "Další" }).click();
-  await expect(tour).toHaveAttribute("data-tour-step", "calendar");
-  await expect(tour.getByRole("heading", { name: "Kalendář a Co se děje" })).toBeVisible();
+  await expect(tour).toHaveAttribute("data-tour-step", id);
   await expect(page.getByTestId("tour-spotlight")).toBeVisible();
-  await tour.getByRole("button", { name: "Přeskočit" }).click();
+  return tour;
+}
+
+async function advanceTo(page: Page, id: string) {
+  const tour = page.getByTestId("guided-tutorial");
+  for (let guard = 0; guard < 30; guard += 1) {
+    if (await tour.getAttribute("data-tour-step") === id) return;
+    await tour.getByRole("button", { name: "Další" }).click();
+  }
+  throw new Error("Krok " + id + " nebyl nalezen.");
+}
+
+async function assertGeometry(page: Page) {
+  const result = await page.evaluate(() => {
+    const spotlight = document.querySelector(".tutorial-spotlight")?.getBoundingClientRect();
+    const popover = document.querySelector(".tutorial-popover")?.getBoundingClientRect();
+    if (!spotlight || !popover) return null;
+    const overlapWidth = Math.max(0, Math.min(spotlight.right, popover.right) - Math.max(spotlight.left, popover.left));
+    const overlapHeight = Math.max(0, Math.min(spotlight.bottom, popover.bottom) - Math.max(spotlight.top, popover.top));
+    return {
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      popoverInside: popover.left >= 0 && popover.top >= 0 && popover.right <= innerWidth && popover.bottom <= innerHeight,
+      spotlightInside: spotlight.left >= 0 && spotlight.top >= 0 && spotlight.right <= innerWidth && spotlight.bottom <= innerHeight,
+      overlapArea: overlapWidth * overlapHeight,
+    };
+  });
+  expect(result).not.toBeNull();
+  expect(result?.overflow).toBeLessThanOrEqual(1);
+  expect(result?.popoverInside).toBe(true);
+  expect(result?.spotlightInside).toBe(true);
+  expect(result?.overlapArea).toBeLessThanOrEqual(1);
+}
+
+test("pevné pořadí všech kroků se třikrát zopakuje na telefonu, tabletu i desktopu", async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const configured = configFor(testInfo);
+  await prepareTour(page);
+  await page.goto("/brno", { waitUntil: "domcontentloaded" });
+  for (let run = 0; run < 3; run += 1) {
+    if (run > 0) await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), openTutorialEvent);
+    for (let index = 0; index < configured.length; index += 1) {
+      const expected = configured[index];
+      const tour = await waitForStep(page, expected.id);
+      await expect(tour).toHaveAttribute("data-tour-target", expected.targetId);
+      await expect(tour.getByText((index + 1) + " z " + configured.length)).toBeVisible();
+      await expect(page.locator('[role="dialog"][aria-modal="true"]')).toHaveCount(1);
+      expect(new URL(page.url()).pathname).toBe("/brno");
+      if (expected.menuState === "open") await expect(page.locator(".mobile-menu-panel")).toBeVisible();
+      else await expect(page.locator(".mobile-menu-panel")).toHaveCount(0);
+      await assertGeometry(page);
+      await tour.getByRole("button", { name: index === configured.length - 1 ? "Dokončit" : "Další" }).click();
+    }
+    await expect(page.getByTestId("guided-tutorial")).toHaveCount(0);
+  }
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("studenthub-tutorial-state") || "null"));
+  expect(stored).toMatchObject({ tutorialVersion: 3, introConfirmed: true, status: "completed", lastCompletedStep: "complete" });
 });
 
-test("telefon a tablet otevřou skutečné menu a zvýrazní spodní navigaci", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "desktop-1440");
-  await prepareTour(page, { state: { tutorialVersion: 2, introConfirmed: true, status: "in_progress", lastCompletedStep: "welcome" }, theme: testInfo.project.name === "tablet-768" ? "dark" : "light" });
+test("Zpět zachová přesné opačné pořadí přes hranice navigačních oblastí", async ({ page }, testInfo) => {
+  const configured = configFor(testInfo);
+  await prepareTour(page);
   await page.goto("/brno", { waitUntil: "domcontentloaded" });
   const tour = page.getByTestId("guided-tutorial");
-  await expect(tour).toHaveAttribute("data-tour-step", "school-profile");
-  await expect(page.locator(".mobile-menu-panel")).toBeVisible();
-  await expect(page.locator('[data-tour-id="settings-navigation-menu"]:visible')).toHaveCount(1);
-  await expect(page.locator('[role="dialog"][aria-modal="true"]')).toHaveCount(1);
-  await tour.getByRole("button", { name: "Další" }).click();
-  await expect(tour).toHaveAttribute("data-tour-step", "calendar");
-  await expect(page.locator(".mobile-menu-panel")).toHaveCount(0);
-  await expect(page.locator('[data-tour-id="calendar-navigation-bottom"]')).toBeVisible();
-  await assertNoOverflow(page);
+  if (testInfo.project.name === "mobile-390") {
+    await advanceTo(page, "chat");
+    await tour.getByRole("button", { name: "Předchozí krok" }).click();
+    await expect(tour).toHaveAttribute("data-tour-step", "buddy");
+    await tour.getByRole("button", { name: "Předchozí krok" }).click();
+    await expect(tour).toHaveAttribute("data-tour-step", "jobs");
+    await advanceTo(page, "housing");
+    await tour.getByRole("button", { name: "Předchozí krok" }).click();
+    await expect(tour).toHaveAttribute("data-tour-step", "menu");
+    await expect(page.locator(".mobile-menu-panel")).toHaveCount(0);
+    await tour.getByRole("button", { name: "Další" }).click();
+    await expect(tour).toHaveAttribute("data-tour-step", "housing");
+    await expect(page.locator(".mobile-menu-panel")).toBeVisible();
+  } else if (testInfo.project.name === "tablet-768") {
+    await advanceTo(page, "chat");
+    await tour.getByRole("button", { name: "Předchozí krok" }).click();
+    await expect(tour).toHaveAttribute("data-tour-step", "jobs");
+    await advanceTo(page, "watcher");
+    await tour.getByRole("button", { name: "Předchozí krok" }).click();
+    await expect(tour).toHaveAttribute("data-tour-step", "menu");
+    await expect(page.locator(".mobile-menu-panel")).toHaveCount(0);
+  } else {
+    await advanceTo(page, "appearance");
+    await tour.getByRole("button", { name: "Předchozí krok" }).click();
+    await expect(tour).toHaveAttribute("data-tour-step", "admin");
+    await tour.getByRole("button", { name: "Předchozí krok" }).click();
+    await expect(tour).toHaveAttribute("data-tour-step", "contact");
+  }
+  await expect(tour.getByText(/ z /)).toBeVisible();
+  const currentId = await tour.getAttribute("data-tour-step");
+  expect(configured.some((item) => item.id === currentId)).toBe(true);
   await tour.getByRole("button", { name: "Přeskočit" }).click();
 });
 
-test("Návod spustí hotovou prohlídku znovu a Escape vrátí focus", async ({ page }, testInfo) => {
+test("chybějící nebo neaktivní Bydlení se před startem odfiltruje a přepočítá počet", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
-  await prepareTour(page, { state: { tutorialVersion: 2, introConfirmed: true, status: "completed", lastCompletedStep: "complete" } });
+  await prepareTour(page, { tutorialVersion: 3, introConfirmed: true, status: "completed", lastCompletedStep: "complete" });
   await page.goto("/brno", { waitUntil: "domcontentloaded" });
-  const trigger = page.getByRole("navigation", { name: "Doplňkové odkazy" }).getByRole("button", { name: "Návod" });
-  await expect(page.getByTestId("guided-tutorial")).toHaveCount(0);
-  await trigger.click();
+  await page.locator('[data-tour-id="housing-navigation-desktop"]').evaluate((element) => element.remove());
+  await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), openTutorialEvent);
+  const tour = await waitForStep(page, "welcome");
+  await expect(tour.getByText("1 z 18")).toBeVisible();
+  await advanceTo(page, "marketplace");
+  await tour.getByRole("button", { name: "Další" }).click();
+  await expect(tour).toHaveAttribute("data-tour-step", "school-profile");
+  await tour.getByRole("button", { name: "Přeskočit" }).click();
+});
+
+test("změna breakpointu zachová funkci nebo zvolí nejbližší následující krok", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-390");
+  await prepareTour(page);
+  await page.goto("/brno", { waitUntil: "domcontentloaded" });
   const tour = page.getByTestId("guided-tutorial");
+  await advanceTo(page, "marketplace");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(tour).toHaveAttribute("data-tour-layout", "desktop");
+  await expect(tour).toHaveAttribute("data-tour-step", "marketplace");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(tour).toHaveAttribute("data-tour-layout", "mobile");
+  await advanceTo(page, "menu");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(tour).toHaveAttribute("data-tour-layout", "desktop");
+  await expect(tour).toHaveAttribute("data-tour-step", "housing");
+  await expect(page.locator(".tutorial-popover")).toHaveCount(1);
+  await tour.getByRole("button", { name: "Přeskočit" }).click();
+});
+
+test("obnovení stránky pokračuje za posledním dokončeným krokem", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
+  await prepareTour(page);
+  await page.goto("/brno", { waitUntil: "domcontentloaded" });
+  const tour = page.getByTestId("guided-tutorial");
+  await advanceTo(page, "calendar");
+  await tour.getByRole("button", { name: "Další" }).click();
+  await expect(tour).toHaveAttribute("data-tour-step", "watcher");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("guided-tutorial")).toHaveAttribute("data-tour-step", "watcher");
+  await page.getByTestId("guided-tutorial").getByRole("button", { name: "Přeskočit" }).click();
+});
+
+test("ruční spuštění zavře chat a instalační dialog, vrátí Přehled nahoru a zachová nastavení", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
+  await prepareTour(page, { tutorialVersion: 3, introConfirmed: true, status: "completed", lastCompletedStep: "complete" });
+  await page.goto("/brno/mista", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("html")).toHaveAttribute("data-chat-dock-ready", "true");
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("studenthub-open-chat", { detail: { id: "00000000-0000-4000-8000-000000000001" } })));
+  await expect(page.locator(".chat-dock")).toBeVisible();
+  await page.getByRole("navigation", { name: "Doplňkové odkazy" }).getByRole("button", { name: "Nainstalovat aplikaci" }).click();
+  await expect(page.getByTestId("pwa-install-dialog")).toBeVisible();
+  await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), openTutorialEvent);
+  const tour = await waitForStep(page, "welcome");
+  await expect(page).toHaveURL(/\/brno$/);
+  await expect(page.locator(".chat-dock,.chat-dock-minimized")).toHaveCount(0);
+  await expect(page.getByTestId("pwa-install-dialog")).toHaveCount(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v4"))).toContain('"facultyId":"muni-fi"');
+  await tour.getByRole("button", { name: "Přeskočit" }).click();
+});
+
+test("úvodní potvrzení je povinné, desktopové šipky fungují a psaní je neaktivuje", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
+  await prepareTour(page, { tutorialVersion: 3, introConfirmed: false, status: "not_started", lastCompletedStep: null });
+  await page.goto("/brno", { waitUntil: "domcontentloaded" });
+  const intro = page.getByTestId("tutorial-intro");
+  await expect(intro).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(intro).toBeVisible();
+  await intro.getByRole("button", { name: "Rozumím" }).click();
+  const tour = await waitForStep(page, "welcome");
+  await tour.locator(".tutorial-popover").evaluate((element) => {
+    const input = document.createElement("input"); input.setAttribute("aria-label", "Test psaní"); element.append(input); input.focus();
+  });
+  await page.keyboard.press("ArrowRight");
   await expect(tour).toHaveAttribute("data-tour-step", "welcome");
-  await expect(tour.getByRole("button", { name: "Další" })).toBeFocused();
-  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe("hidden");
-  await page.keyboard.press("Tab");
-  await expect(page.getByTestId("tour-spotlight")).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
-  await expect(tour.getByRole("button", { name: "Další" })).toBeFocused();
+  await tour.getByLabel("Test psaní").evaluate((element) => element.remove());
+  await tour.getByRole("button", { name: "Další" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(tour).toHaveAttribute("data-tour-step", "overview");
+  await page.keyboard.press("ArrowLeft");
+  await expect(tour).toHaveAttribute("data-tour-step", "welcome");
   await page.keyboard.press("Escape");
   await expect(tour).toHaveCount(0);
-  await expect(trigger).toBeFocused();
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe("hidden");
-});
-
-test("aktivní profil používá stejný verzovaný lokální průběh bez citlivého sledování", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-1440");
-  await page.route("**/api/auth/me", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ user: { id: "11111111-1111-4111-8111-111111111111", verified: true }, profile: { complete: true } }) }));
-  await page.route("**/api/profile", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ profile: { email: "student@example.cz", username: "student", displayName: "Student", accountStatus: "active", cityId: "brno", universityId: "muni", facultyId: "muni-fi", studyProgram: "Informatika", studyYear: 2, bio: "", interests: [], avatarUrl: null, profileVisibility: "public", showFaculty: true, showStudyProgram: true, showStudyYear: true, communityRulesAccepted: true, complete: true } }) }));
-  await prepareTour(page, { state: { tutorialVersion: 2, introConfirmed: true, status: "in_progress", lastCompletedStep: "calendar" } });
-  await page.goto("/brno/nastaveni", { waitUntil: "domcontentloaded" });
-  const tour = page.getByTestId("guided-tutorial");
-  await expect(tour).toHaveAttribute("data-tour-step", "watcher");
-  await tour.getByRole("button", { name: "Přeskočit" }).click();
-  const state = await page.evaluate(() => JSON.parse(localStorage.getItem("studenthub-tutorial-state") || "null"));
-  expect(state).toMatchObject({ tutorialVersion: 2, introConfirmed: true, status: "skipped", lastCompletedStep: "calendar" });
-  expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v4"))).toContain('"universityId":"muni"');
-});
-
-test("prohlídka funguje nad mapou, komunitou a chatem bez druhého modálu", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-390");
-  for (const path of ["/brno/mista", "/brno/komunita", "/brno/chat"]) {
-    await prepareTour(page);
-    await page.goto(path, { waitUntil: "domcontentloaded" });
-    const tour = page.getByTestId("guided-tutorial");
-    await expect(tour).toBeVisible();
-    await expect(page.locator('[role="dialog"][aria-modal="true"]')).toHaveCount(1);
-    await expect(page.getByTestId("tour-spotlight")).toBeVisible();
-    await assertNoOverflow(page);
-    await tour.getByRole("button", { name: "Přeskočit" }).click();
-  }
 });

@@ -1,6 +1,19 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { emptyTutorialState, legacyTutorialStorageKey, normalizeTutorialState, readTutorialState, resumeTutorialIndex, tutorialSteps, tutorialStorageKey, tutorialVersion } from "@/lib/tutorial";
+import {
+  desktopTourSteps,
+  emptyTutorialState,
+  legacyTutorialStorageKey,
+  matchingStepAfterLayoutChange,
+  mobileTourSteps,
+  normalizeTutorialState,
+  readTutorialState,
+  resumeTutorialIndex,
+  tabletTourSteps,
+  tutorialLayoutForWidth,
+  tutorialStorageKey,
+  tutorialVersion,
+} from "@/lib/tutorial";
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial));
@@ -12,37 +25,69 @@ function memoryStorage(initial: Record<string, string> = {}) {
   };
 }
 
-describe("interaktivní úvodní návod", () => {
-  it("má jeden centrální seznam deseti skutečných a stabilních cílů", () => {
-    expect(tutorialSteps).toHaveLength(10);
-    expect(new Set(tutorialSteps.map((step) => step.id)).size).toBe(tutorialSteps.length);
-    for (const [index, step] of tutorialSteps.entries()) {
-      expect(step.order).toBe(index + 1);
-      expect(step.availability).toBe("target-present");
-      expect(step.desktopTarget).toMatch(/^[a-z-]+$/);
-      expect(step.compactTarget).toMatch(/^[a-z-]+$/);
-      expect(step.description.split(/[.!?](?:\s|$)/).filter(Boolean).length).toBeLessThanOrEqual(2);
+const mobileOrder = ["welcome", "overview", "calendar", "places", "community", "jobs", "buddy", "chat", "marketplace", "menu", "housing", "watcher", "school-profile", "change-city", "install", "appearance", "about", "contact", "admin", "complete"];
+const tabletOrder = ["welcome", "overview", "calendar", "places", "community", "jobs", "chat", "appearance", "menu", "watcher", "buddy", "marketplace", "housing", "school-profile", "change-city", "about", "install", "contact", "admin", "complete"];
+const desktopOrder = ["welcome", "overview", "calendar", "watcher", "chat", "places", "community", "buddy", "jobs", "marketplace", "housing", "school-profile", "change-city", "about", "install", "contact", "admin", "appearance", "complete"];
+
+describe("pevně uspořádaný interaktivní návod", () => {
+  it("má samostatné deterministické pořadí pro telefon, tablet a desktop", () => {
+    expect(mobileTourSteps.map((item) => item.id)).toEqual(mobileOrder);
+    expect(tabletTourSteps.map((item) => item.id)).toEqual(tabletOrder);
+    expect(desktopTourSteps.map((item) => item.id)).toEqual(desktopOrder);
+    for (const steps of [mobileTourSteps, tabletTourSteps, desktopTourSteps]) {
+      expect(steps.map((item) => item.order)).toEqual(steps.map((_, index) => index + 1));
+      expect(new Set(steps.map((item) => item.id)).size).toBe(steps.length);
+      for (const item of steps) {
+        expect(item.targetId).toMatch(/^[a-z-]+$/);
+        expect(item.availability).toBe("target-present");
+        expect(["top", "bottom", "left", "right", "auto"]).toContain(item.preferredPlacement);
+        expect(["closed", "open"]).toContain(item.menuState);
+        expect(["none", "sidebar", "menu", "viewport"]).toContain(item.scrollArea);
+        expect(item.description.split(/[.!?](?:\s|$)/).filter(Boolean).length).toBeLessThanOrEqual(2);
+      }
     }
-    expect(tutorialSteps.map((step) => step.title)).toEqual([
-      "Vítej ve StudentHub Brno", "Moje škola a profil", "Kalendář a Co se děje", "Hlídač", "Místa v Brně",
-      "Komunita a Hledám parťáka", "Soukromý chat", "Brigády, Burza a Bydlení", "Nainstaluj si aplikaci", "Máš hotovo",
+  });
+
+  it("dodržuje skutečné breakpointy a nekombinuje tablet se sidebarem", () => {
+    expect(tutorialLayoutForWidth(360)).toBe("mobile");
+    expect(tutorialLayoutForWidth(767)).toBe("mobile");
+    expect(tutorialLayoutForWidth(768)).toBe("tablet");
+    expect(tutorialLayoutForWidth(860)).toBe("tablet");
+    expect(tutorialLayoutForWidth(861)).toBe("desktop");
+    expect(tutorialLayoutForWidth(1440)).toBe("desktop");
+    expect(tabletTourSteps.some((item) => item.targetId.endsWith("-desktop"))).toBe(false);
+    expect(tabletTourSteps.slice(1, 6).every((item) => item.targetId.endsWith("-bottom"))).toBe(true);
+  });
+
+  it("řadí spodní navigaci zleva doprava, menu shora dolů a sidebar shora dolů", () => {
+    expect(mobileTourSteps.slice(1, 6).map((item) => item.targetId)).toEqual([
+      "overview-navigation-bottom", "calendar-navigation-bottom", "places-navigation-bottom", "community-navigation-bottom", "jobs-navigation-bottom",
     ]);
-    expect(JSON.stringify(tutorialSteps)).not.toContain("Nabídky a slevy");
+    expect(mobileTourSteps.findIndex((item) => item.id === "menu")).toBeLessThan(mobileTourSteps.findIndex((item) => item.id === "housing"));
+    expect(mobileTourSteps.slice(10, 19).every((item) => item.menuState === "open" && item.scrollArea === "menu")).toBe(true);
+    expect(desktopTourSteps.slice(1, 12).every((item) => item.targetId.endsWith("-desktop") && item.scrollArea === "sidebar")).toBe(true);
   });
 
-  it("odděluje potvrzení, přeskočení, dokončení, poslední krok a verzi", () => {
+  it("neobsahuje skryté Nabídky a umí vyřadit neaktivní Bydlení bez změny pořadí", () => {
+    expect(JSON.stringify([mobileTourSteps, tabletTourSteps, desktopTourSteps])).not.toContain("offers-navigation");
+    const withoutHousing = desktopTourSteps.filter((item) => item.id !== "housing");
+    expect(withoutHousing.map((item) => item.id)).toEqual(desktopOrder.filter((item) => item !== "housing"));
+  });
+
+  it("obnovuje průběh a při změně breakpointu zachová stejnou funkci", () => {
+    const state = { tutorialVersion, introConfirmed: true, status: "in_progress" as const, lastCompletedStep: "calendar" };
+    expect(resumeTutorialIndex(desktopTourSteps, state)).toBe(3);
+    expect(resumeTutorialIndex(mobileTourSteps, emptyTutorialState)).toBe(0);
+    expect(matchingStepAfterLayoutChange(mobileTourSteps, desktopTourSteps, "marketplace")).toBe(desktopOrder.indexOf("marketplace"));
+    expect(matchingStepAfterLayoutChange(mobileTourSteps, desktopTourSteps, "menu")).toBe(desktopOrder.indexOf("housing"));
+  });
+
+  it("odděluje potvrzení, přeskočení, dokončení a novou verzi", () => {
     expect(normalizeTutorialState({ tutorialVersion, introConfirmed: true, status: "skipped", lastCompletedStep: "calendar" })).toEqual({ tutorialVersion, introConfirmed: true, status: "skipped", lastCompletedStep: "calendar" });
-    expect(normalizeTutorialState({ tutorialVersion, introConfirmed: true, status: "completed", lastCompletedStep: "complete" }).status).toBe("completed");
-    expect(normalizeTutorialState({ tutorialVersion: 1, introConfirmed: true, status: "completed", lastCompletedStep: "complete" })).toEqual({ ...emptyTutorialState, introConfirmed: true });
+    expect(normalizeTutorialState({ tutorialVersion: 2, introConfirmed: true, status: "completed", lastCompletedStep: "complete" })).toEqual({ ...emptyTutorialState, introConfirmed: true });
   });
 
-  it("obnoví prohlídku za posledním dokončeným krokem", () => {
-    expect(resumeTutorialIndex({ tutorialVersion, introConfirmed: true, status: "in_progress", lastCompletedStep: "calendar" })).toBe(3);
-    expect(resumeTutorialIndex(emptyTutorialState)).toBe(0);
-    expect(resumeTutorialIndex({ ...emptyTutorialState, lastCompletedStep: "neexistuje" })).toBe(0);
-  });
-
-  it("převede původní potvrzení a nabídne novou verzi bez resetu ostatních nastavení", () => {
+  it("převede původní potvrzení bez smazání ostatních nastavení", () => {
     const storage = memoryStorage({ [legacyTutorialStorageKey]: "studenthub-marketplace-v4", unrelated: "keep" });
     const state = readTutorialState(storage);
     expect(state).toEqual({ tutorialVersion, introConfirmed: true, status: "not_started", lastCompletedStep: null });
@@ -51,12 +96,14 @@ describe("interaktivní úvodní návod", () => {
     expect(storage.value("unrelated")).toBe("keep");
   });
 
-  it("neobsahuje původní statickou tabulku a shell označuje reálné cíle", () => {
+  it("nepřechází routy a používá jen stabilní cíle", () => {
     const component = readFileSync("components/feature-tutorial.tsx", "utf8");
     const shell = readFileSync("components/site-shell.tsx", "utf8");
-    expect(component).not.toContain("tutorial-steps");
-    expect(component).toContain("tutorial-spotlight");
-    expect(component).toContain("tutorial_target_missing");
-    for (const target of ["calendar-navigation", "watcher-navigation", "places-navigation", "community-navigation", "chat-navigation", "housing-navigation", "settings-navigation"]) expect(shell).toContain(target);
+    expect(component).not.toContain("router.push");
+    expect(component).not.toContain("activateTarget");
+    expect(component).toContain("lockAvailableSteps");
+    expect(component).toContain("matchingStepAfterLayoutChange");
+    for (const target of ["overview-navigation", "calendar-navigation", "watcher-navigation", "chat-navigation", "places-navigation", "community-navigation", "buddy-navigation", "jobs-navigation", "marketplace-navigation", "housing-navigation", "settings-navigation"]) expect(shell).toContain(target);
+    for (const target of ["menu-trigger", "brand-compact", "brand-desktop", "appearance-navigation-topbar", "install-navigation-tablet", "admin-navigation-menu"]) expect(shell).toContain(target);
   });
 });

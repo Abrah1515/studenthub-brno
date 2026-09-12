@@ -2,21 +2,26 @@
 
 import { ArrowLeft, ArrowRight, Check, MousePointer2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrandSymbol } from "@/components/brand-logo";
 import { hasResolvedCookieConsent } from "@/components/cookie-consent";
 import { readPreference } from "@/lib/client-preferences";
 import { detectPwaInstallPlatform } from "@/lib/pwa-install";
 import {
   emptyTutorialState,
+  matchingStepAfterLayoutChange,
   openTutorialEvent,
   readTutorialState,
   resumeTutorialIndex,
   saveTutorialState,
+  tutorialLayoutForWidth,
   tutorialMenuEvent,
-  tutorialSteps,
+  tutorialResetUiEvent,
+  tutorialStepsForLayout,
   tutorialStorageKey,
   tutorialVersion,
+  type TutorialLayout,
+  type TutorialPlacement,
   type TutorialState,
   type TutorialStep,
 } from "@/lib/tutorial";
@@ -24,13 +29,37 @@ import { useModalDialog } from "@/lib/use-modal-dialog";
 
 export { openTutorialEvent, tutorialStorageKey, tutorialVersion };
 
-type Phase = "closed" | "intro" | "tour";
+type Phase = "closed" | "intro" | "preparing" | "tour";
 type TargetRect = { top: number; left: number; width: number; height: number };
-type Placement = "top" | "bottom" | "left" | "right";
+type PopoverPosition = { placement: Exclude<TutorialPlacement, "auto">; style: React.CSSProperties };
+
+const safeEdge = 12;
+const targetGap = 14;
 
 function isBrnoPath(pathname: string) { return pathname === "/brno" || pathname.startsWith("/brno/"); }
-function isVisible(element: HTMLElement) { const rect = element.getBoundingClientRect(); const style = getComputedStyle(element); return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden"; }
+function reducedMotion() { return matchMedia("(prefers-reduced-motion: reduce)").matches; }
+function wait(milliseconds: number) { return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds)); }
+function nextFrame() { return new Promise<void>((resolve) => requestAnimationFrame(() => resolve())); }
 function clamp(value: number, minimum: number, maximum: number) { return Math.max(minimum, Math.min(maximum, value)); }
+function menu(open: boolean) { window.dispatchEvent(new CustomEvent(tutorialMenuEvent, { detail: { open } })); }
+
+function targetFor(targetId: string): HTMLElement | null {
+  return [...document.querySelectorAll<HTMLElement>('[data-tour-id="' + targetId + '"]')].find((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+  }) || null;
+}
+
+async function lockAvailableSteps(layout: TutorialLayout): Promise<readonly TutorialStep[]> {
+  const configured = tutorialStepsForLayout(layout);
+  menu(configured.some((item) => item.menuState === "open"));
+  await nextFrame(); await nextFrame(); await wait(45);
+  const available = configured.filter((item) => targetFor(item.targetId));
+  menu(false);
+  await nextFrame();
+  return available;
+}
 
 function IntroConfirmation({ confirm }: { confirm: () => void }) {
   const dialogRef = useModalDialog<HTMLDivElement>(true, undefined, { closeOnEscape: false });
@@ -45,125 +74,226 @@ function IntroConfirmation({ confirm }: { confirm: () => void }) {
   </div>;
 }
 
+function PreparingTutorial() {
+  const dialogRef = useModalDialog<HTMLDivElement>(true, undefined, { closeOnEscape: false });
+  return <div ref={dialogRef} tabIndex={-1} className="tutorial-intro-layer" role="dialog" aria-modal="true" aria-label="Příprava návodu" data-modal-layer>
+    <div className="tutorial-intro-card tutorial-preparing" role="status"><BrandSymbol size={42} /><strong>Připravuji návod…</strong></div>
+  </div>;
+}
+
 function platformInstallDescription(fallback: string) {
   if (typeof navigator === "undefined" || typeof window === "undefined") return fallback;
   const platform = detectPwaInstallPlatform({ userAgent: navigator.userAgent, platform: navigator.platform, maxTouchPoints: navigator.maxTouchPoints, standaloneDisplay: matchMedia("(display-mode: standalone)").matches, navigatorStandalone: (navigator as Navigator & { standalone?: boolean }).standalone === true });
-  if (platform === "ios") return "V Safari otevři Sdílet a vyber Přidat na plochu. StudentHub pak spustíš jako aplikaci.";
-  if (platform === "android") return "V Chrome použij Nainstalovat aplikaci nebo Přidat na plochu. StudentHub není aplikace z Google Play.";
-  if (platform === "installed") return "StudentHub už běží jako nainstalovaná PWA. Návod můžeš dokončit bez další akce.";
-  if (/Windows/i.test(navigator.userAgent)) return "V Chrome nebo Edge použij Nainstalovat aplikaci. StudentHub se pak otevře v samostatném okně.";
+  if (platform === "ios") return "V Safari otevři Sdílet a vyber Přidat na plochu.";
+  if (platform === "android") return "V Chrome použij Nainstalovat aplikaci nebo Přidat na plochu.";
+  if (platform === "installed") return "StudentHub už běží jako nainstalovaná PWA.";
+  if (/Windows/i.test(navigator.userAgent)) return "V Chrome nebo Edge použij Nainstalovat aplikaci.";
   return fallback;
 }
 
-function GuidedTour({ initialIndex, finish, skip }: { initialIndex: number; finish: (step: TutorialStep) => void; skip: (step: TutorialStep) => void }) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const [index, setIndex] = useState(initialIndex);
-  const [compact, setCompact] = useState(false);
+async function revealTarget(target: HTMLElement, step: TutorialStep) {
+  const behavior: ScrollBehavior = reducedMotion() ? "auto" : "smooth";
+  const viewportTop = safeEdge;
+  const viewportBottom = innerHeight - safeEdge;
+  let container: HTMLElement | null = null;
+  if (step.scrollArea === "menu") container = target.closest<HTMLElement>(".mobile-menu-panel");
+  if (step.scrollArea === "sidebar") container = target.closest<HTMLElement>(".desktop-nav");
+  const targetRect = target.getBoundingClientRect();
+  const bounds = container?.getBoundingClientRect() || { top: viewportTop, bottom: viewportBottom };
+  const visibleTop = Math.max(viewportTop, bounds.top + 8);
+  const visibleBottom = Math.min(viewportBottom, bounds.bottom - 8);
+  let delta = 0;
+  if (targetRect.top < visibleTop) delta = targetRect.top - visibleTop;
+  else if (targetRect.bottom > visibleBottom) delta = targetRect.bottom - visibleBottom;
+  if (!delta) return;
+  if (container) container.scrollTo({ top: container.scrollTop + delta, behavior });
+  else if (step.scrollArea === "viewport") window.scrollTo({ top: window.scrollY + delta, behavior });
+  await wait(behavior === "smooth" ? 230 : 0);
+  await nextFrame();
+}
+
+function positionPopover(rect: TargetRect, width: number, height: number, preferred: TutorialPlacement): PopoverPosition {
+  const positions: Record<Exclude<TutorialPlacement, "auto">, { left: number; top: number; fits: boolean; space: number }> = {
+    top: { left: rect.left + rect.width / 2 - width / 2, top: rect.top - height - targetGap, fits: rect.top - height - targetGap >= safeEdge, space: rect.top },
+    bottom: { left: rect.left + rect.width / 2 - width / 2, top: rect.top + rect.height + targetGap, fits: rect.top + rect.height + targetGap + height <= innerHeight - safeEdge, space: innerHeight - rect.top - rect.height },
+    left: { left: rect.left - width - targetGap, top: rect.top + rect.height / 2 - height / 2, fits: rect.left - width - targetGap >= safeEdge, space: rect.left },
+    right: { left: rect.left + rect.width + targetGap, top: rect.top + rect.height / 2 - height / 2, fits: rect.left + rect.width + targetGap + width <= innerWidth - safeEdge, space: innerWidth - rect.left - rect.width },
+  };
+  const fallback: Array<Exclude<TutorialPlacement, "auto">> = preferred === "auto" ? ["right", "left", "bottom", "top"] : [preferred, preferred === "top" ? "bottom" : preferred === "bottom" ? "top" : preferred === "left" ? "right" : "left", "bottom", "top", "right", "left"].filter((item, index, all) => item !== "auto" && all.indexOf(item) === index) as Array<Exclude<TutorialPlacement, "auto">>;
+  const placement = fallback.find((item) => positions[item].fits) || [...fallback].sort((left, right) => positions[right].space - positions[left].space)[0];
+  const selected = positions[placement];
+  return {
+    placement,
+    style: {
+      width,
+      left: clamp(selected.left, safeEdge, innerWidth - width - safeEdge),
+      top: clamp(selected.top, safeEdge, innerHeight - height - safeEdge),
+    },
+  };
+}
+
+function GuidedTour({ resumeAfterStepId, finish, skip }: { resumeAfterStepId: string | null; finish: (step: TutorialStep) => void; skip: (step: TutorialStep) => void }) {
+  const [layout, setLayout] = useState<TutorialLayout>(() => tutorialLayoutForWidth(innerWidth));
+  const [steps, setSteps] = useState<readonly TutorialStep[] | null>(null);
+  const [index, setIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
-  const [placement, setPlacement] = useState<Placement>("right");
   const [popoverHeight, setPopoverHeight] = useState(220);
+  const [placement, setPlacement] = useState<Exclude<TutorialPlacement, "auto">>("right");
   const popoverRef = useRef<HTMLDivElement>(null);
-  const missingTimer = useRef(0);
+  const generation = useRef(0);
+  const stepsRef = useRef<readonly TutorialStep[]>([]);
+  const indexRef = useRef(0);
   const initialFocusSet = useRef(false);
-  const step = tutorialSteps[index];
-  const description = step.id === "install" ? platformInstallDescription(step.description) : step.description;
-  const close = useCallback(() => skip(step), [skip, step]);
+  const step = steps?.[index] || null;
+  const close = useCallback(() => { if (step) skip(step); }, [skip, step]);
   const dialogRef = useModalDialog<HTMLDivElement>(true, close);
 
-  useEffect(() => {
-    const media = matchMedia("(max-width: 860px)");
-    const update = () => setCompact(media.matches);
-    update(); media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-
-  const targetId = compact ? step.compactTarget : step.desktopTarget;
-  const advance = useCallback((direction = 1) => {
-    setTargetRect(null);
-    setIndex((current) => clamp(current + direction, 0, tutorialSteps.length - 1));
-  }, []);
+  useEffect(() => { stepsRef.current = steps || []; indexRef.current = index; }, [index, steps]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (initialFocusSet.current) return;
-      const initialFocus = popoverRef.current?.querySelector<HTMLElement>("[data-autofocus]");
-      initialFocus?.focus({ preventScroll: true });
-      initialFocusSet.current = document.activeElement === initialFocus;
-    }, 80);
-    return () => window.clearTimeout(timer);
-  }, []);
+    let cancelled = false;
+    const selectedLayout = tutorialLayoutForWidth(innerWidth);
+    void lockAvailableSteps(selectedLayout).then((available) => {
+      if (cancelled || !available.length) return;
+      const state = { ...readTutorialState(), lastCompletedStep: resumeAfterStepId };
+      setLayout(selectedLayout);
+      setSteps(available);
+      setIndex(resumeTutorialIndex(available, state));
+    });
+    return () => { cancelled = true; menu(false); };
+  }, [resumeAfterStepId]);
 
-  useLayoutEffect(() => {
-    window.clearTimeout(missingTimer.current);
-    window.dispatchEvent(new CustomEvent(tutorialMenuEvent, { detail: { open: compact && Boolean(step.compactMenu) } }));
-    let target: HTMLElement | null = null;
-    let resizeObserver: ResizeObserver | null = null;
+  useEffect(() => {
+    let resizeTimer = 0;
+    const resize = () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        const nextLayout = tutorialLayoutForWidth(innerWidth);
+        if (nextLayout === layout || !stepsRef.current.length) return;
+        const request = ++generation.current;
+        const previous = stepsRef.current;
+        const currentId = previous[indexRef.current]?.id || "welcome";
+        setTargetRect(null);
+        void lockAvailableSteps(nextLayout).then((available) => {
+          if (generation.current !== request || !available.length) return;
+          setLayout(nextLayout);
+          setSteps(available);
+          setIndex(matchingStepAfterLayoutChange(previous, available, currentId));
+        });
+      }, 140);
+    };
+    window.addEventListener("resize", resize);
+    return () => { window.clearTimeout(resizeTimer); window.removeEventListener("resize", resize); };
+  }, [layout]);
+
+  useEffect(() => {
+    if (!step) return;
     let disposed = false;
+    let missingTimer = 0;
+    let targetObserver: ResizeObserver | null = null;
+    let popoverObserver: ResizeObserver | null = null;
+    setTargetRect(null);
+    menu(step.menuState === "open");
     const measure = () => {
-      if (disposed) return;
-      target = [...document.querySelectorAll<HTMLElement>(`[data-tour-id="${targetId}"]`)].find(isVisible) || null;
+      const target = targetFor(step.targetId);
+      if (!target || disposed) return;
+      const raw = target.getBoundingClientRect();
+      const padding = 6;
+      const rect = {
+        top: Math.max(4, raw.top - padding),
+        left: Math.max(4, raw.left - padding),
+        width: Math.max(1, Math.min(raw.width + padding * 2, innerWidth - Math.max(4, raw.left - padding) - 4)),
+        height: Math.max(1, Math.min(raw.height + padding * 2, innerHeight - Math.max(4, raw.top - padding) - 4)),
+      };
+      const width = Math.min(360, innerWidth - safeEdge * 2);
+      const height = Math.max(popoverRef.current?.offsetHeight || 220, 280);
+      const positioned = positionPopover(rect, width, height, step.preferredPlacement);
+      setPopoverHeight((current) => current === height ? current : height);
+      setPlacement(positioned.placement);
+      setTargetRect(rect);
+    };
+    const prepare = async () => {
+      await nextFrame(); await nextFrame();
+      if (step.menuState === "open") await wait(55);
+      const target = targetFor(step.targetId);
       if (!target) {
-        missingTimer.current = window.setTimeout(() => {
-          if (process.env.NODE_ENV !== "production") console.debug("tutorial_target_missing", { stepId: step.id, targetId, pathname });
-          if (index < tutorialSteps.length - 1) advance(1); else skip(step);
+        missingTimer = window.setTimeout(() => {
+          if (process.env.NODE_ENV !== "production") console.debug("tutorial_target_missing", { stepId: step.id, targetId: step.targetId, layout });
+          if (index < (steps?.length || 0) - 1) setIndex((current) => current + 1);
+          else skip(step);
         }, 220);
         return;
       }
-      target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-      const rect = target.getBoundingClientRect();
-      const padding = 6;
-      const nextTop = Math.max(4, rect.top - padding);
-      const nextLeft = Math.max(4, rect.left - padding);
-      const nextRect = {
-        top: nextTop,
-        left: nextLeft,
-        width: Math.max(1, Math.min(rect.width + padding * 2, innerWidth - nextLeft - 4)),
-        height: Math.max(1, Math.min(rect.height + padding * 2, innerHeight - nextTop - 4)),
-      };
-      const popoverWidth = popoverRef.current?.offsetWidth || Math.min(360, innerWidth - 24);
-      const popoverHeight = popoverRef.current?.offsetHeight || 220;
-      setPopoverHeight((current) => current === popoverHeight ? current : popoverHeight);
-      const gap = 14;
-      let nextPlacement: Placement = "right";
-      if (innerWidth <= 860) nextPlacement = nextRect.top >= popoverHeight + gap + 12 ? "top" : "bottom";
-      else if (nextRect.left >= popoverWidth + gap + 12) nextPlacement = "left";
-      else if (innerWidth - (nextRect.left + nextRect.width) >= popoverWidth + gap + 12) nextPlacement = "right";
-      else nextPlacement = nextRect.top >= popoverHeight + gap + 12 ? "top" : "bottom";
-      setTargetRect(nextRect); setPlacement(nextPlacement);
-      if (!resizeObserver) { resizeObserver = new ResizeObserver(measure); resizeObserver.observe(target); }
+      await revealTarget(target, step);
+      if (disposed) return;
+      measure();
+      targetObserver = new ResizeObserver(measure); targetObserver.observe(target);
+      if (popoverRef.current) { popoverObserver = new ResizeObserver(measure); popoverObserver.observe(popoverRef.current); }
     };
-    const timer = window.setTimeout(measure, compact && step.compactMenu ? 90 : 0);
-    window.addEventListener("resize", measure); window.addEventListener("scroll", measure, true);
-    return () => { disposed = true; window.clearTimeout(timer); window.clearTimeout(missingTimer.current); resizeObserver?.disconnect(); window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
-  }, [advance, compact, index, pathname, skip, step, targetId]);
+    void prepare();
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      disposed = true; window.clearTimeout(missingTimer);
+      targetObserver?.disconnect(); popoverObserver?.disconnect();
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, [index, layout, skip, step, steps?.length]);
 
-  useEffect(() => () => { window.dispatchEvent(new CustomEvent(tutorialMenuEvent, { detail: { open: false } })); }, []);
+  useEffect(() => {
+    if (!step || initialFocusSet.current) return;
+    const timer = window.setTimeout(() => {
+      const button = popoverRef.current?.querySelector<HTMLElement>("[data-autofocus]");
+      button?.focus({ preventScroll: true });
+      initialFocusSet.current = document.activeElement === button;
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [step]);
 
-  const popoverStyle = useMemo(() => {
-    if (!targetRect) return { visibility: "hidden" } as React.CSSProperties;
-    const width = Math.min(360, innerWidth - 24);
-    const height = popoverHeight;
-    let left = clamp(targetRect.left + targetRect.width / 2 - width / 2, 12, innerWidth - width - 12);
-    let top = targetRect.top + targetRect.height + 14;
-    if (placement === "top") top = targetRect.top - height - 14;
-    if (placement === "right") { left = targetRect.left + targetRect.width + 14; top = targetRect.top + targetRect.height / 2 - height / 2; }
-    if (placement === "left") { left = targetRect.left - width - 14; top = targetRect.top + targetRect.height / 2 - height / 2; }
-    return { width, left: clamp(left, 12, innerWidth - width - 12), top: clamp(top, 12, innerHeight - height - 12) } as React.CSSProperties;
-  }, [placement, popoverHeight, targetRect]);
-
-  function remember(completedStep: TutorialStep, status: TutorialState["status"] = "in_progress") {
+  const remember = useCallback((completedStep: TutorialStep, status: TutorialState["status"] = "in_progress", lastCompletedStep: string | null = completedStep.id) => {
     const current = readTutorialState();
-    saveTutorialState({ ...current, tutorialVersion, introConfirmed: true, status, lastCompletedStep: completedStep.id });
-  }
-  function next() { remember(step); if (index === tutorialSteps.length - 1) finish(step); else advance(1); }
-  function back() { advance(-1); }
-  function activateTarget() { if (!step.allowTargetAction || step.route === undefined) return; remember(step); advance(1); router.push(`/brno${step.route}`); }
+    saveTutorialState({ ...current, tutorialVersion, introConfirmed: true, status, lastCompletedStep });
+  }, []);
 
-  return <div ref={dialogRef} tabIndex={-1} className="guided-tour-layer" role="dialog" aria-modal="true" aria-labelledby="guided-tour-title" aria-describedby="guided-tour-description" data-testid="guided-tutorial" data-tour-step={step.id} data-modal-layer>
-    {targetRect && <button type="button" className="tutorial-spotlight" data-testid="tour-spotlight" aria-label={step.allowTargetAction ? `Otevřít: ${step.title}` : `Zvýrazněno: ${step.title}`} disabled={!step.allowTargetAction} onClick={activateTarget} style={{ top: targetRect.top, left: targetRect.left, width: targetRect.width, height: targetRect.height }}><span className="sr-only">{step.title}</span></button>}
-    <div ref={popoverRef} className="tutorial-popover" data-placement={placement} style={popoverStyle}>
-      <div className="tutorial-progress"><span>{index + 1} z {tutorialSteps.length}</span><span aria-hidden="true">{tutorialSteps.map((item, itemIndex) => <i key={item.id} className={itemIndex <= index ? "active" : ""} />)}</span></div>
+  const next = useCallback(() => {
+    if (!step || !steps) return;
+    remember(step);
+    setTargetRect(null);
+    if (index === steps.length - 1) finish(step);
+    else setIndex((current) => current + 1);
+  }, [finish, index, remember, step, steps]);
+
+  const back = useCallback(() => {
+    if (!step || !steps || index === 0) return;
+    const previousIndex = index - 1;
+    remember(step, "in_progress", steps[previousIndex - 1]?.id || null);
+    setTargetRect(null);
+    setIndex(previousIndex);
+  }, [index, remember, step, steps]);
+
+  useEffect(() => {
+    if (layout !== "desktop") return;
+    const keydown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.matches("input, textarea, select") || target.isContentEditable)) return;
+      if (event.key === "ArrowRight") { event.preventDefault(); next(); }
+      if (event.key === "ArrowLeft") { event.preventDefault(); back(); }
+    };
+    document.addEventListener("keydown", keydown);
+    return () => document.removeEventListener("keydown", keydown);
+  }, [back, layout, next]);
+
+  useEffect(() => () => menu(false), []);
+
+  const description = step?.id === "install" ? platformInstallDescription(step.description) : step?.description;
+  const popoverPosition = useMemo(() => {
+    if (!targetRect || !step) return { visibility: "hidden" } as React.CSSProperties;
+    return positionPopover(targetRect, Math.min(360, innerWidth - safeEdge * 2), popoverHeight, step.preferredPlacement).style;
+  }, [popoverHeight, step, targetRect]);
+
+  return <div ref={dialogRef} tabIndex={-1} className="guided-tour-layer" role="dialog" aria-modal="true" aria-labelledby={step ? "guided-tour-title" : undefined} aria-describedby={step ? "guided-tour-description" : undefined} data-testid="guided-tutorial" data-tour-step={step?.id || "preparing"} data-tour-layout={layout} data-tour-target={step?.targetId} data-modal-layer>
+    {targetRect && <div className="tutorial-spotlight" data-testid="tour-spotlight" aria-hidden="true" style={{ top: targetRect.top, left: targetRect.left, width: targetRect.width, height: targetRect.height }} />}
+    {step ? <div ref={popoverRef} className="tutorial-popover" data-placement={placement} style={popoverPosition}>
+      <div className="tutorial-progress"><span>{index + 1} z {steps?.length || 0}</span><span aria-hidden="true">{steps?.map((item, itemIndex) => <i key={item.id} className={itemIndex <= index ? "active" : ""} />)}</span></div>
       <span className="tutorial-pointer-label"><MousePointer2 size={15} />Interaktivní průvodce</span>
       <h2 id="guided-tour-title">{step.title}</h2>
       <p id="guided-tour-description">{description}</p>
@@ -171,23 +301,36 @@ function GuidedTour({ initialIndex, finish, skip }: { initialIndex: number; fini
         <button type="button" className="button button-ghost" onClick={() => skip(step)}>Přeskočit</button>
         <span className="tutorial-nav-actions">
           <button type="button" className="button button-secondary" onClick={back} disabled={index === 0} aria-label="Předchozí krok"><ArrowLeft size={17} />Zpět</button>
-          <button type="button" className="button button-primary" data-autofocus onClick={next}>{index === tutorialSteps.length - 1 ? <><Check size={17} />Dokončit</> : <>Další<ArrowRight size={17} /></>}</button>
+          <button type="button" className="button button-primary" data-autofocus onClick={next}>{index === (steps?.length || 0) - 1 ? <><Check size={17} />Dokončit</> : <>Další<ArrowRight size={17} /></>}</button>
         </span>
       </div>
-    </div>
+    </div> : <div className="tutorial-loading" role="status">Připravuji dostupné kroky…</div>}
   </div>;
 }
 
 export function FeatureTutorial() {
   const pathname = usePathname();
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("closed");
-  const [initialIndex, setInitialIndex] = useState(0);
+  const [resumeAfterStepId, setResumeAfterStepId] = useState<string | null>(null);
 
   const beginTour = useCallback((fromStart = false) => {
     const state = readTutorialState();
-    saveTutorialState({ ...state, tutorialVersion, introConfirmed: true, status: "in_progress", lastCompletedStep: fromStart ? null : state.lastCompletedStep });
-    setInitialIndex(fromStart ? 0 : resumeTutorialIndex(state)); setPhase("tour");
-  }, []);
+    const resumeAfter = fromStart ? null : state.lastCompletedStep;
+    saveTutorialState({ ...state, tutorialVersion, introConfirmed: true, status: "in_progress", lastCompletedStep: resumeAfter });
+    window.dispatchEvent(new Event(tutorialResetUiEvent));
+    menu(false);
+    setResumeAfterStepId(resumeAfter);
+    setPhase("preparing");
+    if (pathname !== "/brno") router.replace("/brno");
+  }, [pathname, router]);
+
+  useEffect(() => {
+    if (phase !== "preparing" || pathname !== "/brno") return;
+    window.scrollTo({ top: 0, behavior: "auto" });
+    const timer = window.setTimeout(() => setPhase("tour"), 60);
+    return () => window.clearTimeout(timer);
+  }, [pathname, phase]);
 
   useEffect(() => {
     const manual = () => { if (isBrnoPath(pathname)) beginTour(true); };
@@ -212,16 +355,20 @@ export function FeatureTutorial() {
     return () => { window.clearTimeout(timer); window.removeEventListener("studenthub-preference-changed", tryOpen); window.removeEventListener("studenthub-consent-changed", tryOpen); };
   }, [beginTour, pathname, phase]);
 
-  const confirmIntro = useCallback(() => { saveTutorialState({ ...emptyTutorialState, introConfirmed: true, status: "in_progress" }); setInitialIndex(0); setPhase("tour"); }, []);
+  const confirmIntro = useCallback(() => {
+    saveTutorialState({ ...emptyTutorialState, introConfirmed: true, status: "in_progress" });
+    beginTour(true);
+  }, [beginTour]);
+
   const closeTour = useCallback((step: TutorialStep, status: "skipped" | "completed") => {
     const state = readTutorialState();
     saveTutorialState({ ...state, tutorialVersion, introConfirmed: true, status, lastCompletedStep: status === "completed" ? step.id : state.lastCompletedStep });
-    window.dispatchEvent(new CustomEvent(tutorialMenuEvent, { detail: { open: false } })); setPhase("closed");
+    menu(false);
+    setPhase("closed");
   }, []);
-  const finishTour = useCallback((step: TutorialStep) => closeTour(step, "completed"), [closeTour]);
-  const skipTour = useCallback((step: TutorialStep) => closeTour(step, "skipped"), [closeTour]);
 
   if (phase === "intro") return <IntroConfirmation confirm={confirmIntro} />;
-  if (phase === "tour") return <GuidedTour key={initialIndex} initialIndex={initialIndex} finish={finishTour} skip={skipTour} />;
+  if (phase === "preparing") return <PreparingTutorial />;
+  if (phase === "tour") return <GuidedTour resumeAfterStepId={resumeAfterStepId} finish={(step) => closeTour(step, "completed")} skip={(step) => closeTour(step, "skipped")} />;
   return null;
 }
