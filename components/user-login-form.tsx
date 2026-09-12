@@ -2,6 +2,7 @@
 
 import { CheckCircle2, KeyRound, Loader2, LogIn, MailPlus, RotateCw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { LegalLinks, LegalNotice } from "@/components/legal-links";
 
 type Mode="login"|"signup"|"recover";
 type Completion={kind:"signup"|"recover";message:string}|null;
@@ -85,6 +86,7 @@ export function UserLoginForm({next="/brno/nastaveni",description="Pro tuto akci
       <button className="button button-secondary" type="button" onClick={()=>{setCompletion(null);setMode("signup");setPassword("");}}>Změnit e-mailovou adresu</button>
       <button className="text-link" type="button" onClick={()=>{setCompletion(null);setMode("login");setPassword("");}}>Zpět k přihlášení</button>
     </div>
+    <LegalLinks />
   </section>;
 
   if(completion?.kind==="recover")return <section className="success-state auth-confirmation-state" aria-labelledby="auth-recovery-title">
@@ -101,6 +103,7 @@ export function UserLoginForm({next="/brno/nastaveni",description="Pro tuto akci
     <label><span>E-mail</span><input type="email" required autoComplete="email" value={email} onChange={(event)=>setEmail(event.target.value)}/></label>
     {mode!=="recover"&&<label><span>Heslo</span><input type="password" required minLength={mode==="signup"?10:1} maxLength={128} autoComplete={mode==="signup"?"new-password":"current-password"} value={password} onChange={(event)=>setPassword(event.target.value)}/>{mode==="signup"&&<small>Nejméně 10 znaků, alespoň jedno písmeno a číslo.</small>}</label>}
     {error&&<p className="field-error" role="alert">{error}</p>}
+    {mode==="signup"?<LegalNotice account />:<LegalLinks />}
     <button className="button button-primary" disabled={pending}>{mode==="signup"?<MailPlus size={17}/>:mode==="recover"?<KeyRound size={17}/>:<LogIn size={17}/>} {pending?"Pracuji…":mode==="signup"?"Vytvořit účet e-mailem":mode==="recover"?"Poslat obnovovací odkaz":"Přihlásit se e-mailem"}</button>
     <button type="button" className="text-link" onClick={()=>switchMode(mode==="recover"?"login":"recover")}>{mode==="recover"?"Zpět k přihlášení":"Zapomenuté heslo?"}</button>
   </form>;

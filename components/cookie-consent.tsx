@@ -3,6 +3,7 @@
 import { Cookie, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useModalDialog } from "@/lib/use-modal-dialog";
+import { LegalLinks } from "@/components/legal-links";
 
 type Consent = { analytics: boolean; marketing: boolean };
 const defaultConsent: Consent = { analytics: false, marketing: false };
@@ -57,6 +58,7 @@ export function CookieConsent() {
         {!settings && <><button className="button button-primary" data-autofocus onClick={() => { const all = { analytics: true, marketing: true }; saveConsent(all); setConsent(all); setOpen(false); }}>Přijmout vše</button><button className="button button-secondary" onClick={() => { saveConsent(defaultConsent); setOpen(false); }}>Odmítnout volitelné</button><button className="button button-secondary" onClick={() => setSettings(true)}><SlidersHorizontal size={17} />Nastavení</button></>}
         {settings && <><button className="button button-secondary" onClick={() => { saveConsent(defaultConsent); setConsent(defaultConsent); setOpen(false); }}>Odmítnout volitelné</button><button className="button button-primary" data-autofocus onClick={() => { saveConsent(consent); setOpen(false); }}>Uložit nastavení</button></>}
       </div>
+      <LegalLinks className="consent-legal-links" />
     </div></div>
   );
 }

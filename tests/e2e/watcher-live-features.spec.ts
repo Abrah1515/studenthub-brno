@@ -75,6 +75,7 @@ test("telefonní menu obsahuje jen doplňkové funkce v určeném pořadí", asy
     "O projektu",
     "Kontakt",
     "Administrace",
+    "Ochrana osobních údajůCookiesPodmínky a pravidla",
   ]);
   await expect(menu.getByRole("link", { name: "Přehled", exact: true })).toHaveCount(0);
   await expect(menu.getByRole("link", { name: "Místa", exact: true })).toHaveCount(0);

@@ -24,6 +24,7 @@
     "admin:bootstrap": "node scripts/audit-auth-roles.mjs --bootstrap-superadmin",
     "auth:legacy:audit": "node scripts/audit-auth-legacy.mjs",
     "audit:source-queue": "node scripts/audit-source-review-queue.mjs",
+    "audit:legal": "node scripts/audit-legal-config.mjs",
     "smoke:chat:production": "node scripts/smoke-chat-production.mjs",
     "smoke:housing:production": "node scripts/smoke-housing-production.mjs",
     "smoke:tutorial:production": "node scripts/smoke-tutorial-production.mjs"
