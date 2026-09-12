@@ -35,6 +35,63 @@ test("hlavní akce odpovídají telefonu, tabletu a počítači", async ({ page 
   }
 });
 
+test("ikona Chatu zůstává přesně vystředěná i při změně unread badge", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
+  const viewports = [
+    { width: 360, height: 800 },
+    { width: 390, height: 844 },
+    { width: 412, height: 915 },
+    { width: 768, height: 1024 },
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    const chat = page.locator('.mobile-chat-link[aria-label="Chat"]');
+    const icon = chat.locator(":scope > svg");
+    await expect(chat).toBeVisible();
+    const before = await chat.evaluate((element) => {
+      const button = element.getBoundingClientRect();
+      const svg = element.querySelector("svg")?.getBoundingClientRect();
+      if (!svg) throw new Error("Ikona Chatu nebyla nalezena.");
+      return {
+        width: button.width,
+        height: button.height,
+        deltaX: svg.left + svg.width / 2 - (button.left + button.width / 2),
+        deltaY: svg.top + svg.height / 2 - (button.top + button.height / 2),
+      };
+    });
+    expect(before.width).toBe(44);
+    expect(before.height).toBe(44);
+    expect(Math.abs(before.deltaX)).toBeLessThanOrEqual(.5);
+    expect(Math.abs(before.deltaY)).toBeLessThanOrEqual(.5);
+    await expect(icon).toHaveCSS("width", "23px");
+    await expect(icon).toHaveCSS("height", "23px");
+
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent("studenthub-chat-unread", { detail: 27 })));
+    const badge = chat.locator(".chat-badge.compact");
+    await expect(badge).toHaveText("27");
+    const withBadge = await chat.evaluate((element) => {
+      const button = element.getBoundingClientRect();
+      const svg = element.querySelector("svg")?.getBoundingClientRect();
+      const badgeRect = element.querySelector(".chat-badge")?.getBoundingClientRect();
+      if (!svg || !badgeRect) throw new Error("Ikona nebo badge Chatu nebyly nalezeny.");
+      return {
+        deltaX: svg.left + svg.width / 2 - (button.left + button.width / 2),
+        deltaY: svg.top + svg.height / 2 - (button.top + button.height / 2),
+        badgeRight: badgeRect.right - button.right,
+        badgeTop: badgeRect.top - button.top,
+      };
+    });
+    expect(Math.abs(withBadge.deltaX)).toBeLessThanOrEqual(.5);
+    expect(Math.abs(withBadge.deltaY)).toBeLessThanOrEqual(.5);
+    expect(withBadge.badgeRight).toBeGreaterThan(0);
+    expect(withBadge.badgeTop).toBeLessThan(0);
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator(".mobile-chat-link")).toBeHidden();
+});
+
 test("hranice 767 a 768 px nikdy nezobrazí obě varianty navigace", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
   await page.setViewportSize({ width: 767, height: 900 });
