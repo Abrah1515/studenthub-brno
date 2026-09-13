@@ -6,7 +6,13 @@ async function dismissOverlays(page: import("@playwright/test").Page) {
 }
 async function openDirectoryFilters(page: import("@playwright/test").Page) {
   const button = page.locator("#hlavni-obsah").getByRole("button", { name: /^Filtry/ }).first();
-  if (await button.isVisible() && await button.getAttribute("aria-expanded") === "false") await button.click();
+  if (await button.isVisible()) {
+    if (await button.getAttribute("aria-expanded") === "false") await button.click();
+    const dialog = page.getByRole("dialog", { name: "Filtry" });
+    await expect(dialog).toBeVisible();
+    return dialog;
+  }
+  return page.locator("#hlavni-obsah .responsive-filter-desktop").first();
 }
 async function openThemeSettings(page: import("@playwright/test").Page, projectName: string) {
   if (projectName !== "mobile-390") return page.getByRole("radiogroup", { name: "Barevný režim" });
@@ -27,9 +33,10 @@ test.beforeEach(async ({ page }) => {
 test("načte použitelný dashboard bez veřejných demo dat", async ({ page }) => { await expect(page.getByRole("heading", { name: "StudentHub Brno" })).toBeVisible(); await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Studentská burza", exact: true })).toBeVisible(); await expect(page.getByText("DEMO DATA")).toHaveCount(0); await expect(page.getByText(/Nezávislý projekt\. Není oficiálně spojený/)).toHaveCount(1); await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/brno$/); });
 
 test("filtruje ověřené akademické události", async ({ page }) => {
-  await page.goto("/brno/kalendar"); await openDirectoryFilters(page);
-  await page.getByLabel("Kategorie").last().selectOption("Zkouškové období");
-  await expect(page.getByText(/\d+ ověřených událostí/)).toBeVisible();
+  await page.goto("/brno/kalendar"); const filters = await openDirectoryFilters(page);
+  await filters.getByLabel("Kategorie").selectOption("Zkouškové období");
+  if (await filters.getAttribute("role") === "dialog") await filters.getByRole("button", { name: /Zobrazit \d+ událostí/ }).click();
+  await expect(page.locator(".result-count:visible").filter({ hasText: /ověřených událostí/ }).first()).toBeVisible();
   const fitEvent = page.getByRole("article").filter({ has: page.getByRole("heading", { name: /Zkouškové období zimního semestru FIT VUT/ }) }).last();
   await expect(fitEvent).toBeVisible();
   await expect(fitEvent.getByRole("link", { name: "Oficiální zdroj" })).toHaveAttribute("href", /^https:\/\//);
@@ -47,7 +54,7 @@ test("komunitní kalendář publikuje přes jednotný účet bez e-mailu ve form
   await expect(dialog.getByRole("heading", { name: "Akce je zveřejněná" })).toBeVisible(); await expect(dialog.getByRole("link", { name: "Otevřít moje akce" })).toHaveAttribute("href", "/brno/nastaveni#profil"); expect(submitted).toContain(title); expect(submitted).not.toMatch(/authorEmail|e2e@example|managementToken/i);
 });
 
-test("filtruje místa a vypnuté nabídky přesměrují bez prázdného bloku", async ({ page }) => { await page.goto("/brno/mista"); await openDirectoryFilters(page); await page.getByRole("region", { name: "Filtry míst" }).getByLabel("Kategorie").selectOption("Knihovna"); await expect(page.getByText("Ústřední knihovna VUT")).toBeVisible(); await expect(page.getByText("DEMO")).toHaveCount(0); await page.goto("/brno/nabidky?q=neexistujici-nabidka"); await expect(page).toHaveURL(/\/brno$/); await expect(page.getByRole("heading", { name: "Aktuální nabídky" })).toHaveCount(0); await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: /Nabídky/ })).toHaveCount(0); });
+test("filtruje místa a vypnuté nabídky přesměrují bez prázdného bloku", async ({ page }) => { await page.goto("/brno/mista"); const filters = await openDirectoryFilters(page); await filters.getByLabel("Kategorie").selectOption("Knihovna"); await expect(page.getByText("Ústřední knihovna VUT")).toBeVisible(); await expect(page.getByText("DEMO")).toHaveCount(0); await page.goto("/brno/nabidky?q=neexistujici-nabidka"); await expect(page).toHaveURL(/\/brno$/); await expect(page.getByRole("heading", { name: "Aktuální nabídky" })).toHaveCount(0); await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: /Nabídky/ })).toHaveCount(0); });
 
 test("migruje starou preferenci a resetuje ji na Brno", async ({ page }) => { await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.removeItem("studenthub-preference-v4"); localStorage.setItem("studenthub-preference-v1", JSON.stringify({ universityId: "muni", facultyId: "muni-fi", completed: true })); }); await page.reload(); await dismissOverlays(page); await expect(page.getByRole("heading", { name: "Přehled pro FI" })).toBeVisible(); const migrated = await page.evaluate(() => localStorage.getItem("studenthub-preference-v4")); expect(migrated).toContain('"version":4'); expect(migrated).toContain('"cityId":"brno"'); await page.goto("/nastaveni"); await page.getByRole("button", { name: "Resetovat město, školu a ročník" }).click(); await expect(page.getByRole("button", { name: "Výběr byl resetován" })).toBeVisible(); expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v4"))).toContain('"completed":false'); });
 
@@ -71,16 +78,17 @@ test("uložená preference MUNI FI filtruje KPI, termíny i místa bez URL param
 
 test("každé otevření kalendáře obnoví Moji fakultu, dočasný filtr ji nepřepíše", async ({ page }, testInfo) => {
   await page.evaluate(() => localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "brno", universityId: "vut", facultyId: "vut-fekt", studyYear: 2, studyYearCycleStart: 2026, completed: true })));
-  await page.goto("/brno/kalendar?university=muni&faculty=muni-fi"); await openDirectoryFilters(page);
-  await expect(page.getByLabel("Fakulta", { exact: true }).last()).toHaveValue("muni-fi");
-  await expect(page.getByLabel("Ročník", { exact: true }).last()).toHaveValue("");
-  await page.getByRole("button", { name: "Moje nastavení" }).click();
+  await page.goto("/brno/kalendar?university=muni&faculty=muni-fi"); const filters = await openDirectoryFilters(page);
+  await expect(filters.getByLabel("Fakulta", { exact: true })).toHaveValue("muni-fi");
+  await expect(filters.getByLabel("Ročník", { exact: true })).toHaveValue("");
+  await filters.getByRole("button", { name: "Moje nastavení" }).click();
   await expect(page).toHaveURL(/university=vut.*faculty=vut-fekt/);
   await expect(page).toHaveURL(/year=2/);
-  await expect(page.getByLabel("Ročník", { exact: true }).last()).toHaveValue("2");
-  await page.getByLabel("Univerzita").last().selectOption("muni");
-  await page.getByLabel("Fakulta", { exact: true }).last().selectOption("muni-fi");
-  await page.getByLabel("Ročník", { exact: true }).last().selectOption("3");
+  await expect(filters.getByLabel("Ročník", { exact: true })).toHaveValue("2");
+  await filters.getByLabel("Univerzita").selectOption("muni");
+  await filters.getByLabel("Fakulta", { exact: true }).selectOption("muni-fi");
+  await filters.getByLabel("Ročník", { exact: true }).selectOption("3");
+  if (testInfo.project.name !== "desktop-1440") await filters.getByRole("button", { name: /Zobrazit \d+ událostí/ }).click();
   const calendarLink = testInfo.project.name === "desktop-1440"
     ? page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Kalendář" })
     : page.getByRole("navigation", { name: "Mobilní navigace" }).getByRole("link", { name: "Termíny" });

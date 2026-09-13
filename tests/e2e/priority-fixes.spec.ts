@@ -15,14 +15,14 @@ async function filterButton(page: import("@playwright/test").Page) {
 test("mobilní filtry jsou sbalené, drží stav v URL a nepřekrývají navigaci", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-390");
   await page.goto("/brno/kalendar");
-  const calendarPanel = page.getByRole("region", { name: "Filtry událostí" });
-  await expect(calendarPanel).toBeHidden();
+  const calendarPanel = page.getByRole("dialog", { name: "Filtry" });
+  await expect(calendarPanel).toHaveCount(0);
   const calendarButton = await filterButton(page); await calendarButton.click(); await expect(calendarPanel).toBeVisible();
   await calendarPanel.getByLabel("Hledat termín").fill("FIT"); await expect(page).toHaveURL(/q=FIT/);
-  await calendarButton.click(); await expect(calendarPanel).toBeHidden(); await expect(calendarButton).toContainText("1");
+  await calendarPanel.getByRole("button", { name: /Zobrazit \d+ událostí/ }).click(); await expect(calendarPanel).toHaveCount(0); await expect(calendarButton).toContainText("1");
   await page.goto("/brno"); await page.goBack(); await expect(page).toHaveURL(/q=FIT/); await (await filterButton(page)).click(); await expect(calendarPanel.getByLabel("Hledat termín")).toHaveValue("FIT");
 
-  await page.goto("/brno/mista"); await expect(page.getByRole("region", { name: "Filtry míst" })).toBeHidden(); await expect(await filterButton(page)).toBeVisible();
+  await page.goto("/brno/mista"); await expect(page.getByRole("dialog", { name: "Filtry" })).toHaveCount(0); await expect(await filterButton(page)).toBeVisible();
   await page.goto("/brno/nabidky"); await expect(page).toHaveURL(/\/brno$/); await expect(page.getByRole("heading", { name: "Aktuální nabídky" })).toHaveCount(0);
   const overlap = await page.evaluate(() => { const nav = document.querySelector(".bottom-nav")!.getBoundingClientRect(); const main = document.querySelector("#hlavni-obsah")!.getBoundingClientRect(); return { navTop: nav.top, viewport: innerHeight, mainBottom: main.bottom }; });
   expect(overlap.navTop).toBeLessThanOrEqual(overlap.viewport);

@@ -33,13 +33,20 @@ test("odstraněné per-inzerátové ověření není veřejným obchvatem účtu
   expect([401, 503]).toContain(invalid.status());
 });
 
-test("burza, filtry a přihlašovací brána jsou responzivní na telefonu, tabletu i počítači", async ({ page }, testInfo) => {
+test("burza, filtry a přihlašovací brána jsou responzivní na telefonu, tabletu i počítači", async ({ page }) => {
   await page.goto("/brno/burza");
   await expect(page.getByRole("heading", { name: "Studentská burza" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
-  const filters = page.locator("details.marketplace-filters");
-  if (testInfo.project.name === "mobile-390") { await expect(filters).not.toHaveAttribute("open", ""); await filters.getByText(/Filtrovat/).click(); await expect(filters).toHaveAttribute("open", ""); }
-  else await expect(filters).toHaveAttribute("open", "");
+  if ((page.viewportSize()?.width || 0) <= 860) {
+    const trigger = page.getByRole("button", { name: /^Filtry/ });
+    await trigger.click();
+    await expect(page.getByRole("dialog", { name: "Filtry" })).toBeVisible();
+    await page.getByRole("button", { name: /Zobrazit .* inzerátů/ }).click();
+    await expect(page.getByRole("dialog", { name: "Filtry" })).toBeHidden();
+  } else {
+    await expect(page.locator(".marketplace-filter-sidebar")).toBeVisible();
+    await expect(page.locator("details.marketplace-filters")).toHaveCount(0);
+  }
   await page.goto("/brno/burza/novy");
   await expect(page.getByRole("heading", { name: "Přihlásit se e-mailem" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);

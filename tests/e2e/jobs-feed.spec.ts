@@ -49,14 +49,18 @@ test("vykreslí bezpečné karty feedu a přesné odchozí CTA bez overflow", as
 });
 
 test("filtruje text, obor, rozsah, lokalitu, typ odměny a pouze hodinovou sazbu", async ({ page }) => {
-  const filterButton = page.getByRole("button", { name: /^Filtry/ }); if (await filterButton.isVisible()) await filterButton.click();
-  await page.getByPlaceholder("Pozice, firma, lokalita…").fill("kuchyni"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await page.getByPlaceholder("Pozice, firma, lokalita…").fill("");
-  await page.getByLabel("Obor").selectOption("IT"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await page.getByLabel("Obor").selectOption("Všechny");
-  await page.getByLabel("Rozsah práce").selectOption("Plný úvazek"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await page.getByLabel("Rozsah práce").selectOption("Všechny");
-  await page.getByLabel("Lokalita").fill("Brno-střed"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await page.getByLabel("Lokalita").fill("");
-  await page.getByLabel("Typ odměny").selectOption("month"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await page.getByLabel("Typ odměny").selectOption("all");
-  await page.getByLabel("Minimální hodinová odměna").fill("230"); await expect(page.getByRole("heading", { name: "E2E technická podpora" })).toHaveCount(0); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(2);
-  await page.getByRole("checkbox", { name: /jiné typy odměny/ }).uncheck(); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(0);
+  const filterButton = page.getByRole("button", { name: /^Filtry/ });
+  if (await filterButton.isVisible()) await filterButton.click();
+  const filters = await page.getByRole("dialog", { name: "Filtry" }).isVisible().catch(() => false)
+    ? page.getByRole("dialog", { name: "Filtry" })
+    : page.getByRole("region", { name: "Filtry brigád" });
+  await filters.getByPlaceholder("Pozice, firma, lokalita…").fill("kuchyni"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await filters.getByPlaceholder("Pozice, firma, lokalita…").fill("");
+  await filters.getByLabel("Obor").selectOption("IT"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await filters.getByLabel("Obor").selectOption("Všechny");
+  await filters.getByLabel("Rozsah práce").selectOption("Plný úvazek"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await filters.getByLabel("Rozsah práce").selectOption("Všechny");
+  await filters.getByLabel("Lokalita").fill("Brno-střed"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await filters.getByLabel("Lokalita").fill("");
+  await filters.getByLabel("Typ odměny").selectOption("month"); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(1); await filters.getByLabel("Typ odměny").selectOption("all");
+  await filters.getByLabel("Minimální hodinová odměna").fill("230"); await expect(page.getByRole("heading", { name: "E2E technická podpora" })).toHaveCount(0); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(2);
+  await filters.getByRole("checkbox", { name: /jiné typy odměny/ }).uncheck(); await expect(page.locator('[data-job-provider="fajn-brigady"]')).toHaveCount(0);
 });
 
 test("stav konektoru není dostupný bez Supabase administrační relace", async ({ page, request }) => {

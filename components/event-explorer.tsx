@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AcademicEvent, StudyYear } from "@/lib/types";
 import { formatDate, formatDayNumber, formatPragueTimestamp, formatShortMonth } from "@/lib/format";
 import { useAcademicCatalog } from "@/components/academic-catalog-provider";
-import { MobileFilterToolbar } from "@/components/mobile-filter-toolbar";
+import { MobileFilterDialog, MobileFilterToolbar } from "@/components/mobile-filter-toolbar";
 import { calendarPreferenceRequestedEvent, useStudentPreference } from "@/lib/client-preferences";
 import { googleCalendarUrl } from "@/lib/calendar-export";
 import { includesFolded } from "@/lib/search";
@@ -112,9 +112,7 @@ export function EventExplorer({ events, initialUniversityId = "", initialFaculty
     return <section className="event-result-group" aria-labelledby={`event-group-${status}`}><div className="result-group-heading"><h2 id={`event-group-${status}`}>{title}</h2><span>{items.length}</span></div>{items.map(renderEventCard)}</section>;
   }
 
-  return <>
-    <MobileFilterToolbar open={filtersOpen} activeCount={activeFilterCount} onToggle={() => setFiltersOpen((value) => !value)} onReset={resetFilters} controlsId="calendar-filters" />
-    <section id="calendar-filters" className={`filter-panel collapsible-filter-panel ${filtersOpen ? "is-open" : ""}`} aria-label="Filtry událostí">
+  const filterControls = <>
       <label className="search-field"><span>Hledat termín</span><div><Search size={17} /><input value={query} onChange={(event) => changeQuery(event.target.value)} placeholder="Např. zkouškové…" /></div></label>
       <label><span>Kategorie</span><div className="select-wrap"><select aria-label="Kategorie" value={category} onChange={(event) => changeCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={16} /></div></label>
       <label><span>Univerzita</span><div className="select-wrap"><select aria-label="Univerzita" value={universityId} onChange={(event) => changeScope(event.target.value, "")}><option value="">Všechny školy</option>{availableUniversities.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><ChevronDown size={16} /></div></label>
@@ -122,7 +120,11 @@ export function EventExplorer({ events, initialUniversityId = "", initialFaculty
       <label><span>Ročník</span><div className="select-wrap"><select aria-label="Ročník" value={studyYear || ""} onChange={(event) => changeScope(universityId, facultyId, event.target.value ? Number(event.target.value) as StudyYear : undefined)}><option value="">Všechny ročníky</option>{studyYears.map((year) => <option key={year} value={year}>{year}. ročník</option>)}</select><ChevronDown size={16} /></div></label>
       <label className="checkbox-row"><input type="checkbox" checked={showEnded} onChange={(event) => changeEnded(event.target.checked)} /><span>Zobrazit ukončené</span></label>
       <div className="filter-actions"><button className="button button-secondary" type="button" onClick={resetFilters}><RotateCcw size={16} />Resetovat filtry</button>{hasPreferredScope && <button className="button button-secondary" type="button" onClick={applyPreferredScope}><School size={16} />Moje nastavení</button>}<Link className="button button-secondary" href="/brno/nastaveni"><Settings2 size={16} />Změnit nastavení</Link><a className="button button-secondary" href={`/api/calendar/all.ics?${exportQuery}`}><FileDown size={16} />Exportovat výběr</a><LiveCalendarSubscribe scope={{ cityId, universityId: universityId || undefined, facultyId: facultyId || undefined, studyYear, category: category === allCategories ? undefined : category }} /></div>
-    </section>
+  </>;
+  return <>
+    <MobileFilterToolbar open={filtersOpen} activeCount={activeFilterCount} onToggle={() => setFiltersOpen(true)} controlsId="calendar-mobile-filters" />
+    <section className="filter-panel responsive-filter-desktop" aria-label="Filtry událostí">{filterControls}</section>
+    <MobileFilterDialog open={filtersOpen} activeCount={activeFilterCount} onClose={() => setFiltersOpen(false)} onReset={resetFilters} controlsId="calendar-mobile-filters" applyLabel={`Zobrazit ${visibleCount} událostí`}>{filterControls}</MobileFilterDialog>
     <div className="trust-note"><ShieldCheck size={18} /><p>Stav události vychází z jejího termínu. Čerstvost zdroje zvlášť říká, kdy byl veřejný zdroj naposledy ověřen.</p></div>
     {studyYear && !hasScopedYearData && <div className="info-state" role="status">Pro tento výběr zatím zdroje nerozlišují jednotlivé ročníky. Zobrazené termíny platí společně pro všechny ročníky.</div>}
     {shareNotice && <div className="success-message" role="status">{shareNotice}</div>}

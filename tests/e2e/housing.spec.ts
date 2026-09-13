@@ -55,7 +55,8 @@ test("mobilní filtry používají jediný přístupný modal a vracejí focus",
   await trigger.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  expect(await page.locator('dialog[open]').count()).toBe(1);
+  await expect(page.locator('body[data-filter-scroll-locked="true"]')).toHaveCount(1);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();

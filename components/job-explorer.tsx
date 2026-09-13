@@ -10,7 +10,7 @@ import { jobSubmissionSchema, type JobSubmissionInput } from "@/lib/schemas";
 import { useStudentPreference } from "@/lib/client-preferences";
 import { useModalDialog } from "@/lib/use-modal-dialog";
 import { formatJobReward } from "@/lib/job-rewards";
-import { MobileFilterToolbar } from "@/components/mobile-filter-toolbar";
+import { MobileFilterDialog, MobileFilterToolbar } from "@/components/mobile-filter-toolbar";
 import { LegalNotice } from "@/components/legal-links";
 
 const all = "Všechny";
@@ -54,9 +54,7 @@ export function JobExplorer({ items }: { items: Job[] }) {
       void fetch("/api/clicks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetType: "job", targetId: job.id, destinationHost: new URL(job.applyUrl).hostname, universityId: preference.universityId, facultyId: preference.facultyId, referralCode: sessionStorage.getItem("studenthub-referral") }) }).catch(() => undefined);
     } catch { /* Odchod na původní inzerát nesmí být blokován měřením. */ }
   }
-  return <>
-    <MobileFilterToolbar open={filtersOpen} activeCount={activeCount} onToggle={() => setFiltersOpen((open) => !open)} onReset={resetFilters} controlsId="job-filter-controls" />
-    <section id="job-filter-controls" className={`filter-panel job-filters collapsible-filter-panel ${filtersOpen ? "is-open" : ""}`}>
+  const filterControls = <>
       <label className="search-field"><span>Hledat brigádu</span><div><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pozice, firma, lokalita…" /></div></label>
       <label><span>Obor</span><div className="select-wrap"><select value={field} onChange={(event) => setField(event.target.value)}><option>{all}</option>{[...new Set(items.map((job) => job.field))].map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={16} /></div></label>
       <label><span>Typ práce</span><div className="select-wrap"><select value={workType} onChange={(event) => setWorkType(event.target.value)}><option>{all}</option>{workTypeOptions.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown size={16} /></div></label>
@@ -66,7 +64,11 @@ export function JobExplorer({ items }: { items: Job[] }) {
       <label><span>Řazení</span><div className="select-wrap"><select value={sort} onChange={(event) => setSort(event.target.value as "verified" | "reward")}><option value="verified">Nejnověji ověřené</option><option value="reward">Nejvyšší hodinová odměna</option></select><ChevronDown size={16} /></div></label>
       <label><span>{minReward ? `Min. hodinová odměna: ${minReward} Kč` : "Bez minimální hodinové odměny"}</span><input aria-label="Minimální hodinová odměna" type="range" min="0" max="300" step="10" value={minReward} onChange={(event) => setMinReward(Number(event.target.value))} /></label>
       <label className="checkbox-field job-unknown-reward"><input type="checkbox" checked={includeUnspecified} onChange={(event) => setIncludeUnspecified(event.target.checked)} /><span>Zahrnout jiné typy odměny nebo neuvedenou sazbu</span></label>
-    </section>
+  </>;
+  return <>
+    <MobileFilterToolbar open={filtersOpen} activeCount={activeCount} onToggle={() => setFiltersOpen(true)} controlsId="job-mobile-filters" />
+    <section className="filter-panel job-filters responsive-filter-desktop" aria-label="Filtry brigád">{filterControls}</section>
+    <MobileFilterDialog open={filtersOpen} activeCount={activeCount} onClose={() => setFiltersOpen(false)} onReset={resetFilters} controlsId="job-mobile-filters" bodyClassName="job-filters" applyLabel={`Zobrazit ${filtered.length} brigád`}>{filterControls}</MobileFilterDialog>
     <div className="result-toolbar"><div className="result-count"><strong>{filtered.length}</strong> {filtered.length === 1 ? "schválená brigáda" : "schválených brigád"}</div><button className="button button-secondary" onClick={() => setShowProposal(true)}>Navrhnout brigádu</button></div>
     <section className="job-list" aria-live="polite">{filtered.length === 0 ? <div className="empty-state"><BriefcaseBusiness size={28} /><h2>{items.length ? "Filtrům neodpovídá žádná brigáda" : "Zatím nemáme ověřené brigády"}</h2><p>{items.length ? "Zkuste změnit nebo resetovat filtry." : <>Firma může poslat nabídku ke schválení. Další inzeráty najdete také na <a href="https://www.fajn-brigady.cz/vysledek.html?s_sekce=1&amp;id_lokality=okres-3702" target="_blank" rel="noopener noreferrer">Fajn-brigády.cz</a>.</>}</p></div> : filtered.map((job) => {
       const providerJob = job.providerKey === "fajn-brigady"; const hasLongDescription = job.description.length > 360;

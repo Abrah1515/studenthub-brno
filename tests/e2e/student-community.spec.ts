@@ -14,7 +14,13 @@ test("komunitní feed má bezpečný prázdný stav, filtry a nepřetéká", asy
   await expect(page.getByText("Komunita zatím čeká na první příspěvek")).toBeVisible();
   await expect(page.getByRole("button", { name: "Nejnovější" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Oblíbené" })).toBeVisible();
-  await expect(page.getByLabel("Univerzita", { exact: true })).toBeVisible();
+  const filterButton = page.locator("#hlavni-obsah").getByRole("button", { name: /^Filtry/ }).first();
+  if (await filterButton.isVisible()) {
+    await filterButton.click();
+    await expect(page.getByRole("dialog", { name: "Filtry" }).getByLabel("Univerzita", { exact: true })).toBeVisible();
+  } else {
+    await expect(page.locator("details.community-filters").getByLabel("Univerzita", { exact: true })).toBeVisible();
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
 });
 
