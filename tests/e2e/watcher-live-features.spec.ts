@@ -138,6 +138,9 @@ test("telefonní menu obsahuje jen doplňkové funkce v určeném pořadí", asy
     "Kontakt",
     "Administrace",
   ]);
+  const utilityHeights = await utility.locator(":scope > *").evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
+  expect(utilityHeights.every((height) => height === 44)).toBe(true);
+  expect((await utility.boundingBox())!.height).toBeLessThanOrEqual(145);
   await expect(menu.getByRole("link", { name: "Ochrana osobních údajů" })).toHaveCount(0);
   await expect(menu.getByRole("link", { name: "Cookies", exact: true })).toHaveCount(0);
   await expect(menu.getByRole("link", { name: "Podmínky a pravidla" })).toHaveCount(0);
@@ -160,6 +163,8 @@ test("pomocná mřížka je konzistentní na desktopu a tabletu a právní odkaz
   expect(await utility.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(2);
   const heights = await utility.locator(":scope > *").evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
   expect(new Set(heights).size).toBe(1);
+  expect(heights.every((height) => height === (testInfo.project.name === "tablet-768" ? 44 : 22))).toBe(true);
+  expect((await utility.boundingBox())!.height).toBeLessThanOrEqual(testInfo.project.name === "tablet-768" ? 145 : 77);
   const textOverflow = await utility.locator(":scope > * > span").evaluateAll((items) => items.map((item) => item.scrollWidth - item.clientWidth));
   expect(Math.max(...textOverflow)).toBeLessThanOrEqual(0);
   await expect(utility.getByRole("link", { name: "Změnit město" })).toHaveAttribute("href", "/");

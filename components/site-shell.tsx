@@ -89,12 +89,12 @@ const auxiliaryTourIds = {
 function AuxiliaryNavigation({ variant, close, returnFocus, className }: { variant: AuxiliaryNavigationVariant; close?: () => void; returnFocus?: () => HTMLElement | null; className?: string }) {
   const tourIds = auxiliaryTourIds[variant];
   return <nav className={classNames("sidebar-utility", className)} aria-label="Doplňkové odkazy">
-    <Link href="/" onClick={close} data-tour-id={tourIds.changeCity}><MapPinned size={17} aria-hidden="true" /><span>Změnit město</span></Link>
-    <Link href="/o-projektu" onClick={close} data-tour-id={tourIds.about}><Info size={17} aria-hidden="true" /><span>O projektu</span></Link>
+    <Link href="/" onClick={close} data-tour-id={tourIds.changeCity}><MapPinned size={15} aria-hidden="true" /><span>Změnit město</span></Link>
+    <Link href="/o-projektu" onClick={close} data-tour-id={tourIds.about}><Info size={15} aria-hidden="true" /><span>O projektu</span></Link>
     <PwaInstallButton onBeforeOpen={close} returnFocus={returnFocus} tourId={tourIds.install} />
-    <button type="button" onClick={() => { close?.(); window.dispatchEvent(new Event(openTutorialEvent)); }}><BookOpen size={17} aria-hidden="true" /><span>Návod</span></button>
-    <Link href="/kontakt" onClick={close} data-tour-id={tourIds.contact}><Mail size={17} aria-hidden="true" /><span>Kontakt</span></Link>
-    <Link className="sidebar-utility-admin" href="/admin" onClick={close} data-tour-id={tourIds.admin}><ShieldCheck size={17} aria-hidden="true" /><span>Administrace</span></Link>
+    <button type="button" onClick={() => { close?.(); window.dispatchEvent(new Event(openTutorialEvent)); }}><BookOpen size={15} aria-hidden="true" /><span>Návod</span></button>
+    <Link href="/kontakt" onClick={close} data-tour-id={tourIds.contact}><Mail size={15} aria-hidden="true" /><span>Kontakt</span></Link>
+    <Link className="sidebar-utility-admin" href="/admin" onClick={close} data-tour-id={tourIds.admin}><ShieldCheck size={15} aria-hidden="true" /><span>Administrace</span></Link>
   </nav>;
 }
 

@@ -173,10 +173,11 @@ button { color: inherit; }
 .sidebar-note { margin-top: auto; padding: 14px; display: flex; align-items: flex-start; gap: 9px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .sidebar-note svg { flex: 0 0 auto; color: var(--accent); }
 .sidebar-note p { margin: 0; }
-.sidebar-utility { margin-top: 12px; padding-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
-.sidebar-utility > :is(a, button) { width: 100%; min-width: 0; height: 58px; padding: 7px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; overflow: hidden; border: 1px solid transparent; border-radius: 7px; background: transparent; color: inherit; font: inherit; font-weight: 720; line-height: 1.1; text-align: center; white-space: nowrap; cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
+.sidebar-utility { margin-top: 4px; padding-top: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 4px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.sidebar-utility > :is(a, button) { width: 100%; min-width: 0; height: 22px; padding: 1px 2px; display: flex; align-items: center; justify-content: center; gap: 4px; overflow: hidden; border: 1px solid transparent; border-radius: 5px; background: transparent; color: inherit; font: inherit; font-weight: 650; line-height: 1; text-align: center; white-space: nowrap; cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
 .sidebar-utility > :is(a, button) svg { flex: 0 0 auto; color: var(--accent); }
 .sidebar-utility > :is(a, button) span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-utility > .pwa-install-link { gap: 2px; font-size: 10px; letter-spacing: -.07em; }
 .sidebar-utility > :is(a, button):hover { border-color: var(--line); background: var(--surface-2); color: var(--ink); }
 .sidebar-utility > :is(a, button):disabled { cursor: default; opacity: .65; }
 .sidebar-utility > .sidebar-utility-admin { color: color-mix(in srgb, var(--muted) 78%, transparent); }
@@ -319,6 +320,7 @@ button { color: inherit; }
   .floating-help span { display: none; }
   .footer { padding-bottom: 92px; }
   .consent-panel { grid-template-columns: 40px 1fr; }
+  .sidebar-utility > :is(a, button) { height: 44px; }
 }
 
 .mobile-menu-layer { position: fixed; inset: 0; z-index: 2000; }
@@ -1029,7 +1031,7 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
   .legal-definition > div { grid-template-columns: 1fr; gap: 2px; }
   .legal-contact { align-items: flex-start; }
 }
-@media (max-width: 340px) {
+@media (max-width: 280px) {
   .mobile-menu-panel .phone-menu-extras { grid-template-columns: 1fr; }
 }
 
