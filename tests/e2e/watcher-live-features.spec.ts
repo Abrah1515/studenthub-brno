@@ -126,17 +126,59 @@ test("telefonní menu obsahuje jen doplňkové funkce v určeném pořadí", asy
     "Bydlení",
     "Hlídač",
     "Moje škola a profil",
+    "Nastavení vzhleduPodle zařízeníSvětlý režimTmavý režim",
+  ]);
+  const utility = menu.getByRole("navigation", { name: "Doplňkové odkazy" });
+  const utilityLabels = await utility.locator(":scope > *").allTextContents();
+  expect(utilityLabels.map((value) => value.replace(/\s+/g, " ").trim())).toEqual([
     "Změnit město",
+    "O projektu",
     "Nainstalovat aplikaci",
     "Návod",
-    "Nastavení vzhleduPodle zařízeníSvětlý režimTmavý režim",
-    "O projektu",
     "Kontakt",
     "Administrace",
-    "Ochrana osobních údajůCookiesPodmínky a pravidla",
   ]);
+  await expect(menu.getByRole("link", { name: "Ochrana osobních údajů" })).toHaveCount(0);
+  await expect(menu.getByRole("link", { name: "Cookies", exact: true })).toHaveCount(0);
+  await expect(menu.getByRole("link", { name: "Podmínky a pravidla" })).toHaveCount(0);
   await expect(menu.getByRole("link", { name: "Přehled", exact: true })).toHaveCount(0);
   await expect(menu.getByRole("link", { name: "Místa", exact: true })).toHaveCount(0);
+  await utility.getByRole("link", { name: "Kontakt" }).click();
+  await expect(menu).toBeHidden();
+  await expect(page).toHaveURL(/\/kontakt$/);
+});
+
+test("pomocná mřížka je konzistentní na desktopu a tabletu a právní odkazy zůstávají v patičce", async ({ page, request }, testInfo) => {
+  const expected = ["Změnit město", "O projektu", "Nainstalovat aplikaci", "Návod", "Kontakt", "Administrace"];
+  if (testInfo.project.name === "mobile-390") test.skip();
+  if (testInfo.project.name === "tablet-768") await page.getByRole("button", { name: "Otevřít nabídku" }).click();
+  const scope = testInfo.project.name === "tablet-768" ? page.getByRole("dialog", { name: "Mobilní nabídka" }) : page.locator(".desktop-sidebar");
+  const utility = scope.getByRole("navigation", { name: "Doplňkové odkazy" });
+  await expect(utility).toBeVisible();
+  const labels = await utility.locator(":scope > *").allTextContents();
+  expect(labels.map((value) => value.replace(/\s+/g, " ").trim())).toEqual(expected);
+  expect(await utility.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(2);
+  const heights = await utility.locator(":scope > *").evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
+  expect(new Set(heights).size).toBe(1);
+  const textOverflow = await utility.locator(":scope > * > span").evaluateAll((items) => items.map((item) => item.scrollWidth - item.clientWidth));
+  expect(Math.max(...textOverflow)).toBeLessThanOrEqual(0);
+  await expect(utility.getByRole("link", { name: "Změnit město" })).toHaveAttribute("href", "/");
+  await expect(utility.getByRole("link", { name: "O projektu" })).toHaveAttribute("href", "/o-projektu");
+  await expect(utility.getByRole("link", { name: "Kontakt" })).toHaveAttribute("href", "/kontakt");
+  await expect(utility.getByRole("link", { name: "Administrace" })).toHaveAttribute("href", "/admin");
+  await expect(scope.getByRole("link", { name: "Ochrana osobních údajů" })).toHaveCount(0);
+  await expect(scope.getByRole("link", { name: "Cookies", exact: true })).toHaveCount(0);
+  await expect(scope.getByRole("link", { name: "Podmínky a pravidla" })).toHaveCount(0);
+
+  for (const path of ["/soukromi", "/cookies", "/podminky"]) {
+    expect((await request.get(path)).status()).toBe(200);
+  }
+  if (testInfo.project.name === "desktop-1440") {
+    const footer = page.locator("footer");
+    await expect(footer.getByRole("link", { name: "Ochrana osobních údajů" })).toBeVisible();
+    await expect(footer.getByRole("link", { name: "Cookies", exact: true })).toBeVisible();
+    await expect(footer.getByRole("link", { name: "Podmínky a pravidla" })).toBeVisible();
+  }
 });
 
 test("oblíbený a sledovaný termín zůstane v Hlídači i bez registrace", async ({ page }, testInfo) => {

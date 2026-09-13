@@ -128,6 +128,7 @@ export function PwaInstallButton({ placement = "menu", onBeforeOpen, returnFocus
   const buttonRef = useRef<HTMLButtonElement>(null);
   if (!context) return null;
   const label = context.ready && context.installed ? "Aplikace je nainstalovaná" : "Nainstalovat aplikaci";
+  const visibleLabel = context.ready && context.installed && placement === "menu" ? "Nainstalováno" : label;
   const Icon = context.ready && context.installed ? CheckCircle2 : Download;
-  return <button ref={buttonRef} type="button" className={placement === "action" ? "button button-secondary pwa-install-action" : "pwa-install-link"} disabled={context.ready && context.installed} aria-label={label} data-tour-id={tourId} onClick={() => void context.openInstall(onBeforeOpen, returnFocus || (() => buttonRef.current))}><Icon size={placement === "action" ? 18 : 14} aria-hidden="true" />{label}</button>;
+  return <button ref={buttonRef} type="button" className={placement === "action" ? "button button-secondary pwa-install-action" : "pwa-install-link"} disabled={context.ready && context.installed} aria-label={label} data-tour-id={tourId} onClick={() => void context.openInstall(onBeforeOpen, returnFocus || (() => buttonRef.current))}><Icon size={placement === "action" ? 18 : 14} aria-hidden="true" /><span>{visibleLabel}</span></button>;
 }

@@ -173,8 +173,14 @@ button { color: inherit; }
 .sidebar-note { margin-top: auto; padding: 14px; display: flex; align-items: flex-start; gap: 9px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .sidebar-note svg { flex: 0 0 auto; color: var(--accent); }
 .sidebar-note p { margin: 0; }
-.sidebar-legal { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 14px 6px 2px; color: var(--muted); font-size: 11px; }
-.sidebar-legal button { padding: 0; display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }.sidebar-legal a:hover, .sidebar-legal button:hover, .pwa-install-link:hover:not(:disabled) { color: var(--ink); }
+.sidebar-utility { margin-top: 12px; padding-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+.sidebar-utility > :is(a, button) { width: 100%; min-width: 0; height: 58px; padding: 7px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; overflow: hidden; border: 1px solid transparent; border-radius: 7px; background: transparent; color: inherit; font: inherit; font-weight: 720; line-height: 1.1; text-align: center; white-space: nowrap; cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
+.sidebar-utility > :is(a, button) svg { flex: 0 0 auto; color: var(--accent); }
+.sidebar-utility > :is(a, button) span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-utility > :is(a, button):hover { border-color: var(--line); background: var(--surface-2); color: var(--ink); }
+.sidebar-utility > :is(a, button):disabled { cursor: default; opacity: .65; }
+.sidebar-utility > .sidebar-utility-admin { color: color-mix(in srgb, var(--muted) 78%, transparent); }
+.phone-menu-extras { display: none; }
 .pwa-install-link { min-height: 20px; padding: 0; display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .pwa-install-link:disabled { opacity: .65; cursor: default; }
 .main-column { min-height: 100vh; margin-left: var(--sidebar); display: flex; flex-direction: column; }
@@ -626,7 +632,6 @@ button { color: inherit; }
 .phone-extra-nav { display: none; }
 .mobile-theme-block { padding: 10px 12px; display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 8px; }
 .mobile-theme-block > strong { font-size: 10px; }
-.install-nav-item .pwa-install-link { width: 100%; min-height: 42px; gap: 12px; font-weight: 650; }
 .watcher-badge { min-width: 19px; height: 19px; margin-left: auto; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 999px; background: var(--danger); color: #fff; font-size: 9px; font-weight: 900; }
 .saved-event-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .saved-event-actions .is-active, .card-actions > .is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
@@ -666,6 +671,7 @@ button { color: inherit; }
 @media (max-width: 767px) {
   .mobile-menu-panel .tablet-full-nav, .mobile-menu-panel .tablet-menu-extras { display: none; }
   .mobile-menu-panel .phone-extra-nav { display: grid; gap: 4px; margin-top: 18px; }
+  .mobile-menu-panel .phone-menu-extras { display: grid; }
   .phone-extra-nav > .nav-link { width: 100%; border: 0; text-align: left; }
   .theme-switcher.topbar-theme { display: none; }
   .topbar-help { width: 42px; padding: 0; display: inline-flex; }.topbar-help span { display: none; }
@@ -1012,7 +1018,6 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
 .legal-links button, .legal-inline-button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .legal-inline-button { color: var(--accent); }
 .legal-notice { margin: 10px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
-.mobile-legal-links { padding: 10px 12px; border-top: 1px solid var(--line); }
 .city-selection-footer { display: grid; justify-items: center; gap: 8px; }
 .city-selection-footer p { margin: 0; }
 
@@ -1023,6 +1028,9 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
   .legal-card { padding: 18px 15px; }
   .legal-definition > div { grid-template-columns: 1fr; gap: 2px; }
   .legal-contact { align-items: flex-start; }
+}
+@media (max-width: 340px) {
+  .mobile-menu-panel .phone-menu-extras { grid-template-columns: 1fr; }
 }
 
 @media print {
