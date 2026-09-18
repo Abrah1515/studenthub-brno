@@ -45,7 +45,8 @@ export async function getCurrentAccount(): Promise<AccountProfile | null> {
   if (!user || !isSupabaseConfigured()) return null;
   const { data } = await createServiceClient().from("profiles").select("*").eq("id", user.id).maybeSingle();
   if (!data) return null;
-  const status = String(data.account_status || (data.is_blocked ? "suspended" : "active")) as AccountProfile["accountStatus"];
+  const status: AccountProfile["accountStatus"] = data.account_status === "deleted" ? "deleted"
+    : data.is_blocked || data.account_status !== "active" ? "suspended" : "active";
   const username = data.username ? String(data.username) : null;
   const displayName = String(data.display_name || "Student");
   const accepted = Boolean(data.community_rules_accepted_at);

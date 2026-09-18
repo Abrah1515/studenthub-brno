@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(38);
+      expect(files).toHaveLength(39);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -269,6 +269,10 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
 
       await db.exec("update public.profiles set username='chat_target',display_name='Chat Target',community_rules_accepted_at=now(),account_status='active',allow_chat_requests=true where id='71111111-1111-4111-8111-111111111111'");
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111114"]); await db.exec("set role authenticated");
+      // RPC parameters are untrusted: callers cannot weaken the persisted quota.
+      expect((await db.query<{ allowed:boolean }>("select public.consume_chat_rate_limit('message',2147483647,1) as allowed")).rows[0].allowed).toBe(false);
+      expect((await db.query<{ allowed:boolean }>("select public.consume_chat_rate_limit('report',null,null) as allowed")).rows[0].allowed).toBe(false);
+      await expect(db.query("select public.chat_profiles_blocked($1,$2)", ["71111111-1111-4111-8111-111111111111", "71111111-1111-4111-8111-111111111112"])).rejects.toThrow(/permission denied/i);
       const chatRequest = await db.query<{ start_chat_request: string }>("select public.start_chat_request($1::uuid,'buddy_post',$2::uuid,$3,$4::uuid)", ["71111111-1111-4111-8111-111111111111", "91111111-1111-4111-8111-111111111111", "Ahoj, ozývám se kvůli společnému učení.", "d1111111-1111-4111-8111-111111111111"]);
       const chatId = chatRequest.rows[0].start_chat_request;
       await expect(db.query("select public.send_chat_message($1::uuid,$2,$3::uuid)", [chatId, "Druhá zpráva před přijetím nesmí projít.", "d1111111-1111-4111-8111-111111111112"])).rejects.toThrow(/one_message_only/i);
@@ -277,6 +281,9 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111111"]); await db.exec("set role authenticated");
       await db.query("select public.send_chat_message($1::uuid,$2,$3::uuid)", [chatId, "Ahoj, odpovědí žádost přijímám.", "d1111111-1111-4111-8111-111111111113"]);
       expect((await db.query<{ status: string }>("select status from public.chat_conversations where id=$1", [chatId])).rows[0].status).toBe("active");
+      await db.exec("reset role; select set_config('request.jwt.claim.role','service_role',false); update public.profiles set is_blocked=true where id='71111111-1111-4111-8111-111111111114'; select set_config('request.jwt.claim.role','',false); set role authenticated");
+      await expect(db.query("select public.send_chat_message($1,$2,$3)", [chatId, "Recipient is blocked even with an active status", "d1111111-1111-4111-8111-111111111119"])).rejects.toThrow(/recipient_unavailable/);
+      await db.exec("reset role; select set_config('request.jwt.claim.role','service_role',false); update public.profiles set is_blocked=false where id='71111111-1111-4111-8111-111111111114'; select set_config('request.jwt.claim.role','',false); set role authenticated");
       await db.exec("insert into public.profile_blocks(blocker_id,blocked_id) values ('71111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111114')");
       expect((await db.query<{ status: string }>("select status from public.chat_conversations where id=$1", [chatId])).rows[0].status).toBe("restricted");
       await expect(db.query("select public.send_chat_message($1::uuid,$2,$3::uuid)", [chatId, "Blokovaná zpráva nesmí projít.", "d1111111-1111-4111-8111-111111111114"])).rejects.toThrow(/blocked/i);

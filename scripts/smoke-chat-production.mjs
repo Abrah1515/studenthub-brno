@@ -19,16 +19,19 @@ if (confirmation !== "studenthub-brno") throw new Error("Pro vědomý produkčn�
 
 const service = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
-const password = `Smoke-${randomUUID()}-Aa1!`;
 const createdIds = [];
 
 async function createSyntheticUser(label) {
+  const password = `Smoke-${randomUUID()}-Aa1!`;
   const email = `studenthub-chat-smoke-${label}-${suffix}@example.com`;
   const result = await service.auth.admin.createUser({ email, password, email_confirm: true });
   if (result.error || !result.data.user) throw result.error || new Error("Syntetický účet se nepodařilo vytvořit.");
   const id = result.data.user.id; createdIds.push(id);
   const profile = await service.from("profiles").update({
     username: `smoke_${label}_${suffix}`, display_name: `Smoke ${label}`,
+    city_id: "brno", university_id: label === "recipient" ? "muni" : "vut",
+    faculty_id: label === "recipient" ? "muni-fi" : "vut-fekt",
+    study_year: label === "recipient" ? 2 : 1, bio: "Dočasný kontrolovaný QA účet. Po testu bude odstraněn.",
     profile_visibility: "public", account_status: "active", is_blocked: false,
     community_rules_accepted_at: new Date().toISOString(), allow_chat_requests: true,
   }).eq("id", id);
@@ -43,6 +46,13 @@ try {
   const initiator = await createSyntheticUser("initiator");
   const recipient = await createSyntheticUser("recipient");
   const outsider = await createSyntheticUser("outsider");
+  const anonymous = createClient(url, anonKey, { auth: { persistSession: false } });
+  for (const client of [anonymous, outsider.client]) {
+    const privateLookup = await client.rpc("chat_profiles_blocked", { first_profile: initiator.id, second_profile: recipient.id });
+    if (!privateLookup.error) throw new Error("Soukromý lookup blokování je veřejně volatelný.");
+  }
+  const forgedLimit = await initiator.client.rpc("consume_chat_rate_limit", { target_action: "message", target_limit: 2147483647, target_window_seconds: 1 });
+  if (forgedLimit.error || forgedLimit.data !== false) throw new Error("RPC přijalo podvrženou politiku rate limitu.");
   const firstNonce = randomUUID();
   const started = await initiator.client.rpc("start_chat_request", {
     target_profile: recipient.id, target_context_type: "profile", target_context_id: recipient.id,
@@ -64,8 +74,27 @@ try {
   const active = await service.from("chat_conversations").select("status").eq("id", conversationId).single();
   if (active.error || active.data.status !== "active") throw active.error || new Error("Odpověď nepřevedla žádost do aktivního stavu.");
 
-  const continued = await initiator.client.rpc("send_chat_message", { target_conversation: conversationId, message_body: "Běžná zpráva po přijetí.", message_nonce: randomUUID() });
-  if (continued.error) throw continued.error;
+  const nextNonce = randomUUID();
+  const { data: recipientSession } = await recipient.client.auth.getSession();
+  await recipient.client.realtime.setAuth(recipientSession.session.access_token);
+  const realtime = recipient.client.channel(`qa-${suffix}`).on("postgres_changes", {
+    event: "INSERT", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}`,
+  }, (payload) => { if (payload.new.client_nonce === nextNonce) receivedRealtime = true; });
+  let receivedRealtime = false;
+  try {
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Realtime subscription timeout")), 15000);
+      realtime.subscribe((status) => {
+        if (status === "SUBSCRIBED") { clearTimeout(timeout); resolve(); }
+        if (["CHANNEL_ERROR", "TIMED_OUT"].includes(status)) { clearTimeout(timeout); reject(new Error("Realtime subscription failed")); }
+      });
+    });
+    const continued = await initiator.client.rpc("send_chat_message", { target_conversation: conversationId, message_body: "Běžná zpráva po přijetí.", message_nonce: nextNonce });
+    if (continued.error) throw continued.error;
+    const deadline = Date.now() + 10000;
+    while (!receivedRealtime && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 100));
+    if (!receivedRealtime) throw new Error("Zpráva se uložila, ale nebyla doručena přes Realtime.");
+  } finally { await recipient.client.removeChannel(realtime); }
   const forbidden = await outsider.client.from("chat_messages").select("id").eq("conversation_id", conversationId);
   if (forbidden.error || (forbidden.data?.length || 0) !== 0) throw forbidden.error || new Error("Cizí účet získal přístup ke zprávám.");
 
@@ -74,7 +103,7 @@ try {
   const afterBlock = await recipient.client.rpc("send_chat_message", { target_conversation: conversationId, message_body: "Tato zpráva se nesmí uložit.", message_nonce: randomUUID() });
   if (!afterBlock.error) throw new Error("Blokování nezastavilo odesílání zpráv.");
 
-  console.log(JSON.stringify({ passed: true, requestMessageLimit: true, replyAccepts: true, memberChat: true, outsiderDenied: true, blockingStopsMessages: true, syntheticAccountsRemoved: "pending" }));
+  console.log(JSON.stringify({ passed: true, requestMessageLimit: true, replyAccepts: true, memberChat: true, realtime: receivedRealtime, outsiderDenied: true, privateLookupDenied: true, forgedQuotaDenied: true, blockingStopsMessages: true, syntheticAccountsRemoved: "pending" }));
 } finally {
   const failures = [];
   for (const id of createdIds.reverse()) {

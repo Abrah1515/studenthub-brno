@@ -30,7 +30,17 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/brno", { waitUntil: "domcontentloaded" }); await dismissOverlays(page);
 });
 
-test("načte použitelný dashboard bez veřejných demo dat", async ({ page }) => { await expect(page.getByRole("heading", { name: "StudentHub Brno" })).toBeVisible(); await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Studentská burza", exact: true })).toBeVisible(); await expect(page.getByText("DEMO DATA")).toHaveCount(0); await expect(page.getByText(/Nezávislý projekt\. Není oficiálně spojený/)).toHaveCount(1); await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/brno$/); });
+test("načte použitelný dashboard bez veřejných demo dat", async ({ page }) => { await expect(page.getByRole("heading", { name: "StudentHub Brno" })).toBeVisible(); await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Studentská burza", exact: true })).toHaveCount(0); await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Studentská burza", exact: true })).toBeVisible(); await expect(page.getByText("DEMO DATA")).toHaveCount(0); await expect(page.getByText(/Nezávislý projekt\. Není oficiálně spojený/)).toHaveCount(1); await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/brno$/); });
+
+test("Přehled nemá rychlé akce školy ani burzy, funkce zůstávají v navigaci a nastavení", async ({ page }) => {
+  await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Moje škola", exact: true })).toHaveCount(0);
+  await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Studentská burza", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Moje škola a profil", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Studentská burza", exact: true })).toBeVisible();
+  await page.goto("/nastaveni");
+  await expect(page.getByRole("heading", { name: "Moje škola a profil" })).toBeVisible();
+  await expect(page.getByLabel("Moje škola")).toBeVisible();
+});
 
 test("filtruje ověřené akademické události", async ({ page }) => {
   await page.goto("/brno/kalendar"); const filters = await openDirectoryFilters(page);
@@ -60,11 +70,16 @@ test("migruje starou preferenci a resetuje ji na Brno", async ({ page }) => { aw
 
 test("výběr fakulty funguje pro všech pět univerzit a kontext se mění bez reloadu", async ({ page }, testInfo) => {
   const samples = [["muni", "muni-fi", "MUNI · FI"], ["vut", "vut-fit", "VUT · FIT"], ["mendelu", "mendelu-pef", "MENDELU · PEF"], ["vetuni", "vetuni-fvl", "VETUNI · FVL"], ["jamu", "jamu-hf", "JAMU · HF"]] as const;
+  const settings = page.locator("#hlavni-obsah");
   for (const [university, faculty, context] of samples) {
-    await page.goto("/nastaveni"); await page.getByLabel("Moje škola").selectOption(university); const facultySelect = page.getByLabel("Moje fakulta"); await expect(facultySelect.locator(`option[value="${faculty}"]`)).toHaveCount(1); await facultySelect.selectOption(faculty); await page.getByRole("button", { name: "Uložit výběr" }).click();
+    await page.goto("/nastaveni"); await settings.getByLabel("Moje škola").selectOption(university); const facultySelect = settings.getByLabel("Moje fakulta"); await expect(facultySelect.locator(`option[value="${faculty}"]`)).toHaveCount(1); await facultySelect.selectOption(faculty); await settings.getByRole("button", { name: "Uložit výběr" }).click();
     if (testInfo.project.name !== "desktop-1440") await page.getByRole("button", { name: "Otevřít nabídku" }).click();
     await expect(page.getByTestId("selected-study-context")).toContainText(context);
-    if (testInfo.project.name !== "desktop-1440") await page.getByRole("dialog", { name: "Mobilní nabídka" }).getByRole("button", { name: "Zavřít nabídku" }).click();
+    if (testInfo.project.name !== "desktop-1440") {
+      const menu = page.getByRole("dialog", { name: "Mobilní nabídka" });
+      await menu.getByRole("button", { name: "Zavřít nabídku" }).click();
+      await expect(menu).toBeHidden();
+    }
     await page.reload(); await dismissOverlays(page); expect(await page.evaluate(() => localStorage.getItem("studenthub-preference-v4"))).toContain(`"facultyId":"${faculty}"`);
     await page.goto(`/brno/kalendar?university=${university}&faculty=${faculty}`); await expect(page).toHaveURL(new RegExp(`university=${university}.*faculty=${faculty}`)); await expect(page.getByLabel("Fakulta", { exact: true }).last()).toHaveValue(faculty);
   }
@@ -158,7 +173,22 @@ test("chrání administraci bez přihlášení", async ({ page }) => { await pag
 
 test("obnova administrátorského účtu používá společné API a nic neprozradí", async ({ page }, testInfo) => { test.skip(testInfo.project.name !== "desktop-1440"); await page.goto("/admin/prihlaseni"); await page.getByRole("button", { name: "Zapomenuté heslo?" }).click(); await page.route("**/api/auth/recover", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "Pokud účet existuje, instrukce jsme odeslali." }) })); await page.getByLabel("E-mail").fill("neznamy@example.cz"); await page.getByRole("button", { name: "Poslat obnovovací odkaz" }).click(); await expect(page.getByRole("status")).toContainText(/Pokud účet existuje/); await expect(page.getByRole("button", { name: "Poslat obnovovací odkaz" })).toBeEnabled(); });
 
-test("cookie souhlas je opt-in a lze jej změnit", async ({ page }) => { await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.clear(); }); await page.reload(); const dialog = page.getByTestId("cookie-consent"); await expect(dialog).toBeVisible(); await dialog.getByRole("button", { name: "Odmítnout volitelné" }).click(); expect(await page.evaluate(() => localStorage.getItem("studenthub-consent"))).toContain('"analytics":false'); const picker = page.getByTestId("first-run-picker"); await expect(picker).toBeVisible(); await picker.getByRole("button", { name: "Pokračovat vědomě bez výběru školy pro celé město Brno" }).click(); await page.getByRole("button", { name: "Nastavení cookies" }).click(); await expect(page.getByText("Analytické")).toBeVisible(); });
+test("cookie souhlas je opt-in a lze jej změnit", async ({ page }) => {
+  await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.clear(); });
+  await page.reload();
+  const dialog = page.getByTestId("cookie-consent");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Odmítnout volitelné" }).click();
+  expect(await page.evaluate(() => localStorage.getItem("studenthub-consent"))).toContain('"analytics":false');
+  const picker = page.getByTestId("first-run-picker");
+  await expect(picker).toBeVisible();
+  await picker.getByRole("button", { name: "Pokračovat vědomě bez výběru školy pro celé město Brno" }).click();
+  await page.getByTestId("tutorial-intro").getByRole("button", { name: "Rozumím" }).click();
+  await page.getByTestId("guided-tutorial").getByRole("button", { name: "Přeskočit" }).click();
+  await expect(page.locator('[role="dialog"][aria-modal="true"]')).toHaveCount(0);
+  await page.getByRole("button", { name: "Nastavení cookies" }).click();
+  await expect(dialog.getByText("Analytické")).toBeVisible();
+});
 
 test("cookies, onboarding, úvodní potvrzení a prohlídka se zobrazí postupně po jediném modálu", async ({ page }, testInfo) => {
   await page.evaluate(() => { sessionStorage.setItem("studenthub-e2e-overlays", "manual"); localStorage.clear(); });
