@@ -21,7 +21,7 @@ test("anonymní uživatel může Burzu číst, ale nemůže publikovat ani konta
 
   await page.goto("/brno/burza/novy");
   await expect(page.getByRole("heading", { name: "Přihlásit se e-mailem" })).toBeVisible();
-  await expect(page.getByText(/Pro vložení inzerátu se přihlaste/i)).toBeVisible();
+  await expect(page.getByRole("main").getByText(/Pro vložení inzerátu se přihlaste/i).first()).toBeVisible();
   await expect(page.locator('input[name="sellerEmail"]')).toHaveCount(0);
 });
 
