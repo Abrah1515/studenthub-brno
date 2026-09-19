@@ -223,20 +223,32 @@ test("spotlight se plynule přesune, nebliká a rychlé kliknutí nespustí dal�
     const value = element.getBoundingClientRect();
     return { top: value.top, left: value.left, width: value.width, height: value.height };
   });
-  const start = await rect();
-  await tour.getByRole("button", { name: "Další" }).evaluate((button) => {
+  const frames = await tour.getByRole("button", { name: "Další" }).evaluate(async (button) => {
     if (!(button instanceof HTMLButtonElement)) throw new Error("Další není tlačítko.");
+    const dialog = document.querySelector<HTMLElement>("[data-testid='guided-tutorial']");
+    const spotlight = document.querySelector<HTMLElement>("[data-testid='tour-spotlight']");
+    if (!dialog || !spotlight) throw new Error("Spotlight není dostupný.");
+    const samples: Array<{ top: number; left: number; width: number; height: number; spotlights: number; popovers: number }> = [];
+    const started = performance.now();
+    const completed = new Promise<typeof samples>((resolve) => {
+      const sample = () => {
+        const value = spotlight.getBoundingClientRect();
+        samples.push({ top: value.top, left: value.left, width: value.width, height: value.height, spotlights: document.querySelectorAll(".tutorial-spotlight").length, popovers: document.querySelectorAll(".tutorial-popover").length });
+        if ((dialog.dataset.tourStep === "overview" && dialog.dataset.tourTransitioning === "false") || performance.now() - started > 8_000) resolve(samples);
+        else requestAnimationFrame(sample);
+      };
+      sample();
+    });
     button.click();
     button.click();
     button.click();
+    return completed;
   });
-  await expect(tour).toHaveAttribute("data-tour-transitioning", "true");
-  await page.waitForTimeout(190);
-  const middle = await rect();
-  expect(Math.abs(middle.top - start.top) + Math.abs(middle.left - start.left)).toBeGreaterThan(2);
   await waitForStep(page, "overview");
   const end = await rect();
-  expect(Math.abs(middle.top - end.top) + Math.abs(middle.left - end.left)).toBeGreaterThan(2);
+  const start = frames[0];
+  expect(frames.some((frame) => Math.abs(frame.top - start.top) + Math.abs(frame.left - start.left) > 2 && Math.abs(frame.top - end.top) + Math.abs(frame.left - end.left) > 2)).toBe(true);
+  expect(frames.every((frame) => frame.spotlights === 1 && frame.popovers === 1)).toBe(true);
   await expect(tour).toHaveAttribute("data-tour-step", "overview");
   await expect(page.locator(".tutorial-spotlight")).toHaveCount(1);
   await expect(page.locator(".tutorial-popover")).toHaveCount(1);
