@@ -104,16 +104,16 @@ test("nové logo je čitelné v navigaci, účtu, administraci a tmavém režimu
   }
 
   await page.goto("/ucet/prihlaseni", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".auth-brand-logo .brand-logo-light")).toBeVisible();
+  await expect(page.locator(".auth-brand-logo .brand-logo-light:visible").first()).toBeVisible();
   await page.evaluate(() => localStorage.setItem("studenthub-theme", "dark"));
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator(".auth-brand-logo .brand-logo-light")).toBeHidden();
-  await expect(page.locator(".auth-brand-logo .brand-logo-dark")).toBeVisible();
-  await expect(page.locator(".auth-brand-logo .brand-logo-dark")).toHaveAttribute("src", /studenthub-logo-dark-v3\.png/);
+  await expect(page.locator(".auth-brand-logo .brand-logo-light:visible")).toHaveCount(0);
+  await expect(page.locator(".auth-brand-logo .brand-logo-dark:visible").first()).toBeVisible();
+  await expect(page.locator(".auth-brand-logo .brand-logo-dark:visible").first()).toHaveAttribute("src", /studenthub-logo-dark-v3\.png/);
 
   await page.goto("/admin/prihlaseni", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".admin-login-logo .brand-logo-dark")).toBeVisible();
+  await expect(page.locator(".admin-login-logo .brand-logo-dark:visible").first()).toBeVisible();
   await page.goto("/o-projektu", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".about-brand-logo .brand-logo-dark")).toBeVisible();
+  await expect(page.locator(".about-brand-logo .brand-logo-dark:visible").first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 });
