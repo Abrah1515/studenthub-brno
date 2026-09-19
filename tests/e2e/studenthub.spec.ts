@@ -40,7 +40,7 @@ test("Přehled nemá rychlé akce školy ani burzy, funkce zůstávají v naviga
   await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Studentská burza", exact: true })).toBeVisible();
   await page.goto("/nastaveni");
   await expect(page.getByRole("heading", { name: "Moje škola a profil" })).toBeVisible();
-  await expect(page.getByLabel("Moje škola")).toBeVisible();
+  await expect(page.getByRole("main").getByRole("combobox", { name: "Moje škola" })).toBeVisible();
 });
 
 test("filtruje ověřené akademické události", async ({ page }) => {
