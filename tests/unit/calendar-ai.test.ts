@@ -9,6 +9,7 @@ describe("AI kontrola akademického kalendáře", () => {
     expect(source).toContain("if (!sourceEvents.length || (existing.length >= 4");
     expect(source).toContain('onConflict: "fingerprint", ignoreDuplicates: true');
     expect(source).toContain('.eq("status", "approved")');
+    expect(source).toContain('row.city_id === cityId || (!row.city_id && universityIds.includes');
     expect(source).toContain('"needs_review"');
     expect(source).not.toContain('from("academic_events").update');
   });
@@ -38,5 +39,13 @@ describe("AI kontrola akademického kalendáře", () => {
     expect(route).toContain('["super_admin", "admin"].includes(user.role)');
     expect(route).toContain('user.cityId !== "brno"');
     expect(route).toContain('finding.city_id === "brno"');
+  });
+
+  it("blokovaný nebo selhaný ruční běh nehlásí jako úspěch", async () => {
+    const route = await readFile("app/api/admin/calendar-ai/route.ts", "utf8");
+    const panel = await readFile("components/calendar-ai-admin-panel.tsx", "utf8");
+    expect(route).toContain('result.status === "failed" ? 500 : 503');
+    expect(panel).toContain('if (!response.ok) setError');
+    expect(panel).toContain("stats.openFindings ?? 0");
   });
 });

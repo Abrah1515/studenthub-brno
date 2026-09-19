@@ -79,7 +79,7 @@ export async function runAcademicCalendarAiCheck({ trigger, cityId = "brno", act
   const { data: storedSources, error: sourceError } = await client.from("content_sources").select("*").eq("source_type", "academic_calendar").eq("enabled", true);
   if (sourceError) throw sourceError;
   const universityIds = await getUniversityIdsForPublishedCity(cityId);
-  const sourceRows = (storedSources || []).filter((row) => (row.city_id === cityId || universityIds.includes(String(row.university_id))) && (!targetSourceId || row.id === targetSourceId)) as Record<string, unknown>[];
+  const sourceRows = (storedSources || []).filter((row) => (row.city_id === cityId || (!row.city_id && universityIds.includes(String(row.university_id)))) && (!targetSourceId || row.id === targetSourceId)) as Record<string, unknown>[];
   if (targetSourceId && !sourceRows.length) return { status: "blocked" as const, reason: "Zvolený aktivní brněnský zdroj nebyl nalezen.", sourceCount: 0, checkedSourceCount: 0, checkedEventCount: 0, findingCount: 0, unavailableSourceCount: 0, conflictCount: 0 };
   const sourceIds = sourceRows.map((row) => String(row.id));
   const startedAt = new Date().toISOString();

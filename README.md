@@ -234,7 +234,7 @@ Denní AI kontrola akademického kalendáře Brna běží odděleně:
 GET /api/cron/ai-calendar-check?city=brno
 ```
 
-Supabase Cron ji spouští jednou za 24 hodin. Bez serverového `OPENAI_API_KEY` a explicitního `ACADEMIC_CALENDAR_AI_ENABLED=true` se běh uloží jako `BLOCKED` a nic se nestahuje ani nemění. Při aktivní kontrole se pouze vytvoří neveřejné nálezy v Administrace → Kontrola kalendáře; veřejné `academic_events` se nikdy automaticky neupravují.
+Po aplikování migrace `202609180041` ji Supabase Cron plánuje jednou za 24 hodin (03:41 UTC). Bez serverového `OPENAI_API_KEY` a explicitního `ACADEMIC_CALENDAR_AI_ENABLED=true` se běh uloží jako `BLOCKED` a nic se nestahuje ani nemění. Při aktivní kontrole se pouze vytvoří neveřejné nálezy v Administrace → Kontrola kalendáře; veřejné `academic_events` se nikdy automaticky neupravují.
 
 Aktivace vyžaduje nejprve aplikovat migrace `202609180040` a `202609180041` na produkční Supabase, ověřit shodu `SUPABASE_SCHEDULER_SECRET` s položkou `studenthub_scheduler_secret` ve Vaultu, nastavit `OPENAI_API_KEY` jako neveřejnou produkční proměnnou ve Vercelu a až poté změnit `ACADEMIC_CALENDAR_AI_ENABLED=true`. Po deploymentu spusťte kontrolu ručně v administraci a ověřte uložený běh i nálezy. Zdroj blokovaný robots.txt nebo Turnstile zůstává `BLOCKED`; ochranu neobcházejte. Místo termínu nelze automaticky porovnat tam, kde jej oficiální konektor ani databázový záznam neobsahují — vyžaduje ruční posouzení.
 
