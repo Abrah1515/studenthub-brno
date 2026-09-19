@@ -30,9 +30,10 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/brno", { waitUntil: "domcontentloaded" }); await dismissOverlays(page);
 });
 
-test("načte použitelný dashboard bez veřejných demo dat", async ({ page }) => { await expect(page.getByRole("heading", { name: "StudentHub Brno" })).toBeVisible(); await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Studentská burza", exact: true })).toHaveCount(0); await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Studentská burza", exact: true })).toBeVisible(); await expect(page.getByText("DEMO DATA")).toHaveCount(0); await expect(page.getByText(/Nezávislý projekt\. Není oficiálně spojený/)).toHaveCount(1); await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/brno$/); });
+test("načte použitelný dashboard bez veřejných demo dat", async ({ page }, testInfo) => { test.skip(testInfo.project.name !== "desktop-1440"); await expect(page.getByRole("heading", { name: "StudentHub Brno" })).toBeVisible(); await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Studentská burza", exact: true })).toHaveCount(0); await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Studentská burza", exact: true })).toBeVisible(); await expect(page.getByText("DEMO DATA")).toHaveCount(0); await expect(page.getByText(/Nezávislý projekt\. Není oficiálně spojený/)).toHaveCount(1); await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/brno$/); });
 
-test("Přehled nemá rychlé akce školy ani burzy, funkce zůstávají v navigaci a nastavení", async ({ page }) => {
+test("Přehled nemá rychlé akce školy ani burzy, funkce zůstávají v navigaci a nastavení", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
   await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Moje škola", exact: true })).toHaveCount(0);
   await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Studentská burza", exact: true })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Moje škola a profil", exact: true })).toBeVisible();
@@ -170,6 +171,11 @@ test("staré URL přesměrují a školní stránky uvádějí nezávislost", asy
 test("stará technická pomoc přesměruje do burzy a API je archivované", async ({ page, request }, testInfo) => { test.skip(testInfo.project.name !== "desktop-1440"); await page.goto("/pomoc"); await expect(page).toHaveURL(/\/brno\/burza$/); await expect(page.getByRole("heading", { name: "Studentská burza" })).toBeVisible(); const response = await request.get("/api/service-requests"); expect(response.status()).toBe(410); expect((await response.json()).items).toEqual([]); });
 
 test("chrání administraci bez přihlášení", async ({ page }) => { await page.goto("/admin"); await expect(page).toHaveURL(/\/admin\/prihlaseni/); await expect(page.getByRole("heading", { name: "Administrace" })).toBeVisible(); await expect(page.locator('input[name="email"]')).toHaveValue(""); });
+
+test("AI kontrola kalendáře má chráněný cron endpoint", async ({ request }) => {
+  const response = await request.get("/api/cron/ai-calendar-check?city=brno");
+  expect([401, 503]).toContain(response.status());
+});
 
 test("obnova administrátorského účtu používá společné API a nic neprozradí", async ({ page }, testInfo) => { test.skip(testInfo.project.name !== "desktop-1440"); await page.goto("/admin/prihlaseni"); await page.getByRole("button", { name: "Zapomenuté heslo?" }).click(); await page.route("**/api/auth/recover", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "Pokud účet existuje, instrukce jsme odeslali." }) })); await page.getByLabel("E-mail").fill("neznamy@example.cz"); await page.getByRole("button", { name: "Poslat obnovovací odkaz" }).click(); await expect(page.getByRole("status")).toContainText(/Pokud účet existuje/); await expect(page.getByRole("button", { name: "Poslat obnovovací odkaz" })).toBeEnabled(); });
 

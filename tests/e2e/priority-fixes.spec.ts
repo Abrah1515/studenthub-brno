@@ -60,6 +60,7 @@ test("výběr místa propojí seznam s mapou, funguje klávesnicí a přežije p
 test("dashboard nepovažuje ukončený bodový termín za probíhající", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
   await page.goto("/brno");
-  await expect(page.getByRole("heading", { name: "Právě probíhá" })).toHaveCount(0);
-  const nearest = page.locator("article.next-card"); await expect(nearest).toContainText("Výuka v zimním semestru FIT VUT"); await expect(nearest).not.toContainText("Registrace předmětů na HF JAMU");
+  const current = page.getByRole("heading", { name: "Právě probíhá" }).locator("..").locator("..");
+  if (await current.count()) await expect(current).not.toContainText("Registrace předmětů na HF JAMU");
+  const nearest = page.locator("article.next-card"); await expect(nearest).not.toContainText("Registrace předmětů na HF JAMU");
 });

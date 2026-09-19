@@ -67,6 +67,11 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `SUPABASE_SERVICE_ROLE_KEY` | pouze server | ano | serverové formuláře, synchronizace a administrace; nikdy ne do klienta |
 | `SUPERADMIN_EMAIL` | pouze lokální CLI | při prvním účtu | již zaregistrovaný a potvrzený e-mail pro jednorázový idempotentní bootstrap; nepřidávat do Vercelu ani repozitáře |
 | `CRON_SECRET` | pouze server | ano | Bearer autorizace obou cron endpointů |
+| `SUPABASE_SCHEDULER_SECRET` | pouze server | ano | hlavička plánovače uložená ve Vaultu Supabase |
+| `ACADEMIC_CALENDAR_AI_ENABLED` | pouze server | ne | `true` pouze po schválení AI kontroly; jinak běh zůstává BLOCKED |
+| `ACADEMIC_CALENDAR_AI_MODEL` | pouze server | ne | model pro kontrolu rozdílů, výchozí `gpt-5-mini` |
+| `ACADEMIC_CALENDAR_AI_API_URL` | pouze server | ne | endpoint Responses API |
+| `OPENAI_API_KEY` | pouze server | ne | tajný klíč AI poskytovatele; nikdy do klienta ani repozitáře |
 | `RATE_LIMIT_SALT` | pouze server | ano | pseudonymizace IP pro lokální rate limit |
 | `SYNC_USER_AGENT` | server | ano | identifikace slušného crawleru s kontaktem |
 | `NEXT_PUBLIC_ADS_ENABLED` | klient/build | ne | `true` pouze po obchodním a cookie nastavení |
@@ -223,6 +228,16 @@ GET /api/cron/check-links
 Authorization: Bearer <CRON_SECRET>
 ```
 
+Denní AI kontrola akademického kalendáře Brna běží odděleně:
+
+```text
+GET /api/cron/ai-calendar-check?city=brno
+```
+
+Supabase Cron ji spouští jednou za 24 hodin. Bez serverového `OPENAI_API_KEY` a explicitního `ACADEMIC_CALENDAR_AI_ENABLED=true` se běh uloží jako `BLOCKED` a nic se nestahuje ani nemění. Při aktivní kontrole se pouze vytvoří neveřejné nálezy v Administrace → Kontrola kalendáře; veřejné `academic_events` se nikdy automaticky neupravují.
+
+Aktivace vyžaduje nejprve aplikovat migrace `202609180040` a `202609180041` na produkční Supabase, ověřit shodu `SUPABASE_SCHEDULER_SECRET` s položkou `studenthub_scheduler_secret` ve Vaultu, nastavit `OPENAI_API_KEY` jako neveřejnou produkční proměnnou ve Vercelu a až poté změnit `ACADEMIC_CALENDAR_AI_ENABLED=true`. Po deploymentu spusťte kontrolu ručně v administraci a ověřte uložený běh i nálezy. Zdroj blokovaný robots.txt nebo Turnstile zůstává `BLOCKED`; ochranu neobcházejte. Místo termínu nelze automaticky porovnat tam, kde jej oficiální konektor ani databázový záznam neobsahují — vyžaduje ruční posouzení.
+
 Supabase Cron kontroluje splatné zdroje v minutách 17, 37 a 57; databázové `next_check_at` brání tomu, aby byl stejný zdroj stahován častěji než jednou za 9 hodin. Autorizační hodnota `SUPABASE_SCHEDULER_SECRET` musí být shodná ve Vercelu a v Supabase Vault pod názvem `studenthub_scheduler_secret`. Vercel Hobby navíc spouští povolenou denní zálohu ve 03:17 UTC a kontrolu odkazů v 04:45 UTC; Vercel předává `CRON_SECRET` jako Bearer automaticky. Tajemství nikdy nevkládejte přímo do migrace ani do příkazu v dokumentaci.
 
 ## Jak přidat nové město
@@ -242,7 +257,7 @@ Nová edice nevzniká kopií projektu. Používá stejný kód, dynamické routy
 
 ## Příprava pro budoucí publikační automatizaci
 
-Tabulka `content_publication_events` je bezpečný outbox událostí `published`, `updated`, `expiring` a `archived`. Obsahuje jen reference, scope, čas, ověřenost a veřejný zdroj; žádný e-mail, telefon, poptávku ani volný formulářový obsah. Interní read-only funkce `getPromotionCandidates()` v `lib/publication-feed.ts` vrací pro jedno publikované město pouze aktuální, ověřené, nevypršené záznamy. Aplikace neobsahuje AI token, volání modelu, generátor marketingových textů ani automatické publikování na sociální sítě.
+Tabulka `content_publication_events` je bezpečný outbox událostí `published`, `updated`, `expiring` a `archived`. Obsahuje jen reference, scope, čas, ověřenost a veřejný zdroj; žádný e-mail, telefon, poptávku ani volný formulářový obsah. Interní read-only funkce `getPromotionCandidates()` v `lib/publication-feed.ts` vrací pro jedno publikované město pouze aktuální, ověřené, nevypršené záznamy. AI kontrola je oddělená a nemá oprávnění publikovat změny ani číst neveřejná uživatelská data.
 
 ## Testy a kontrola kvality
 

@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(39);
+      expect(files).toHaveLength(41);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -55,6 +55,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
           catch (error) { throw new Error(`Migrace ${file}, příkaz ${index + 1} (${statements[index].slice(0, 180).replace(/\s+/g, " ")}) selhal: ${error instanceof Error ? error.message : String(error)}`, { cause: error }); }
         }
       }
+      for (const statement of sqlStatements(await readFile("supabase/migrations/202609180040_academic_calendar_ai_review.sql", "utf8"))) await db.exec(`${statement};`);
       await db.exec(await readFile("supabase/seed.sql", "utf8"));
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(36);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where status='published' and source_type='external'")).rows[0].count).toBe(16);
@@ -181,6 +182,37 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       const modes = await db.query<{ monitoring_mode: string; count: number }>("select monitoring_mode, count(*)::int as count from public.content_sources where source_type='academic_calendar' group by monitoring_mode order by monitoring_mode");
       expect(modes.rows).toEqual([{ monitoring_mode: "automatic_publish", count: 18 }, { monitoring_mode: "automatic_review", count: 9 }]);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.content_sources where source_type='academic_calendar' and enabled")).rows[0].count).toBe(27);
+
+      await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+      await db.exec("set role service_role");
+      await db.exec(`
+        insert into public.academic_calendar_ai_runs(id,city_id,trigger_type,status)
+        values ('e1111111-1111-4111-8111-111111111111','brno','manual','running');
+        insert into public.academic_calendar_ai_findings(id,run_id,city_id,source_id,faculty_id,academic_year,difference,source_url,fingerprint,status)
+        values ('e2111111-1111-4111-8111-111111111111','e1111111-1111-4111-8111-111111111111','brno','src-mendelu-pef','mendelu-pef','2026/2027','Rozdíl pouze k ruční kontrole','https://pef.mendelu.cz/',repeat('a',64),'needs_review');
+      `);
+      await expect(db.exec("insert into public.academic_calendar_ai_findings(run_id,city_id,difference,source_url,fingerprint) values ('e1111111-1111-4111-8111-111111111111','brno','Duplicitní nález','https://pef.mendelu.cz/',repeat('a',64))")).rejects.toThrow(/unique/i);
+      await expect(db.exec("insert into public.academic_calendar_ai_runs(city_id,trigger_type,status) values ('brno','manual','running')")).rejects.toThrow(/unique/i);
+      await db.exec("update public.academic_calendar_ai_findings set status='confirmed_correct',resolution_note='Ručně ověřeno',resolved_by='71111111-1111-4111-8111-111111111113' where id='e2111111-1111-4111-8111-111111111111'");
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_calendar_ai_finding_audit where finding_id='e2111111-1111-4111-8111-111111111111' and old_status='needs_review' and new_status='confirmed_correct'")).rows[0].count).toBe(1);
+      await db.exec("reset role");
+      await db.query("select set_config('request.jwt.claim.role','',false)");
+
+      for (const editorId of ["71111111-1111-4111-8111-111111111111", "71111111-1111-4111-8111-111111111112", "71111111-1111-4111-8111-111111111114"]) {
+        await db.query("select set_config('request.jwt.claim.sub',$1,false)", [editorId]);
+        await db.exec("set role authenticated");
+        expect((await db.query("select id from public.academic_calendar_ai_runs")).rows).toHaveLength(0);
+        expect((await db.query("select id from public.academic_calendar_ai_findings")).rows).toHaveLength(0);
+        await expect(db.query("update public.academic_calendar_ai_findings set status='rejected' where id='e2111111-1111-4111-8111-111111111111'")).rejects.toThrow();
+        await db.exec("reset role");
+      }
+      await db.query("select set_config('request.jwt.claim.sub',$1,false)", ["71111111-1111-4111-8111-111111111113"]);
+      await db.exec("set role authenticated");
+      expect((await db.query("select id from public.academic_calendar_ai_runs")).rows).toHaveLength(1);
+      expect((await db.query("select id from public.academic_calendar_ai_findings")).rows).toHaveLength(1);
+      await expect(db.query("update public.academic_calendar_ai_findings set status='rejected' where id='e2111111-1111-4111-8111-111111111111'")).rejects.toThrow();
+      await db.exec("reset role");
+      await db.query("select set_config('request.jwt.claim.sub','',false)");
 
       const pef = contentSources.find((item) => item.id === "src-mendelu-pef")!;
       const pefResult = await parseHtml({ source: pef, body: await readFile("tests/fixtures/mendelu-pef.html"), contentType: "text/html", checkedAt: "2026-08-02T10:00:00Z" });
