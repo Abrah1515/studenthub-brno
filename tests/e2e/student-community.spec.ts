@@ -86,11 +86,12 @@ test("chatovací dock ustoupí funkčnímu editoru komentářů", async ({ page 
   await expect(page.locator(".chat-dock,.chat-dock-minimized")).toHaveCount(0);
   await page.getByRole("button", { name: "Odpovědět" }).click();
   await expect(page.getByText("Doporučuji knihovnu v centru.")).toBeVisible();
+  const comment = page.getByRole("region", { name: "Komentáře k příspěvku od Audit" }).getByRole("article");
   page.once("dialog", (dialog) => dialog.accept("Aktualizovaný komentář."));
-  await page.getByRole("button", { name: "Upravit" }).last().click();
+  await comment.getByRole("button", { name: "Upravit" }).click();
   await expect(page.getByText("Aktualizovaný komentář.")).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Odstranit" }).last().click();
+  await comment.getByRole("button", { name: "Odstranit" }).click();
   await expect(page.getByText("Aktualizovaný komentář.")).toHaveCount(0);
   await page.getByRole("button", { name: "Komentáře" }).click();
   await expect(page.locator(".chat-dock-minimized")).toHaveCount(1);
