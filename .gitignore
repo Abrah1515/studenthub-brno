@@ -24,6 +24,8 @@
 *.pem
 *.jks
 *.keystore
+*backup-identity*.txt
+*.agekey
 
 # debug
 npm-debug.log*
