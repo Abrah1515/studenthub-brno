@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(41);
+      expect(files).toHaveLength(42);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -57,6 +57,24 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       }
       for (const statement of sqlStatements(await readFile("supabase/migrations/202609180040_academic_calendar_ai_review.sql", "utf8"))) await db.exec(`${statement};`);
       await db.exec(await readFile("supabase/seed.sql", "utf8"));
+      const eventCountBeforeArchive = (await db.query<{ count: number }>("select count(*)::int as count from public.academic_events")).rows[0].count;
+      await db.exec(`
+        insert into public.academic_calendar_ai_runs(id,city_id,trigger_type,status,ai_provider) values
+          ('77000000-0000-4000-8000-000000000001','brno','manual','completed','openai-responses'),
+          ('77000000-0000-4000-8000-000000000002','brno','scheduled','completed','source-comparison-v2');
+        insert into public.academic_calendar_ai_findings(id,run_id,city_id,difference,source_url,fingerprint,ai_reason,status) values
+          ('77100000-0000-4000-8000-000000000001','77000000-0000-4000-8000-000000000001','brno','Starý neověřený návrh','https://example.com/old','legacy-ai-test','openai-responses','cannot_verify'),
+          ('77100000-0000-4000-8000-000000000002','77000000-0000-4000-8000-000000000002','brno','Nové porovnání','https://example.com/new','source-comparison-test','source-comparison-v2','needs_review');
+      `);
+      for (const statement of sqlStatements(await readFile("supabase/migrations/202609200001_archive_legacy_ai_calendar_review.sql", "utf8"))) await db.exec(`${statement};`);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_calendar_ai_runs where ai_provider='openai-responses'")).rows[0].count).toBe(0);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_calendar_ai_findings where ai_reason='openai-responses'")).rows[0].count).toBe(0);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_calendar_legacy_ai_archive")).rows[0].count).toBe(2);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_calendar_ai_findings where ai_reason='source-comparison-v2'")).rows[0].count).toBe(1);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_events")).rows[0].count).toBe(eventCountBeforeArchive);
+      for (const statement of sqlStatements(await readFile("supabase/migrations/202609200001_archive_legacy_ai_calendar_review.sql", "utf8"))) await db.exec(`${statement};`);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_calendar_legacy_ai_archive")).rows[0].count).toBe(2);
+      await db.exec("delete from public.academic_calendar_ai_runs where id='77000000-0000-4000-8000-000000000002'");
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(36);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where status='published' and source_type='external'")).rows[0].count).toBe(16);
       expect((await db.query<{ count: number }>("select count(*)::int as count from (select city_id,dedupe_key from public.places where status='approved' and is_demo=false group by city_id,dedupe_key having count(*) > 1) duplicates")).rows[0].count).toBe(0);
