@@ -172,7 +172,7 @@ test("stará technická pomoc přesměruje do burzy a API je archivované", asyn
 
 test("chrání administraci bez přihlášení", async ({ page }) => { await page.goto("/admin"); await expect(page).toHaveURL(/\/admin\/prihlaseni/); await expect(page.getByRole("heading", { name: "Administrace" })).toBeVisible(); await expect(page.locator('input[name="email"]')).toHaveValue(""); });
 
-test("AI kontrola kalendáře má chráněný cron endpoint", async ({ request }) => {
+test("denní kontrola kalendáře má chráněný cron endpoint", async ({ request }) => {
   const response = await request.get("/api/cron/ai-calendar-check?city=brno");
   expect([401, 503]).toContain(response.status());
 });

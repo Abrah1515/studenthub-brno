@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminUser } from "@/lib/admin-auth";
 import { adminSectionAllowed } from "@/lib/admin-sections";
-import { calendarAiConfiguration, runAcademicCalendarAiCheck } from "@/lib/academic-calendar-ai";
+import { CALENDAR_REVIEW_VERSION, calendarAiConfiguration, runAcademicCalendarAiCheck } from "@/lib/academic-calendar-ai";
 import { getUniversityIdsForPublishedCity } from "@/lib/city-data";
 import { createServiceClient } from "@/lib/supabase-server";
 
@@ -16,12 +16,12 @@ export async function GET() {
   if (sourcesError) return NextResponse.json({ message: "Zdroje se nepodařilo načíst." }, { status: 500 });
   const universities = await getUniversityIdsForPublishedCity("brno");
   const sourceIds = (sources || []).filter((row) => row.city_id === "brno" || (!row.city_id && universities.includes(String(row.university_id)))).map((row) => String(row.id));
-  const runsQuery = client.from("academic_calendar_ai_runs").select("*").eq("city_id", "brno").order("started_at", { ascending: false }).limit(25);
+  const runsQuery = client.from("academic_calendar_ai_runs").select("*").eq("city_id", "brno").eq("ai_provider", CALENDAR_REVIEW_VERSION).order("started_at", { ascending: false }).limit(25);
   const { data: runs, error: runsError } = await runsQuery;
   if (runsError) return NextResponse.json({ message: "Stav kontroly se nepodařilo načíst." }, { status: 500 });
-  const { data: successfulRuns, error: successfulRunsError } = await client.from("academic_calendar_ai_runs").select("id,started_at,finished_at,status").eq("city_id", "brno").eq("status", "completed").order("finished_at", { ascending: false }).limit(1);
+  const { data: successfulRuns, error: successfulRunsError } = await client.from("academic_calendar_ai_runs").select("id,started_at,finished_at,status").eq("city_id", "brno").eq("ai_provider", CALENDAR_REVIEW_VERSION).eq("status", "completed").order("finished_at", { ascending: false }).limit(1);
   if (successfulRunsError) return NextResponse.json({ message: "Poslední úspěšnou kontrolu se nepodařilo načíst." }, { status: 500 });
-  const findingsQuery = client.from("academic_calendar_ai_findings").select("*").eq("city_id", "brno").order("checked_at", { ascending: false }).limit(500);
+  const findingsQuery = client.from("academic_calendar_ai_findings").select("*").eq("city_id", "brno").eq("ai_reason", CALENDAR_REVIEW_VERSION).order("checked_at", { ascending: false }).limit(500);
   const { data: findings, error: findingsError } = await findingsQuery;
   if (findingsError) return NextResponse.json({ message: "Nálezy se nepodařilo načíst." }, { status: 500 });
   const latest = runs?.[0] || null;
