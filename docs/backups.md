@@ -13,14 +13,14 @@ In repository Settings > Secrets and variables > Actions, configure:
 | Secret | `R2_ACCESS_KEY_ID` | R2 bucket-scoped Access Key ID |
 | Secret | `R2_SECRET_ACCESS_KEY` | Matching R2 Secret Access Key |
 | Secret | `SUPABASE_DB_URL` | Supabase Connect > Session pooler URI, including database password |
-| Secret | `SUPABASE_SERVICE_ROLE_KEY` | Supabase server-side service role key |
+| Secret | `SUPABASE_BACKUP_SECRET_KEY` | Dedicated Supabase secret API key for this backup job (`sb_secret_...`) |
 | Variable | `R2_BUCKET` | `studenthub-backups` |
 | Variable | `R2_ENDPOINT` | `https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com` |
 | Variable | `SUPABASE_URL` | `https://<PROJECT_REF>.supabase.co` |
 | Variable | `BACKUP_AGE_RECIPIENT` | Public `age1...` recipient only |
 | Variable | `BACKUP_ENABLED` | Leave unset until the first backup and restore check pass; then set `true` |
 
-Use the Session pooler on port 5432, not transaction mode on port 6543. The script rejects a connection targeting a different Supabase project. Never paste secrets into chat, issues, commits, screenshots, or plain repository variables. Keep the R2 bucket's public access disabled.
+Use the Session pooler on port 5432, not transaction mode on port 6543. The script rejects a connection targeting a different Supabase project. Create a dedicated secret API key in Supabase Settings > API Keys so it can be rotated independently from the application key. Never paste secrets into chat, issues, commits, screenshots, or plain repository variables. Keep the R2 bucket's public access disabled.
 
 Generate a separate age identity **outside the repository**. On Windows, install age with `winget install --id FiloSottile.age`, open a new terminal, then run:
 

@@ -70,7 +70,7 @@ export async function exportStorage(storage, destination, maxBytes = 6 * 1024 **
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const [destination] = process.argv.slice(2);
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.SUPABASE_BACKUP_SECRET_KEY;
   if (!destination || !url || !key) throw new Error("Storage backup configuration is incomplete.");
   const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const result = await exportStorage(client.storage, destination);
