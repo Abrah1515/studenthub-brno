@@ -54,29 +54,35 @@ jobs:
           set -euo pipefail
 
           sudo apt-get update
-          sudo apt-get install -y age unzip curl
+          sudo apt-get install -y age
 
-          case "$(uname -m)" in
-            x86_64)
-              AWS_ARCH="x86_64"
-              ;;
-            aarch64|arm64)
-              AWS_ARCH="aarch64"
-              ;;
-            *)
-              echo "Unsupported architecture: $(uname -m)"
-              exit 1
-              ;;
-          esac
+          if command -v aws >/dev/null 2>&1; then
+            echo "AWS CLI already installed."
+          else
+            sudo apt-get install -y unzip curl
 
-          curl -fsSL \
-            "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" \
-            -o /tmp/awscliv2.zip
+            case "$(uname -m)" in
+              x86_64)
+                AWS_ARCH="x86_64"
+                ;;
+              aarch64|arm64)
+                AWS_ARCH="aarch64"
+                ;;
+              *)
+                echo "Unsupported architecture: $(uname -m)"
+                exit 1
+                ;;
+            esac
 
-          rm -rf /tmp/aws
-          unzip -q /tmp/awscliv2.zip -d /tmp
+            curl -fsSL \
+              "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" \
+              -o /tmp/awscliv2.zip
 
-          sudo /tmp/aws/install
+            rm -rf /tmp/aws
+            unzip -q /tmp/awscliv2.zip -d /tmp
+
+            sudo /tmp/aws/install
+          fi
 
           age --version
           aws --version
