@@ -6,6 +6,7 @@ import { FirstRunPicker } from "@/components/preference-picker";
 import { PrivacyAnalytics } from "@/components/privacy-analytics";
 import { Suspense } from "react";
 import { FeatureTutorial } from "@/components/feature-tutorial";
+import { TestModeNotice } from "@/components/test-mode-notice";
 import { SiteShell } from "@/components/site-shell";
 import { brand } from "@/lib/brand";
 import { getPublishedCities } from "@/lib/city-data";
@@ -86,6 +87,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <a className="skip-link" href="#hlavni-obsah">Přeskočit na obsah</a>
         <PwaInstallProvider>
           <SiteShell cities={cities} catalog={catalog}>{children}</SiteShell>
+          <TestModeNotice />
           <CookieConsent />
           <FirstRunPicker cities={cities} catalog={catalog} />
           <FeatureTutorial />
