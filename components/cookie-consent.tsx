@@ -1,5 +1,8 @@
 "use client";
-
+import {
+  shouldShowTestModeNotice,
+  testModeNoticeDismissedEvent,
+} from "@/lib/test-mode-notice";
 import { Cookie, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useModalDialog } from "@/lib/use-modal-dialog";
@@ -29,15 +32,61 @@ export function CookieConsent() {
   const close = () => { if (!hasResolvedCookieConsent()) saveConsent(defaultConsent); setOpen(false); };
   const dialogRef = useModalDialog(open, close);
 
-  useEffect(() => {
+ 
+ useEffect(() => {
+  const initializeConsent = () => {
+    // Úplně první návštěva:
+    // nejdřív musí proběhnout informace o testovacím provozu.
+    if (shouldShowTestModeNotice()) {
+      setOpen(false);
+      return;
+    }
+
     const saved = localStorage.getItem("studenthub-consent");
+
     if (saved) {
-      try { const parsed = JSON.parse(saved) as Consent; setConsent(parsed); syncAnalyticsCookie(parsed); } catch { setOpen(true); }
-    } else setOpen(true);
-    const handler = () => { setSettings(true); setOpen(true); };
-    window.addEventListener("open-cookie-settings", handler);
-    return () => window.removeEventListener("open-cookie-settings", handler);
-  }, []);
+      try {
+        const parsed = JSON.parse(saved) as Consent;
+        setConsent(parsed);
+        syncAnalyticsCookie(parsed);
+        setOpen(false);
+      } catch {
+        setOpen(true);
+      }
+    } else {
+      setOpen(true);
+    }
+  };
+
+  initializeConsent();
+
+  const settingsHandler = () => {
+    setSettings(true);
+    setOpen(true);
+  };
+
+  window.addEventListener(
+    "open-cookie-settings",
+    settingsHandler,
+  );
+
+  window.addEventListener(
+    testModeNoticeDismissedEvent,
+    initializeConsent,
+  );
+
+  return () => {
+    window.removeEventListener(
+      "open-cookie-settings",
+      settingsHandler,
+    );
+
+    window.removeEventListener(
+      testModeNoticeDismissedEvent,
+      initializeConsent,
+    );
+  };
+}, []);
 
   if (!open) return null;
   return (
