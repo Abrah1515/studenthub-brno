@@ -339,6 +339,22 @@ button { color: inherit; }
 .mobile-menu-panel .sidebar-note { margin-top: auto; }
 
 @media (max-width: 720px) {
+
+  .consent-panel {
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding: 18px;
+    gap: 13px;
+  }
+
+  .consent-actions,
+  .consent-actions.settings {
+    grid-template-columns: 1fr;
+  }
+
+  .consent-legal-links {
+    gap: 8px 14px;
+  }
+  
   .topbar { height: 60px; padding: 0 14px; }
   .content { padding: 21px 14px calc(108px + env(safe-area-inset-bottom)); }
   .page-stack { gap: 16px; }
