@@ -21,6 +21,7 @@ describe("produkční backfill veřejných dat Brna", () => {
     const script=readFileSync("scripts/backfill-brno-public-data.mjs","utf8");
     expect(script).toContain("on_conflict=id");
     expect(script).toContain("source_external_id");
+    expect(script).toContain("normalizePlaceRow");
     expect(script).not.toMatch(/sk-[A-Za-z0-9_-]{20,}/);
   });
 });
