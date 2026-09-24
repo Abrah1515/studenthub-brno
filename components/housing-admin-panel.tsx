@@ -50,10 +50,10 @@ export function HousingAdminPanel({ listings, reports, history, actions, onApi }
       </div>
 
       <div className="marketplace-admin-stats">
-        <article><span>Aktivní nabídky</span><strong>{listings.filter((row) => row.status === "active" && row.listing_type === "offer").length}</strong></article>
-        <article><span>Aktivní poptávky</span><strong>{listings.filter((row) => row.status === "active" && row.listing_type === "wanted").length}</strong></article>
+        <article><span>Automaticky zveřejněné</span><strong>{listings.filter((row) => row.status === "active" && row.publication_mode === "automatic").length}</strong></article>
         <article><span>Čeká na kontrolu</span><strong>{count("pending_review")}</strong></article>
         <article><span>Otevřená hlášení</span><strong>{reports.filter((row) => ["new", "reviewed"].includes(String(row.status))).length}</strong></article>
+        <article><span>Skryté nebo zamítnuté</span><strong>{count("hidden") + count("rejected")}</strong></article>
         <article><span>Brzy vyprší</span><strong>{listings.filter((row) => row.status === "active" && new Date(String(row.expires_at)).getTime() < now + 3 * 86400000).length}</strong></article>
       </div>
 
@@ -75,6 +75,7 @@ export function HousingAdminPanel({ listings, reports, history, actions, onApi }
                 <h3>{String(row.title)}</h3>
                 <p>{String(row.short_description)}</p>
                 <small>{String(row.listing_type)} · {String(row.locality)} · {String(row.price_monthly)} Kč · {String(row.created_at)}</small>
+                <p><strong>Rozhodnutí:</strong> {row.publication_mode === "automatic" ? "automaticky zveřejněno" : row.publication_mode === "manual" ? "ručně schváleno" : "nezveřejněno"} · {String(row.moderation_reason || "bez strojového důvodu")}</p>
                 {Array.isArray(row.moderation_flags) && row.moderation_flags.length > 0 && <p className="source-block-reason"><strong>Automatická kontrola:</strong> {row.moderation_flags.join(", ")}</p>}
                 {itemReports.map((report) => (
                   <div className="marketplace-admin-report" key={String(report.id)}>

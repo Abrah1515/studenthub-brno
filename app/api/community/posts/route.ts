@@ -17,10 +17,12 @@ function safeScope(value: string | null) { return value && /^[a-z0-9-]{1,80}$/.t
 export async function GET(request: Request) {
   const source = new URL(request.url); const cityId = source.searchParams.get("city") || defaultCitySlug;
   if (!await getPublishedCity(cityId)) return NextResponse.json({ message: "Město není aktivní." }, { status: 404 });
-  const page = Math.min(100, Math.max(1, Number(source.searchParams.get("page")) || 1)); const limit = 12; const sort = source.searchParams.get("sort") === "popular" ? "popular" : "newest";
+  const page = Math.min(100, Math.max(1, Number(source.searchParams.get("page")) || 1)); const limit = 12; const sort = source.searchParams.get("sort") === "popular" ? "popular" : "newest"; const mine = source.searchParams.get("scope") === "mine";
   if (!isSupabaseConfigured()) return NextResponse.json({ items: [], page, nextPage: null, viewer: { loggedIn: false, nickname: "", profileComplete: false } });
   const client = createServiceClient(); const viewer = await getCurrentAccount();
-  let query = client.from("community_posts").select("*", { count: "exact" }).eq("city_id", cityId).eq("status", "active");
+  if (mine && !viewer) return NextResponse.json({ message: "Pro zobrazení vlastních příspěvků se přihlaste." }, { status: 401 });
+  let query = client.from("community_posts").select("*", { count: "exact" }).eq("city_id", cityId);
+  query = mine ? query.eq("author_id", viewer!.id).neq("status", "deleted") : query.eq("status", "active");
   const requestedCategory = source.searchParams.get("category"); const category = communityCategories.includes(requestedCategory as (typeof communityCategories)[number]) ? requestedCategory : null; const university = safeScope(source.searchParams.get("university")); const faculty = safeScope(source.searchParams.get("faculty")); const search = cleanCommunityText(source.searchParams.get("q") || "");
   if (category) query = query.eq("category", category);
   if (faculty && university) query = query.or(`university_id.is.null,and(university_id.eq.${university},faculty_id.is.null),faculty_id.eq.${faculty}`); else if (university) query = query.or(`university_id.is.null,university_id.eq.${university}`);

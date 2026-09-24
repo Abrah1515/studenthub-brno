@@ -90,7 +90,7 @@ export async function GET() {
   if (isSupabaseConfigured() && user.role !== "faculty_editor") {
     const housingClient = createServiceClient();
     const [listingResult, housingReportResult, housingHistoryResult, actionResult, runResult] = await Promise.all([
-      housingClient.from("housing_listings").select("id,city_id,author_id,listing_type,category,title,locality,available_from,stay_length,short_description,price_monthly,utilities_included,utilities_amount,deposit_amount,status,moderation_flags,moderation_note,report_count,view_count,contact_count,expires_at,published_at,created_at,updated_at").order("created_at", { ascending: false }).limit(1000),
+      housingClient.from("housing_listings").select("id,city_id,author_id,listing_type,category,title,locality,available_from,stay_length,short_description,price_monthly,utilities_included,utilities_amount,deposit_amount,status,moderation_flags,moderation_reason,moderation_note,publication_mode,auto_evaluated_at,report_count,view_count,contact_count,expires_at,published_at,created_at,updated_at").order("created_at", { ascending: false }).limit(1000),
       housingClient.from("housing_reports").select("id,listing_id,reason,detail,status,reviewed_by,reviewed_at,resolution,created_at").order("created_at", { ascending: false }).limit(1000),
       housingClient.from("housing_history").select("id,listing_id,actor_id,event_type,previous_status,new_status,changes,created_at").order("created_at", { ascending: false }).limit(1500),
       housingClient.from("housing_moderation_actions").select("id,listing_id,actor_id,action,reason,previous_status,new_status,created_at").order("created_at", { ascending: false }).limit(1000),

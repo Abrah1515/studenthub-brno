@@ -49,7 +49,7 @@ export async function saveCommunityPostImage(file: File, postId: string) {
     const created = await client.storage.createBucket(communityPostImageBucket, { public: true, fileSizeLimit: 2 * 1024 * 1024, allowedMimeTypes: ["image/webp"] });
     if (created.error && !/already exists/i.test(created.error.message)) throw new Error("Úložiště obrázků není dostupné.");
   }
-  const path = `${postId || randomUUID()}.webp`;
+  const path = `${postId || randomUUID()}-${randomUUID()}.webp`;
   const upload = await client.storage.from(communityPostImageBucket).upload(path, bytes, { contentType: "image/webp", upsert: false, cacheControl: "31536000" });
   if (upload.error) throw new Error("Obrázek se nepodařilo bezpečně uložit.");
   return client.storage.from(communityPostImageBucket).getPublicUrl(path).data.publicUrl;
@@ -58,7 +58,7 @@ export async function saveCommunityPostImage(file: File, postId: string) {
 export async function removeCommunityPostImage(imageUrl: unknown) {
   if (!isSupabaseConfigured() || typeof imageUrl !== "string") return;
   const marker = `/storage/v1/object/public/${communityPostImageBucket}/`; const index = imageUrl.indexOf(marker); if (index < 0) return;
-  const path = decodeURIComponent(imageUrl.slice(index + marker.length)); if (!/^[a-f0-9-]{36}\.webp$/.test(path)) return;
+  const path = decodeURIComponent(imageUrl.slice(index + marker.length)); if (!/^[a-f0-9-]{36}(?:-[a-f0-9-]{36})?\.webp$/.test(path)) return;
   await createServiceClient().storage.from(communityPostImageBucket).remove([path]);
 }
 
@@ -69,6 +69,7 @@ export function publicCommunityPost(row: Record<string, unknown>, options: { own
     universityId: row.university_id ? String(row.university_id) : undefined, facultyId: row.faculty_id ? String(row.faculty_id) : undefined,
     helpfulCount: Number(row.helpful_count || 0), commentCount: Number(row.comment_count || 0), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
     owned: Boolean(options.owned), viewerHelpful: Boolean(options.viewerHelpful), author: options.author || legacyProfileIdentity,
+    status: String(row.status || "active") as CommunityPost["status"],
   };
 }
 

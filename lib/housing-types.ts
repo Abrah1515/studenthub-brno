@@ -6,7 +6,7 @@ export const housingStayLengths = ["under_3_months", "3_6_months", "6_12_months"
 export const housingFeatures = ["internet", "washer", "balcony", "cellar", "elevator", "accessible", "pets", "smoking"] as const;
 export const housingLifestylePreferences = ["non_smoking", "smoking_ok", "pets_ok", "no_pets", "quiet_home", "social_home"] as const;
 export const housingReportReasons = ["fake", "fraud", "outdated", "discrimination", "public_contact", "inappropriate_photo", "harassment", "other"] as const;
-export const housingPublicStatuses = ["active", "occupied", "found", "expired", "hidden", "pending_review", "rejected"] as const;
+export const housingPublicStatuses = ["active", "occupied", "found", "archived", "expired", "hidden", "pending_review", "rejected"] as const;
 
 export type HousingListingType = (typeof housingListingTypes)[number];
 export type HousingCategory = (typeof housingCategories)[number];
@@ -22,6 +22,7 @@ export type HousingListing = {
   features: HousingFeature[]; wantedPersonCount?: number; lifestylePreferences: string[]; status: HousingPublicStatus; publishedAt?: string; expiresAt: string;
   createdAt: string; updatedAt: string; photos: HousingPhoto[]; author: PublicProfileIdentity; owned?: boolean; chatAvailable?: boolean;
   viewCount?: number; contactCount?: number; moderationFlags?: string[]; version?: number;
+  moderationReason?: string; publicationMode?: "automatic" | "manual"; hiddenByAdmin?: boolean;
 };
 
 export const housingLabels = {
@@ -30,7 +31,7 @@ export const housingLabels = {
   stay: { under_3_months: "Méně než 3 měsíce", "3_6_months": "3–6 měsíců", "6_12_months": "6–12 měsíců", over_year: "Déle než rok", indefinite: "Dlouhodobě", agreement: "Dohodou" },
   feature: { internet: "Internet", washer: "Pračka", balcony: "Balkon", cellar: "Sklep", elevator: "Výtah", accessible: "Bezbariérové", pets: "Zvířata povolena", smoking: "Kouření povoleno" },
   lifestyle: { non_smoking: "Nekuřácká domácnost", smoking_ok: "Kouření nevadí", pets_ok: "Zvířata nevadí", no_pets: "Bez zvířat", quiet_home: "Klidnější domácnost", social_home: "Společenská domácnost" },
-  status: { active: "Aktivní", occupied: "Obsazeno", found: "Nalezeno", expired: "Vypršelo", hidden: "Skryté", pending_review: "Čeká na kontrolu", rejected: "Zamítnuto" },
+  status: { active: "Aktivní", occupied: "Obsazeno", found: "Nalezeno", archived: "Archivováno", expired: "Vypršelo", hidden: "Skryté", pending_review: "Čeká na kontrolu", rejected: "Zamítnuto" },
 } as const;
 
 export function housingPriceLabel(item: Pick<HousingListing, "priceMonthly" | "utilitiesIncluded" | "utilitiesAmount">) {

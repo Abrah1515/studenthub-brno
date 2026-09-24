@@ -13,15 +13,53 @@ export function cleanHousingText(value:string,multiline=false){const clean=value
 export function housingHash(value:string){return createHash("sha256").update(value).digest("hex");}
 export function housingDuplicateFingerprint(input:{title:string;locality:string;description:string}){return housingHash([input.title,input.locality,input.description.slice(0,240)].map((value)=>cleanHousingText(value).normalize("NFKD").replace(/\p{Diacritic}/gu,"").toLowerCase()).join("|"));}
 
-export function housingModerationFlags(input:{title:string;shortDescription:string;description:string;depositAmount?:number;priceMonthly:number}){
-  const raw=`${input.title}\n${input.shortDescription}\n${input.description}`; const normalized=raw.normalize("NFKD").replace(/\p{Diacritic}/gu,"").toLowerCase(); const flags:string[]=[];
+export type HousingPublicationDecision = {
+  outcome: "publish" | "review" | "reject";
+  flags: string[];
+  message: string;
+};
+
+type HousingSafetyInput = {
+  title: string;
+  locality?: string;
+  shortDescription: string;
+  description: string;
+  transitAccess?: string;
+  depositAmount?: number;
+  priceMonthly: number;
+  additionalFlags?: string[];
+};
+
+const rejectionFlags = new Set(["public_contact", "private_address", "html_markup", "unsafe_url", "prohibited_content"]);
+
+export function housingModerationFlags(input:HousingSafetyInput){
+  const raw=`${input.title}\n${input.locality || ""}\n${input.shortDescription}\n${input.description}\n${input.transitAccess || ""}`;
+  const normalized=raw.normalize("NFKD").replace(/\p{Diacritic}/gu,"").toLowerCase(); const flags:string[]=[];
+  if(/<\/?[a-z][^>]*>|\bon\w+\s*=|javascript\s*:|data\s*:\s*text\/html/i.test(raw)) flags.push("html_markup");
+  if(/(?:javascript|data|file)\s*:|https?:\/\/(?:localhost|127\.0\.0\.1|\[?::1\]?)(?:[:/]|$)|https?:\/\/(?:bit\.ly|tinyurl\.com|t\.co|rb\.gy)(?:\/|$)/i.test(raw)) flags.push("unsafe_url");
   if(/(?:https?:\/\/|www\.|t\.me\/|wa\.me\/)/i.test(raw)) flags.push("external_link");
   if(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/i.test(raw)||/(?:\+?420\s*)?(?:\d[ .-]?){9}/.test(raw)) flags.push("public_contact");
+  if(/\b(?:ulice|ul\.?|adresa|bytem|namesti|nam\.?|trida|tr\.?)\s+[\p{L} .'-]{2,50}\s+\d{1,4}(?:\/\d{1,4})?\b/iu.test(normalized)
+    || /\b[\p{Lu}][\p{L}'-]{2,30}\s+\d{1,4}(?:\/\d{1,4})?\s*,\s*[\p{L} -]{2,30}\b/u.test(raw)) flags.push("private_address");
   if(/(?:posli|zaplat|uhrad|preved).{0,30}(?:zaloh|kauci|rezervacni poplatek).{0,35}(?:predem|bez prohlidky|hned)/.test(normalized)) flags.push("advance_payment");
   if(/(?:jen|pouze|nechci).{0,18}(?:zeny|muze|cizince|cechy|slovaky|romy|krestany|muslimy)/.test(normalized)) flags.push("discrimination");
   if(/(?:drogy|zbrane|sex za najem|sexualni sluzb)/.test(normalized)) flags.push("prohibited_content");
   if(input.depositAmount!=null&&input.depositAmount>Math.max(3*input.priceMonthly,100000)) flags.push("unusual_deposit");
-  return [...new Set(flags)];
+  return [...new Set([...flags, ...(input.additionalFlags || [])])];
+}
+
+export function evaluateHousingPublication(input: HousingSafetyInput): HousingPublicationDecision {
+  const flags = housingModerationFlags(input);
+  if (flags.some((flag) => rejectionFlags.has(flag))) {
+    const message = flags.includes("public_contact") ? "Odstraňte z veřejného textu e-mail nebo telefon. Zájemci vás kontaktují přes soukromý chat."
+      : flags.includes("private_address") ? "Uveďte pouze přibližnou lokalitu, ne přesnou adresu bytu."
+      : flags.includes("html_markup") ? "Veřejný text nesmí obsahovat HTML ani spustitelný obsah."
+      : flags.includes("unsafe_url") ? "Odstraňte podezřelý nebo nebezpečný odkaz."
+      : "Inzerát obsahuje obsah, který v sekci Bydlení nelze zveřejnit.";
+    return { outcome: "reject", flags, message };
+  }
+  if (flags.length) return { outcome: "review", flags, message: "Inzerát jsme uložili, ale před zveřejněním vyžaduje kontrolu." };
+  return { outcome: "publish", flags, message: "Inzerát byl zveřejněn." };
 }
 
 export type HousingLimitDecision={status:"allowed"}|{status:"limited"}|{status:"error";code:string};

@@ -113,6 +113,20 @@ export async function getPublicMarketplaceListings(cityId = "brno", viewerId?: s
 
 export async function getPublicMarketplaceListing(id: string) { return (await getPublicMarketplaceListings()).find((item) => item.id === id) || null; }
 
+export async function getOwnedMarketplaceListings(ownerId: string, cityId = "brno"): Promise<MarketplaceListing[]> {
+  const rows = (await listRecords("marketplace_listings")).filter((row) => row.city_id === cityId && row.seller_id === ownerId && row.status !== "deleted");
+  const ids = new Set(rows.map((row) => String(row.id)));
+  const photoRows = (await listRecords("marketplace_listing_photos")).filter((row) => ids.has(String(row.listing_id)));
+  const signedPhotos = await photosWithSignedUrls(photoRows);
+  const identities = await publicIdentityForRows([ownerId], ownerId);
+  const result: MarketplaceListing[] = [];
+  for (const row of rows) {
+    const item = publicMarketplaceListing(row, signedPhotos.filter((photo) => photo.listing_id === row.id), true);
+    if (item) result.push({ ...item, owned: true, chatAvailable: false, author: identities.get(ownerId) || legacyProfileIdentity });
+  }
+  return result.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 export async function marketplaceAbuseBlocked(emailHash: string, requestHash: string) {
   return (await listRecords("marketplace_abuse_blocks")).some((row) => row.active && [emailHash, marketplaceHash(requestHash)].includes(String(row.identifier_hash)));
 }

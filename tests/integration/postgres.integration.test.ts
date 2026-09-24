@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(42);
+      expect(files).toHaveLength(44);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -246,8 +246,8 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
           ('61111111-1111-4111-8111-111111111114','RLS FIT','Cizí fakulta','teaching','VUT','FIT','2026-09-14 00:00:00+02',true,'Europe/Prague','2026/2027','Fixture','https://www.fit.vut.cz/',0.8,'2026-08-02','needs_review','pending',false,'faculty','vut','vut-fit');
         insert into public.service_requests(id,city_id,name,email,service_type,description,preferred_date,consent_at,status)
         values ('81111111-1111-4111-8111-111111111111','brno','RLS Student','rls@example.cz','backup','Neveřejná testovací poptávka pro ověření RLS.','2026-08-10',now(),'new');
-        insert into public.buddy_posts(id,owner_id,city_id,activity_type,approximate_location,starts_at,description,max_participants,status,moderation_status,expires_at)
-        values ('91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111111','brno','study','Veřejná knihovna','2030-09-14 18:00:00+02','Bezpečný veřejný popis integračního setkání bez kontaktů.',2,'active','approved','2030-09-15 06:00:00+02');
+        insert into public.buddy_posts(id,owner_id,city_id,activity_type,title,approximate_location,starts_at,description,max_participants,status,moderation_status,expires_at)
+        values ('91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111111','brno','study','Společné učení','Veřejná knihovna','2030-09-14 18:00:00+02','Bezpečný veřejný popis integračního setkání bez kontaktů.',2,'active','approved','2030-09-15 06:00:00+02');
         insert into public.buddy_join_requests(id,post_id,requester_id,message,status) values
           ('92111111-1111-4111-8111-111111111111','91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111112','První žádost','pending'),
           ('92111111-1111-4111-8111-111111111112','91111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111113','Druhá žádost','pending');
@@ -276,7 +276,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         update public.academic_events set description=description || ' · změna zůstává v interním centru' where id='61111111-1111-4111-8111-111111111113';
       `);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.internal_notifications where installation_id='a2111111-1111-4111-8111-111111111111' and kind='academic_change'")).rows[0].count).toBe(1);
-      const immediatelyPublished = await db.query<{ moderation_status: string }>("insert into public.buddy_posts(id,owner_id,city_id,activity_type,approximate_location,starts_at,description,max_participants,status,expires_at) values ('91111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111111','brno','study','Testovací knihovna','2030-10-14 18:00:00+02','Příspěvek se po ověření e-mailu zveřejní bez čekání na administrátora.',3,'active','2030-10-15 06:00:00+02') returning moderation_status");
+      const immediatelyPublished = await db.query<{ moderation_status: string }>("insert into public.buddy_posts(id,owner_id,city_id,activity_type,title,approximate_location,starts_at,description,max_participants,status,expires_at) values ('91111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111111','brno','study','Společné učení','Testovací knihovna','2030-10-14 18:00:00+02','Příspěvek se po ověření e-mailu zveřejní bez čekání na administrátora.',3,'active','2030-10-15 06:00:00+02') returning moderation_status");
       expect(immediatelyPublished.rows[0].moderation_status).toBe("approved");
       await db.exec("insert into public.content_reports(target_type,target_id,reporter_session_hash,reason,city_id) values ('buddy_post','91111111-1111-4111-8111-111111111112',repeat('4',64),'spam','brno'),('buddy_post','91111111-1111-4111-8111-111111111112',repeat('5',64),'spam','brno'),('buddy_post','91111111-1111-4111-8111-111111111112',repeat('6',64),'spam','brno')");
       expect((await db.query<{ moderation_status: string; report_count: number }>("select moderation_status,report_count from public.buddy_posts where id='91111111-1111-4111-8111-111111111112'")).rows[0]).toEqual({ moderation_status: "hidden", report_count: 3 });
@@ -362,6 +362,17 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query<{ consume_housing_rate_limit:boolean }>("select public.consume_housing_rate_limit($1,'report',2,3600)",["abcdefabcdefabcdefabcdef"])).rows[0].consume_housing_rate_limit).toBe(true);
       expect((await db.query<{ consume_housing_rate_limit:boolean }>("select public.consume_housing_rate_limit($1,'report',2,3600)",["abcdefabcdefabcdefabcdef"])).rows[0].consume_housing_rate_limit).toBe(true);
       expect((await db.query<{ consume_housing_rate_limit:boolean }>("select public.consume_housing_rate_limit($1,'report',2,3600)",["abcdefabcdefabcdefabcdef"])).rows[0].consume_housing_rate_limit).toBe(false);
+      await db.exec(`
+        insert into public.housing_listings(id,author_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,wanted_person_count,duplicate_fingerprint,status)
+        values
+          ('b4111111-1111-4111-8111-111111111113','71111111-1111-4111-8111-111111111111','wanted','private_room','Bezpečná starší poptávka','Žabovřesky','2032-10-01','agreement','Bezpečný text starší čekající poptávky po bydlení.','Bezpečná starší poptávka bez kontaktu, přesné adresy, odkazů a rizikových požadavků.',9000,true,1,repeat('d',64),'pending_review'),
+          ('b4111111-1111-4111-8111-111111111114','71111111-1111-4111-8111-111111111111','wanted','private_room','Riziková starší poptávka','Žabovřesky','2032-10-01','agreement','Starší čekající poptávka obsahuje veřejný odkaz.','Další údaje jsou na https://example.cz a proto položka musí zůstat v ruční kontrole.',9000,true,1,repeat('e',64),'pending_review');
+      `);
+      expect((await db.query<{ reassess_pending_housing_listings:number }>("select public.reassess_pending_housing_listings()")).rows[0].reassess_pending_housing_listings).toBe(1);
+      expect((await db.query<{ reassess_pending_housing_listings:number }>("select public.reassess_pending_housing_listings()")).rows[0].reassess_pending_housing_listings).toBe(0);
+      expect((await db.query<{status:string;publication_mode:string}>("select status,publication_mode from public.housing_listings where id='b4111111-1111-4111-8111-111111111113'")).rows[0]).toEqual({status:"active",publication_mode:"automatic"});
+      expect((await db.query<{status:string}>("select status from public.housing_listings where id='b4111111-1111-4111-8111-111111111114'")).rows[0].status).toBe("pending_review");
+      await db.exec("delete from public.housing_history where listing_id in ('b4111111-1111-4111-8111-111111111113','b4111111-1111-4111-8111-111111111114'); delete from public.housing_listings where id in ('b4111111-1111-4111-8111-111111111113','b4111111-1111-4111-8111-111111111114');");
       await db.exec("reset role");
       await db.query("select set_config('request.jwt.claim.role','',false)");
 

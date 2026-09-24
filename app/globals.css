@@ -1072,3 +1072,13 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
   .legal-table-scroll table { min-width: 0; font-size: 8pt; }
   .legal-card a { color: black; text-decoration: underline; }
 }
+.owner-scope-tabs { display:inline-flex; align-items:center; gap:3px; width:max-content; padding:3px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2); }
+.owner-scope-tabs a,.owner-scope-tabs button { min-width:72px; min-height:38px; padding:7px 14px; display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:6px; background:transparent; color:var(--muted); font:inherit; font-size:13px; font-weight:750; text-decoration:none; cursor:pointer; }
+.owner-scope-tabs a.active,.owner-scope-tabs button.active { background:var(--surface); color:var(--accent-2); box-shadow:0 1px 3px rgb(15 23 42 / .1); }
+.owner-scope-tabs a:focus-visible,.owner-scope-tabs button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+.owner-delete-layer { z-index:1600; padding-bottom:max(1rem,env(safe-area-inset-bottom)); }
+.owner-delete-dialog { width:min(100%,28rem); }
+.community-owned-item { display:grid; gap:6px; }
+.community-owned-item > .status-pill { justify-self:start; }
+.community-owned-image-editor { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:0 4px 10px; }
+.community-owned-image-editor small { color:var(--muted); }

@@ -3,9 +3,9 @@ import { housingListingUpdateSchema } from "@/lib/housing-schemas";
 import {
   cleanHousingText,
   consumeHousingLimit,
+  evaluateHousingPublication,
   getOwnedHousingListings,
   getPublicHousingListing,
-  housingModerationFlags,
   recordHousingHistory,
   removeHousingPhotos,
 } from "@/lib/housing-server";
@@ -60,29 +60,45 @@ export async function PATCH(request: Request, context: Context) {
   const action = parsed.data.action;
   const previous = String(owner.row.status);
   const allowed: Record<string, string[]> = {
-    active: ["update", "hide", "renew", "occupied", "found"],
-    hidden: ["reopen", "renew"],
-    occupied: ["reopen", "renew"],
-    found: ["reopen", "renew"],
-    expired: ["renew"],
+    active: ["update", "hide", "archive", "renew", "occupied", "found"],
+    hidden: ["archive", "reopen", "renew"],
+    occupied: ["archive", "reopen", "renew"],
+    found: ["archive", "reopen", "renew"],
+    archived: ["reopen"],
+    expired: ["archive", "renew"],
+    pending_review: ["update", "archive"],
+    rejected: ["update", "archive"],
   };
   if (!allowed[previous]?.includes(action)) return NextResponse.json({ message: "Tuto změnu nelze v aktuálním stavu provést." }, { status: 409 });
 
   const changes: Record<string, unknown> = { version: Number(owner.row.version) + 1 };
   const now = new Date().toISOString();
   if (action === "hide") Object.assign(changes, { status: "hidden", hidden_at: now });
+  else if (action === "archive") Object.assign(changes, { status: "archived", hidden_at: now });
   else if (action === "occupied") Object.assign(changes, { status: "occupied", closed_at: now });
   else if (action === "found") Object.assign(changes, { status: "found", closed_at: now });
-  else if (action === "reopen" || action === "renew") Object.assign(changes, {
-    status: "active",
-    published_at: owner.row.published_at || now,
-    hidden_at: null,
-    closed_at: null,
-    expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-    renewed_at: now,
-  });
+  else if (action === "reopen" || action === "renew") {
+    if (owner.row.moderation_note) return NextResponse.json({ message: "Inzerát skrytý administrátorem nelze obnovit bez nové kontroly." }, { status: 409 });
+    const decision = evaluateHousingPublication({
+      title: String(owner.row.title), locality: String(owner.row.locality), shortDescription: String(owner.row.short_description),
+      description: String(owner.row.description), transitAccess: String(owner.row.transit_access || ""),
+      priceMonthly: Number(owner.row.price_monthly), depositAmount: owner.row.deposit_amount == null ? undefined : Number(owner.row.deposit_amount),
+    });
+    if (decision.outcome === "reject") return NextResponse.json({ message: decision.message }, { status: 422 });
+    Object.assign(changes, {
+      status: decision.outcome === "publish" ? "active" : "pending_review",
+      publication_mode: decision.outcome === "publish" ? "automatic" : null,
+      moderation_reason: decision.outcome === "publish" ? "safe_rules_passed" : decision.flags[0],
+      moderation_flags: decision.flags,
+      auto_evaluated_at: now,
+      published_at: decision.outcome === "publish" ? (owner.row.published_at || now) : null,
+      hidden_at: null, closed_at: null, expires_at: new Date(Date.now() + 30 * 86400000).toISOString(), renewed_at: now,
+    });
+  }
   else {
+    if (owner.row.moderation_note) return NextResponse.json({ message: "Inzerát byl omezen administrátorem. Další zveřejnění vyžaduje moderátorskou kontrolu." }, { status: 409 });
     const fieldMap: Record<string, string> = {
+      listingType: "listing_type",
       availableFrom: "available_from", stayLength: "stay_length", shortDescription: "short_description",
       priceMonthly: "price_monthly", utilitiesIncluded: "utilities_included", utilitiesAmount: "utilities_amount",
       depositAmount: "deposit_amount", availableSpots: "available_spots", currentOccupants: "current_occupants",
@@ -93,22 +109,35 @@ export async function PATCH(request: Request, context: Context) {
       changes[fieldMap[key] || key] = typeof value === "string" ? cleanHousingText(value, key === "description") : value;
     }
     const candidate = { ...owner.row, ...changes };
-    const flags = housingModerationFlags({
-      title: String(candidate.title),
-      shortDescription: String(candidate.short_description),
-      description: String(candidate.description),
+    if (!candidate.utilities_included && candidate.utilities_amount == null) return NextResponse.json({ message: "Doplňte výši energií nebo označte, že jsou zahrnuté." }, { status: 422 });
+    if (candidate.listing_type === "offer" && candidate.available_spots == null) return NextResponse.json({ message: "Doplňte počet volných míst." }, { status: 422 });
+    if (candidate.listing_type === "wanted" && candidate.wanted_person_count == null) return NextResponse.json({ message: "Doplňte počet osob." }, { status: 422 });
+    const decision = evaluateHousingPublication({
+      title: parsed.data.title ?? String(owner.row.title), locality: parsed.data.locality ?? String(owner.row.locality),
+      shortDescription: parsed.data.shortDescription ?? String(owner.row.short_description),
+      description: parsed.data.description ?? String(owner.row.description),
+      transitAccess: parsed.data.transitAccess ?? String(owner.row.transit_access || ""),
       priceMonthly: Number(candidate.price_monthly),
       depositAmount: candidate.deposit_amount == null ? undefined : Number(candidate.deposit_amount),
     });
+    if (decision.outcome === "reject") return NextResponse.json({ message: decision.message, reason: decision.flags[0] }, { status: 422 });
+    if (decision.outcome === "publish" && candidate.listing_type === "offer") {
+      const { count } = await createServiceClient().from("housing_photos").select("id", { count: "exact", head: true }).eq("listing_id", id);
+      if (!count) return NextResponse.json({ message: "Nabídka musí mít alespoň jednu bezpečně zpracovanou fotografii." }, { status: 422 });
+    }
     Object.assign(changes, {
-      moderation_flags: flags,
-      ...(flags.length ? { status: "pending_review", published_at: null } : {}),
+      moderation_flags: decision.flags,
+      moderation_reason: decision.outcome === "publish" ? "safe_rules_passed" : decision.flags[0],
+      publication_mode: decision.outcome === "publish" ? "automatic" : null,
+      auto_evaluated_at: now,
+      status: decision.outcome === "publish" ? "active" : "pending_review",
+      published_at: decision.outcome === "publish" ? (owner.row.published_at || now) : null,
     });
   }
 
   const { data, error } = await createServiceClient().from("housing_listings").update(changes).eq("id", id).eq("version", parsed.data.version).select("*").maybeSingle();
   if (error || !data) return NextResponse.json({ message: "Souběžnou změnu se nepodařilo uložit. Obnovte stránku." }, { status: 409 });
-  const historyTypes: Record<string, string> = { reopen: "restored", renew: "renewed" };
+  const historyTypes: Record<string, string> = { update: "updated", hide: "hidden", archive: "archived", reopen: "restored", renew: "renewed" };
   const historyType = historyTypes[action] || action;
   await recordHousingHistory(id, historyType, previous, String(data.status), owner.account.id, changes);
   return NextResponse.json({ item: data, message: action === "renew" ? "Platnost byla prodloužena o 30 dní." : data.status === "pending_review" ? "Změna je uložená a čeká na bezpečnostní kontrolu." : "Změna byla uložena." });

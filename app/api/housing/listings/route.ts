@@ -2,27 +2,159 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { filterHousingListings } from "@/lib/housing-public";
 import { housingListingSchema } from "@/lib/housing-schemas";
-import { cleanHousingText, consumeHousingLimit, getPublicHousingListings, housingDuplicateFingerprint, housingModerationFlags, recordHousingHistory, removeHousingPhotos, sanitizeAndUploadHousingPhoto } from "@/lib/housing-server";
+import {
+  cleanHousingText,
+  consumeHousingLimit,
+  evaluateHousingPublication,
+  getPublicHousingListings,
+  housingDuplicateFingerprint,
+  recordHousingHistory,
+  removeHousingPhotos,
+  sanitizeAndUploadHousingPhoto,
+} from "@/lib/housing-server";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 import { getCurrentAccount } from "@/lib/user-auth";
 
-export const runtime="nodejs"; export const dynamic="force-dynamic";
-const number=(params:URLSearchParams,key:string)=>{const value=params.get(key);return value&&/^\d+$/.test(value)?Number(value):undefined;};
-export async function GET(request:Request){
-  const url=new URL(request.url);const account=await getCurrentAccount();const items=await getPublicHousingListings("brno",account?.id);const features=url.searchParams.getAll("feature");
-  const filtered=filterHousingListings(items,{q:url.searchParams.get("q")||undefined,listingType:url.searchParams.get("type")||undefined,category:url.searchParams.get("category")||undefined,locality:url.searchParams.get("locality")||undefined,minPrice:number(url.searchParams,"minPrice"),maxPrice:number(url.searchParams,"maxPrice"),utilitiesIncluded:url.searchParams.get("utilitiesIncluded")==="true",availableFrom:url.searchParams.get("availableFrom")||undefined,stayLength:url.searchParams.get("stayLength")||undefined,minSpots:number(url.searchParams,"minSpots"),furnished:url.searchParams.get("furnished")==="true",feature:features,sort:url.searchParams.get("sort")||"newest"});
-  return NextResponse.json({items:filtered,updatedAt:new Date().toISOString()},{headers:{"Cache-Control":account?"private, no-store":"public, max-age=30, stale-while-revalidate=120"}});
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const number = (params: URLSearchParams, key: string) => {
+  const value = params.get(key);
+  return value && /^\d+$/.test(value) ? Number(value) : undefined;
+};
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const account = await getCurrentAccount();
+  const items = await getPublicHousingListings("brno", account?.id);
+  const filtered = filterHousingListings(items, {
+    q: url.searchParams.get("q") || undefined,
+    listingType: url.searchParams.get("type") || undefined,
+    category: url.searchParams.get("category") || undefined,
+    locality: url.searchParams.get("locality") || undefined,
+    minPrice: number(url.searchParams, "minPrice"),
+    maxPrice: number(url.searchParams, "maxPrice"),
+    utilitiesIncluded: url.searchParams.get("utilitiesIncluded") === "true",
+    availableFrom: url.searchParams.get("availableFrom") || undefined,
+    stayLength: url.searchParams.get("stayLength") || undefined,
+    minSpots: number(url.searchParams, "minSpots"),
+    furnished: url.searchParams.get("furnished") === "true",
+    feature: url.searchParams.getAll("feature"),
+    sort: url.searchParams.get("sort") || "newest",
+  });
+  return NextResponse.json({ items: filtered, updatedAt: new Date().toISOString() }, {
+    headers: { "Cache-Control": account ? "private, no-store" : "public, max-age=30, stale-while-revalidate=120" },
+  });
 }
-export async function POST(request:Request){
-  if(!isSupabaseConfigured())return NextResponse.json({message:"Vložení inzerátu vyžaduje produkční databázi."},{status:503});const account=await getCurrentAccount();if(!account)return NextResponse.json({message:"Pro vložení inzerátu se přihlaste."},{status:401});if(!account.complete||account.accountStatus!=="active")return NextResponse.json({message:"Nejdřív dokončete aktivní profil a přijměte pravidla komunity.",profileRequired:true},{status:428});
-  const limit=await consumeHousingLimit(request,"create",3,86400,account.id);if(limit.status==="error")return NextResponse.json({message:"Ochranu proti spamu se nepodařilo ověřit."},{status:503});if(limit.status==="limited")return NextResponse.json({message:"Denní limit tří inzerátů byl vyčerpán."},{status:429});
-  const form=await request.formData().catch(()=>null);if(!form)return NextResponse.json({message:"Formulář se nepodařilo přečíst."},{status:422});const optionalNumber=(key:string)=>{const value=String(form.get(key)||"").trim();return value?Number(value):undefined;};
-  const parsed=housingListingSchema.safeParse({listingType:form.get("listingType"),category:form.get("category"),title:form.get("title"),locality:form.get("locality"),availableFrom:form.get("availableFrom"),stayLength:form.get("stayLength"),shortDescription:form.get("shortDescription"),description:form.get("description"),priceMonthly:optionalNumber("priceMonthly"),utilitiesIncluded:String(form.get("utilitiesIncluded"))==="true",utilitiesAmount:optionalNumber("utilitiesAmount"),depositAmount:optionalNumber("depositAmount"),availableSpots:optionalNumber("availableSpots"),currentOccupants:optionalNumber("currentOccupants"),furnished:form.get("furnished"),transitAccess:form.get("transitAccess")||"",features:form.getAll("features"),wantedPersonCount:optionalNumber("wantedPersonCount"),lifestylePreferences:form.getAll("lifestylePreferences"),cityId:form.get("cityId")||"brno",company:form.get("company")||""});
-  if(!parsed.success)return NextResponse.json({message:"Zkontrolujte vyplněné údaje.",issues:parsed.error.flatten().fieldErrors},{status:422});const photos=form.getAll("photos").filter((value):value is File=>value instanceof File&&value.size>0);if(parsed.data.listingType==="offer"&&(photos.length<1||photos.length>8))return NextResponse.json({message:"Nabídka musí mít 1 až 8 fotografií."},{status:422});if(parsed.data.listingType==="wanted"&&photos.length)return NextResponse.json({message:"Fotografie lze přidat pouze k nabídce bydlení."},{status:422});if(photos.length){const uploadLimit=await consumeHousingLimit(request,"photo_upload",24,86400,account.id);if(uploadLimit.status!=="allowed")return NextResponse.json({message:uploadLimit.status==="limited"?"Denní limit nahrávání fotografií byl vyčerpán.":"Ochranu nahrávání se nepodařilo ověřit."},{status:uploadLimit.status==="limited"?429:503});}
-  const clean={title:cleanHousingText(parsed.data.title),locality:cleanHousingText(parsed.data.locality),shortDescription:cleanHousingText(parsed.data.shortDescription),description:cleanHousingText(parsed.data.description,true),transitAccess:cleanHousingText(parsed.data.transitAccess||"")};const fingerprint=housingDuplicateFingerprint(clean);const client=createServiceClient();const{data:duplicate}=await client.from("housing_listings").select("id").eq("author_id",account.id).eq("duplicate_fingerprint",fingerprint).in("status",["active","pending_review","hidden"]).maybeSingle();if(duplicate)return NextResponse.json({message:"Stejný aktivní inzerát už existuje."},{status:409});
-  const[{data:profile},{count:activeCount},{count:reports}]=await Promise.all([client.from("profiles").select("created_at").eq("id",account.id).single(),client.from("housing_listings").select("id",{count:"exact",head:true}).eq("author_id",account.id).in("status",["active","pending_review"]),client.from("profile_reports").select("id",{count:"exact",head:true}).eq("reported_id",account.id).in("status",["new","reviewed"])]);const flags=housingModerationFlags({...clean,depositAmount:parsed.data.depositAmount,priceMonthly:parsed.data.priceMonthly});if((activeCount||0)>=5)flags.push("listing_volume");if((reports||0)>0)flags.push("reported_account");if(profile?.created_at&&Date.now()-new Date(profile.created_at).getTime()<7*86400000)flags.push("new_account");const status=flags.length?"pending_review":"active";const now=new Date().toISOString();const id=randomUUID();
-  const row={id,city_id:"brno",author_id:account.id,listing_type:parsed.data.listingType,category:parsed.data.category,title:clean.title,locality:clean.locality,available_from:parsed.data.availableFrom,stay_length:parsed.data.stayLength,short_description:clean.shortDescription,description:clean.description,price_monthly:parsed.data.priceMonthly,utilities_included:parsed.data.utilitiesIncluded,utilities_amount:parsed.data.utilitiesIncluded?null:parsed.data.utilitiesAmount,deposit_amount:parsed.data.depositAmount||null,available_spots:parsed.data.listingType==="offer"?parsed.data.availableSpots:null,current_occupants:parsed.data.listingType==="offer"?(parsed.data.currentOccupants??0):null,furnished:parsed.data.listingType==="offer"?(parsed.data.furnished??false):null,transit_access:clean.transitAccess||null,features:parsed.data.listingType==="offer"?parsed.data.features:[],wanted_person_count:parsed.data.listingType==="wanted"?parsed.data.wantedPersonCount:null,lifestyle_preferences:parsed.data.listingType==="wanted"?parsed.data.lifestylePreferences:[],status,moderation_flags:[...new Set(flags)],duplicate_fingerprint:fingerprint,published_at:status==="active"?now:null,expires_at:new Date(Date.now()+30*86400000).toISOString()};
-  const insert=await client.from("housing_listings").insert(row).select("id").single();if(insert.error){console.error("housing_create_failed",{code:insert.error.code});return NextResponse.json({message:"Inzerát se nepodařilo bezpečně uložit."},{status:500});}await recordHousingHistory(id,status==="active"?"created":"submitted_review",null,status,account.id,{moderation_flags:flags});const uploaded:Record<string,unknown>[]=[];
-  try{for(let index=0;index<photos.length;index++)uploaded.push(await sanitizeAndUploadHousingPhoto(photos[index],id,index));if(uploaded.length){const saved=await client.from("housing_photos").insert(uploaded);if(saved.error)throw saved.error;}}catch(error){await removeHousingPhotos(uploaded.map((photo)=>photo.storage_path));await client.from("housing_listings").update({status:"rejected",moderation_flags:[...new Set([...flags,"unsafe_image"])]}).eq("id",id);return NextResponse.json({message:error instanceof Error?error.message:"Fotografie neprošla bezpečnostní kontrolou."},{status:422});}
-  return NextResponse.json({id,href:`/brno/bydleni/${id}`,status,message:status==="active"?"Inzerát je zveřejněný.":"Inzerát je uložený a čeká na bezpečnostní kontrolu."},{status:201});
+
+export async function POST(request: Request) {
+  if (!isSupabaseConfigured()) return NextResponse.json({ message: "Vložení inzerátu vyžaduje produkční databázi." }, { status: 503 });
+  const account = await getCurrentAccount();
+  if (!account) return NextResponse.json({ message: "Pro vložení inzerátu se přihlaste." }, { status: 401 });
+  if (!account.complete || account.accountStatus !== "active") return NextResponse.json({ message: "Nejdřív dokončete aktivní profil a přijměte pravidla komunity.", profileRequired: true }, { status: 428 });
+
+  const form = await request.formData().catch(() => null);
+  if (!form) return NextResponse.json({ message: "Formulář se nepodařilo přečíst." }, { status: 422 });
+  const optionalNumber = (key: string) => {
+    const value = String(form.get(key) || "").trim();
+    return value ? Number(value) : undefined;
+  };
+  const parsed = housingListingSchema.safeParse({
+    listingType: form.get("listingType"), category: form.get("category"), title: form.get("title"), locality: form.get("locality"),
+    availableFrom: form.get("availableFrom"), stayLength: form.get("stayLength"), shortDescription: form.get("shortDescription"),
+    description: form.get("description"), priceMonthly: optionalNumber("priceMonthly"), utilitiesIncluded: String(form.get("utilitiesIncluded")) === "true",
+    utilitiesAmount: optionalNumber("utilitiesAmount"), depositAmount: optionalNumber("depositAmount"), availableSpots: optionalNumber("availableSpots"),
+    currentOccupants: optionalNumber("currentOccupants"), furnished: form.get("furnished"), transitAccess: form.get("transitAccess") || "",
+    features: form.getAll("features"), wantedPersonCount: optionalNumber("wantedPersonCount"), lifestylePreferences: form.getAll("lifestylePreferences"),
+    cityId: form.get("cityId") || "brno", company: form.get("company") || "",
+  });
+  if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte vyplněné údaje.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
+
+  const photos = form.getAll("photos").filter((value): value is File => value instanceof File && value.size > 0);
+  if (parsed.data.listingType === "offer" && (photos.length < 1 || photos.length > 8)) return NextResponse.json({ message: "Nabídka musí mít 1 až 8 fotografií." }, { status: 422 });
+  if (parsed.data.listingType === "wanted" && photos.length) return NextResponse.json({ message: "Fotografie lze přidat pouze k nabídce bydlení." }, { status: 422 });
+
+  const clean = {
+    title: cleanHousingText(parsed.data.title), locality: cleanHousingText(parsed.data.locality),
+    shortDescription: cleanHousingText(parsed.data.shortDescription), description: cleanHousingText(parsed.data.description, true),
+    transitAccess: cleanHousingText(parsed.data.transitAccess || ""),
+  };
+  const client = createServiceClient();
+  const fingerprint = housingDuplicateFingerprint(clean);
+  const { data: duplicate } = await client.from("housing_listings").select("id").eq("author_id", account.id)
+    .eq("duplicate_fingerprint", fingerprint).in("status", ["active", "pending_review", "hidden"]).limit(1).maybeSingle();
+  if (duplicate) return NextResponse.json({ message: "Stejný aktivní inzerát už existuje." }, { status: 409 });
+
+  const since = new Date(Date.now() - 86400000).toISOString();
+  const [{ count: recentCount }, { count: reports }] = await Promise.all([
+    client.from("housing_listings").select("id", { count: "exact", head: true }).eq("author_id", account.id)
+      .in("status", ["active", "pending_review", "hidden"]).gte("created_at", since),
+    client.from("profile_reports").select("id", { count: "exact", head: true }).eq("reported_id", account.id).in("status", ["new", "reviewed"]),
+  ]);
+  if ((recentCount || 0) >= 3) return NextResponse.json({ message: "Za 24 hodin lze přidat nejvýše tři inzeráty." }, { status: 429 });
+
+  const decision = evaluateHousingPublication({
+    title: parsed.data.title, locality: parsed.data.locality, shortDescription: parsed.data.shortDescription,
+    description: parsed.data.description, transitAccess: parsed.data.transitAccess, depositAmount: parsed.data.depositAmount,
+    priceMonthly: parsed.data.priceMonthly, additionalFlags: (reports || 0) > 0 ? ["reported_account"] : [],
+  });
+  if (decision.outcome === "reject") return NextResponse.json({ message: decision.message, reason: decision.flags[0] }, { status: 422 });
+
+  const limit = await consumeHousingLimit(request, "create", 3, 86400, account.id);
+  if (limit.status === "error") return NextResponse.json({ message: "Ochranu proti spamu se nepodařilo ověřit." }, { status: 503 });
+  if (limit.status === "limited") return NextResponse.json({ message: "Za 24 hodin lze přidat nejvýše tři inzeráty." }, { status: 429 });
+  if (photos.length) {
+    const uploadLimit = await consumeHousingLimit(request, "photo_upload", 24, 86400, account.id);
+    if (uploadLimit.status !== "allowed") return NextResponse.json({ message: uploadLimit.status === "limited" ? "Denní limit nahrávání fotografií byl vyčerpán." : "Ochranu nahrávání se nepodařilo ověřit." }, { status: uploadLimit.status === "limited" ? 429 : 503 });
+  }
+
+  const finalStatus = decision.outcome === "publish" ? "active" : "pending_review";
+  const initialStatus = photos.length ? "pending_review" : finalStatus;
+  const now = new Date().toISOString();
+  const id = randomUUID();
+  const row = {
+    id, city_id: "brno", author_id: account.id, listing_type: parsed.data.listingType, category: parsed.data.category,
+    title: clean.title, locality: clean.locality, available_from: parsed.data.availableFrom, stay_length: parsed.data.stayLength,
+    short_description: clean.shortDescription, description: clean.description, price_monthly: parsed.data.priceMonthly,
+    utilities_included: parsed.data.utilitiesIncluded, utilities_amount: parsed.data.utilitiesIncluded ? null : parsed.data.utilitiesAmount,
+    deposit_amount: parsed.data.depositAmount || null, available_spots: parsed.data.listingType === "offer" ? parsed.data.availableSpots : null,
+    current_occupants: parsed.data.listingType === "offer" ? (parsed.data.currentOccupants ?? 0) : null,
+    furnished: parsed.data.listingType === "offer" ? (parsed.data.furnished ?? false) : null,
+    transit_access: clean.transitAccess || null, features: parsed.data.listingType === "offer" ? parsed.data.features : [],
+    wanted_person_count: parsed.data.listingType === "wanted" ? parsed.data.wantedPersonCount : null,
+    lifestyle_preferences: parsed.data.listingType === "wanted" ? parsed.data.lifestylePreferences : [], status: initialStatus,
+    moderation_flags: decision.flags, moderation_reason: decision.outcome === "publish" ? "safe_rules_passed" : decision.flags[0],
+    publication_mode: decision.outcome === "publish" ? "automatic" : null, auto_evaluated_at: now,
+    duplicate_fingerprint: fingerprint, published_at: initialStatus === "active" ? now : null,
+    expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+  };
+  const insert = await client.from("housing_listings").insert(row).select("id").single();
+  if (insert.error) {
+    if (insert.error.code === "23505") return NextResponse.json({ message: "Stejný aktivní inzerát už existuje." }, { status: 409 });
+    console.error("housing_create_failed", { code: insert.error.code });
+    return NextResponse.json({ message: "Inzerát se nepodařilo bezpečně uložit." }, { status: 500 });
+  }
+
+  const uploaded: Record<string, unknown>[] = [];
+  try {
+    for (let index = 0; index < photos.length; index++) uploaded.push(await sanitizeAndUploadHousingPhoto(photos[index], id, index));
+    if (uploaded.length) {
+      const saved = await client.from("housing_photos").insert(uploaded);
+      if (saved.error) throw saved.error;
+      const finalized = await client.from("housing_listings").update({ status: finalStatus, published_at: finalStatus === "active" ? now : null })
+        .eq("id", id).eq("status", "pending_review");
+      if (finalized.error) throw finalized.error;
+    }
+  } catch (error) {
+    await removeHousingPhotos(uploaded.map((photo) => photo.storage_path));
+    await client.from("housing_photos").delete().eq("listing_id", id);
+    await client.from("housing_listings").update({ status: "rejected", publication_mode: null, moderation_reason: "unsafe_image", moderation_flags: [...new Set([...decision.flags, "unsafe_image"])] }).eq("id", id);
+    await recordHousingHistory(id, "rejected", initialStatus, "rejected", account.id, { reason: "unsafe_image" });
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Fotografie neprošla bezpečnostní kontrolou." }, { status: 422 });
+  }
+
+  await recordHousingHistory(id, finalStatus === "active" ? "created" : "submitted_review", null, finalStatus, account.id, {
+    moderation_reason: decision.outcome === "publish" ? "safe_rules_passed" : decision.flags[0], moderation_flags: decision.flags,
+  });
+  return NextResponse.json({ id, href: `/brno/bydleni/${id}`, status: finalStatus, message: decision.message }, { status: 201 });
 }

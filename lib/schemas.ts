@@ -2,6 +2,7 @@ import { z } from "zod";
 import { faculties } from "@/lib/universities";
 import { communityCategories } from "@/lib/community-types";
 import { placeCategoryCodes, placeTraitCodes } from "@/lib/place-community";
+import { marketplaceCategories } from "@/lib/marketplace-types";
 
 const honeypot = z.string().max(0, "Spam byl rozpoznán.").optional();
 const cityId = z.string().regex(/^[a-z0-9-]{2,80}$/).optional();
@@ -74,6 +75,7 @@ export const communityEventUpdateSchema = communityEventFields.omit({ publicVenu
 
 export const buddyPostSchema = z.object({
   activityType: z.enum(["beer", "cinema", "sport", "culture", "study", "trip"]),
+  title: z.string().trim().min(4).max(120),
   approximateLocation: z.string().trim().min(2).max(100),
   startsAt: z.string().datetime({ offset: true }),
   description: z.string().trim().min(20).max(1200),
@@ -83,11 +85,13 @@ export const buddyPostSchema = z.object({
 }).refine((value) => new Date(value.startsAt).getTime() > Date.now() + 30 * 60 * 1000, { path: ["startsAt"], message: "Termín musí být alespoň 30 minut v budoucnu." });
 
 export const buddyPostUpdateSchema = z.object({
+  activityType: z.enum(["beer", "cinema", "sport", "culture", "study", "trip"]).optional(),
+  title: z.string().trim().min(4).max(120).optional(),
   approximateLocation: z.string().trim().min(2).max(100).optional(),
   startsAt: z.string().datetime({ offset: true }).optional(),
   description: z.string().trim().min(20).max(1200).optional(),
   maxParticipants: z.coerce.number().int().min(2).max(30).optional(),
-  status: z.enum(["active", "closed"]).optional(),
+  status: z.enum(["active", "arranged", "closed", "archived"]).optional(),
 }).refine((value) => Object.keys(value).length > 0, "Není co změnit.")
   .refine((value) => !value.startsAt || new Date(value.startsAt).getTime() > Date.now() + 30 * 60 * 1000, { path: ["startsAt"], message: "Termín musí být alespoň 30 minut v budoucnu." });
 
@@ -240,7 +244,9 @@ export const marketplaceListingSchema = z.object({
 });
 
 export const marketplaceListingUpdateSchema = z.object({
-  action: z.enum(["update", "reserve", "sold", "reopen", "renew"]),
+  action: z.enum(["update", "reserve", "sold", "archive", "reopen", "renew"]),
+  listingType: z.enum(["offer", "wanted"]).optional(),
+  category: z.enum(marketplaceCategories).optional(),
   title: z.string().trim().min(4).max(140).optional(),
   shortDescription: z.string().trim().min(10).max(240).optional(),
   description: z.string().trim().min(30).max(3000).optional(),
@@ -249,6 +255,13 @@ export const marketplaceListingUpdateSchema = z.object({
   priceScope: z.enum(["item", "bundle"]).optional(),
   handoffMethod: z.enum(["in_person", "shipping", "digital", "agreement"]).optional(),
     handoffLocation: z.string().trim().min(2).max(120).optional().or(z.literal("")),
+  universityId: z.string().trim().max(64).nullable().optional(),
+  facultyId: z.string().trim().max(64).nullable().optional(),
+  studyProgram: z.string().trim().max(140).nullable().optional(),
+  subjectName: z.string().trim().max(140).nullable().optional(),
+  subjectCode: z.string().trim().max(40).nullable().optional(),
+  teacherName: z.string().trim().max(120).nullable().optional(),
+  recommendedYear: z.number().int().min(1).max(6).nullable().optional(),
 }).refine((value) => value.action !== "update" || Object.keys(value).some((key) => key !== "action"), "Není co změnit.");
 
 export const marketplaceContactSchema = z.object({ message: z.string().trim().min(20, "Zpráva musí mít alespoň 20 znaků.").max(2000), consent: z.boolean().refine(Boolean, "Potvrďte předání zprávy prodávajícímu."), company: honeypot });

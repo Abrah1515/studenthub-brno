@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 
 import { filterHousingListings, publicHousingListing } from "@/lib/housing-public";
 import { housingListingSchema, housingReportSchema } from "@/lib/housing-schemas";
-import { housingDuplicateFingerprint, housingModerationFlags } from "@/lib/housing-server";
+import { evaluateHousingPublication, housingDuplicateFingerprint, housingModerationFlags } from "@/lib/housing-server";
 import { housingPriceLabel, type HousingListing } from "@/lib/housing-types";
 import { legacyProfileIdentity } from "@/lib/profile-types";
 
@@ -96,6 +96,26 @@ describe("Bydlení – validace a veřejné soukromí", () => {
 });
 
 describe("Bydlení – filtry, řazení a moderace", () => {
+  it("bezpečnou nabídku i poptávku určí k okamžitému zveřejnění", () => {
+    const safe = { title: baseForm.title, locality: baseForm.locality, shortDescription: baseForm.shortDescription, description: baseForm.description, priceMonthly: baseForm.priceMonthly };
+    expect(evaluateHousingPublication(safe)).toEqual({ outcome: "publish", flags: [], message: "Inzerát byl zveřejněn." });
+    expect(evaluateHousingPublication({ ...safe, title: "Hledám pokoj v Brně", description: "Hledám dlouhodobé bydlení v přibližné lokalitě s dobrou dostupností do školy a klidným prostředím." }).outcome).toBe("publish");
+  });
+
+  it("odmítne veřejný kontakt, přesnou adresu, HTML a nebezpečnou URL", () => {
+    const safe = { title: baseForm.title, locality: baseForm.locality, shortDescription: baseForm.shortDescription, description: baseForm.description, priceMonthly: baseForm.priceMonthly };
+    expect(evaluateHousingPublication({ ...safe, description: `${safe.description} Pište na test@example.cz.` }).outcome).toBe("reject");
+    expect(evaluateHousingPublication({ ...safe, locality: "Veveří 12, Brno" })).toMatchObject({ outcome: "reject", flags: expect.arrayContaining(["private_address"]) });
+    expect(evaluateHousingPublication({ ...safe, description: `${safe.description}<script>alert(1)</script>` })).toMatchObject({ outcome: "reject", flags: expect.arrayContaining(["html_markup"]) });
+    expect(evaluateHousingPublication({ ...safe, description: `${safe.description} javascript:alert(1)` })).toMatchObject({ outcome: "reject", flags: expect.arrayContaining(["unsafe_url"]) });
+  });
+
+  it("nejistý odkaz a nahlášený účet ponechá v ruční kontrole", () => {
+    const safe = { title: baseForm.title, locality: baseForm.locality, shortDescription: baseForm.shortDescription, description: baseForm.description, priceMonthly: baseForm.priceMonthly };
+    expect(evaluateHousingPublication({ ...safe, description: `${safe.description} Více na https://example.cz/pokoj` })).toMatchObject({ outcome: "review", flags: ["external_link"] });
+    expect(evaluateHousingPublication({ ...safe, additionalFlags: ["reported_account"] })).toMatchObject({ outcome: "review", flags: ["reported_account"] });
+  });
+
   it("filtruje sdílitelnými parametry a řadí cenu i nastěhování", () => {
     const items = [
       listing(),
@@ -132,10 +152,30 @@ describe("Bydlení – databázové a serverové bezpečnostní kontrakty", () =
 
   it("API odvozuje autora ze session a při selhání limitu nepředstírá 429", () => {
     const route = readFileSync("app/api/housing/listings/route.ts", "utf8");
-    expect(route).toContain("author_id:account.id");
+    expect(route).toMatch(/author_id:\s*account\.id/);
     expect(route).not.toMatch(/author_id:parsed/i);
-    expect(route).toMatch(/status==="error"[\s\S]+status:503/);
-    expect(route).toMatch(/status==="limited"[\s\S]+status:429/);
+    expect(route).toMatch(/status\s*===\s*"error"[\s\S]+status:\s*503/);
+    expect(route).toMatch(/status\s*===\s*"limited"[\s\S]+status:\s*429/);
     expect(route).toContain("pending_review");
+    expect(route).toContain('message: decision.message');
+    expect(route).toContain('insert.error.code === "23505"');
+    expect(route.indexOf("housingListingSchema.safeParse")).toBeLessThan(route.indexOf('consumeHousingLimit(request, "create"'));
+  });
+
+  it("má idempotentní přehodnocení starých čekajících položek a strojový audit", () => {
+    const sql = readFileSync("supabase/migrations/202609240002_housing_safe_auto_publish.sql", "utf8");
+    expect(sql).toContain("reassess_pending_housing_listings");
+    expect(sql).toContain("where h.status='pending_review'");
+    expect(sql).toContain("safe_rules_passed");
+    expect(sql).toContain("publication_mode");
+    expect(sql).toContain("'archived'");
+    expect(sql).toContain("select public.reassess_pending_housing_listings();");
+    expect(sql).toContain("for update skip locked");
+  });
+
+  it("uživatelské potvrzení rozlišuje zveřejnění a kontrolu", () => {
+    const form = readFileSync("components/housing-listing-form.tsx", "utf8");
+    expect(form).toContain('done.status==="active"?"Inzerát byl zveřejněn":"Inzerát vyžaduje kontrolu"');
+    expect(form).toContain('href="/brno/bydleni/moje"');
   });
 });

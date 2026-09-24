@@ -5,9 +5,9 @@ const publicStatuses = new Set(["active", "reserved", "sold"]);
 
 function optionalText(value: unknown) { return typeof value === "string" && value.trim() ? value.trim() : undefined; }
 
-export function publicMarketplaceListing(row: Record<string, unknown>, photos: Array<Record<string, unknown> & { signedUrl?: string }> = []): MarketplaceListing | null {
+export function publicMarketplaceListing(row: Record<string, unknown>, photos: Array<Record<string, unknown> & { signedUrl?: string }> = [], includeInactive = false): MarketplaceListing | null {
   const status = String(row.status || "");
-  if (!publicStatuses.has(status)) return null;
+  if (!publicStatuses.has(status) && !(includeInactive && ["archived", "expired", "hidden", "rejected", "pending_verification"].includes(status))) return null;
   return {
     id: String(row.id), cityId: String(row.city_id), listingType: String(row.listing_type) as MarketplaceListing["listingType"], category: String(row.category) as MarketplaceListing["category"],
     title: String(row.title), shortDescription: String(row.short_description), description: String(row.description), priceMode: String(row.price_mode) as MarketplaceListing["priceMode"],

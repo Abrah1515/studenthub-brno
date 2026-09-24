@@ -2,7 +2,7 @@ import type { HousingListing, HousingPhoto } from "@/lib/housing-types";
 import { legacyProfileIdentity } from "@/lib/profile-types";
 
 const publicStatuses = new Set(["active"]);
-const manageableStatuses = new Set(["active", "occupied", "found", "expired", "hidden", "pending_review", "rejected"]);
+const manageableStatuses = new Set(["active", "occupied", "found", "archived", "expired", "hidden", "pending_review", "rejected"]);
 const text = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : undefined;
 
 export function publicHousingListing(row: Record<string, unknown>, photos: Array<Record<string, unknown> & { signedUrl?: string }> = [], includePrivate = false): HousingListing | null {
@@ -16,7 +16,13 @@ export function publicHousingListing(row: Record<string, unknown>, photos: Array
     features: Array.isArray(row.features) ? row.features.map(String) as HousingListing["features"] : [], wantedPersonCount: row.wanted_person_count == null ? undefined : Number(row.wanted_person_count), lifestylePreferences: Array.isArray(row.lifestyle_preferences) ? row.lifestyle_preferences.map(String) : [],
     status: status as HousingListing["status"], publishedAt: text(row.published_at), expiresAt: String(row.expires_at), createdAt: String(row.created_at), updatedAt: String(row.updated_at || row.created_at), author: legacyProfileIdentity,
     photos: photos.filter((photo) => photo.signedUrl).sort((a,b) => Number(a.sort_order)-Number(b.sort_order)).map((photo) => ({ id: String(photo.id), url: String(photo.signedUrl), width: Number(photo.width), height: Number(photo.height), sortOrder: Number(photo.sort_order) } satisfies HousingPhoto)),
-    ...(includePrivate ? { viewCount: Number(row.view_count || 0), contactCount: Number(row.contact_count || 0), moderationFlags: Array.isArray(row.moderation_flags) ? row.moderation_flags.map(String) : [], version: Number(row.version || 1) } : {}),
+    ...(includePrivate ? {
+      viewCount: Number(row.view_count || 0), contactCount: Number(row.contact_count || 0),
+      moderationFlags: Array.isArray(row.moderation_flags) ? row.moderation_flags.map(String) : [], version: Number(row.version || 1),
+      moderationReason: text(row.moderation_reason),
+      publicationMode: row.publication_mode === "automatic" || row.publication_mode === "manual" ? row.publication_mode : undefined,
+      hiddenByAdmin: status === "hidden" && (Boolean(row.moderation_note) || ["admin_hidden", "author_restricted"].includes(String(row.moderation_reason))),
+    } : {}),
   };
 }
 

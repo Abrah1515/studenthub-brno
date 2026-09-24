@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cleanCommunityText, communityFingerprint, containsPersonalContact, looksLikeCommunitySpam, publicCommunityPost, removeCommunityPostImage } from "@/lib/community";
+import { cleanCommunityText, communityFingerprint, containsPersonalContact, looksLikeCommunitySpam, publicCommunityPost, removeCommunityPostImage, saveCommunityPostImage } from "@/lib/community";
 import { allowRequest, requestFingerprint } from "@/lib/rate-limit";
 import { communityPostUpdateSchema } from "@/lib/schemas";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
@@ -13,7 +13,10 @@ export async function PATCH(request: Request, context: Context) {
   const user = await getCurrentAccount(); if (!user) return NextResponse.json({ message: "Nepřihlášeno." }, { status: 401 }); if (!user.complete || user.accountStatus !== "active") return NextResponse.json({ message: "Profil není připravený pro komunitní akce." }, { status: 403 });
   if (!allowRequest(`community-post-edit:${user.id}:${requestFingerprint(request)}`, 20, 60 * 60 * 1000)) return NextResponse.json({ message: "Limit úprav byl vyčerpán." }, { status: 429 });
   const id = (await context.params).id; const post = await owned(id, user.id); if (!post || post.status !== "active") return NextResponse.json({ message: "Příspěvek nebyl nalezen nebo vám nepatří." }, { status: 404 });
-  const parsed = communityPostUpdateSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte změny.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
+  const multipart = request.headers.get("content-type")?.includes("multipart/form-data");
+  const form = multipart ? await request.formData().catch(() => null) : null;
+  const input = form ? Object.fromEntries([...form.entries()].filter(([, value]) => typeof value === "string")) : await request.json().catch(() => null);
+  const parsed = communityPostUpdateSchema.safeParse(input); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte změny.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
   const nickname = parsed.data.nickname ? cleanCommunityText(parsed.data.nickname) : String(post.author_nickname); const body = parsed.data.body ? cleanCommunityText(parsed.data.body, true) : String(post.body);
   if (containsPersonalContact(`${nickname}\n${body}`)) return NextResponse.json({ message: "Do veřejného textu nevkládejte e-mail ani telefon." }, { status: 422 });
   if (looksLikeCommunitySpam(body)) return NextResponse.json({ message: "Příspěvek vypadá jako automatický spam." }, { status: 422 });
@@ -23,8 +26,13 @@ export async function PATCH(request: Request, context: Context) {
     : parsed.data.facultyId !== undefined ? parsed.data.facultyId || null : post.faculty_id;
   const placeId = parsed.data.placeId !== undefined ? parsed.data.placeId || null : post.place_id;
   const client = createServiceClient(); if (placeId) { const { data } = await client.from("places").select("id").eq("id", placeId).eq("city_id", post.city_id).eq("status", "approved").maybeSingle(); if (!data) return NextResponse.json({ message: "Vybrané místo není dostupné." }, { status: 422 }); }
-  const { data: saved, error } = await client.from("community_posts").update({ author_nickname: nickname, category: parsed.data.category ?? post.category, body, university_id: universityId, faculty_id: facultyId, place_id: placeId, duplicate_fingerprint: communityFingerprint(user.id, body) }).eq("id", id).eq("author_id", user.id).select("*").single();
-  if (error) return NextResponse.json({ message: error.code === "23505" ? "Stejný příspěvek už jste zveřejnili." : "Příspěvek se nepodařilo upravit." }, { status: error.code === "23505" ? 409 : 422 });
+  const image = form?.get("image"); const removeImage = form?.get("removeImage") === "true";
+  let imageUrl = removeImage ? null : post.image_url;
+  try { if (image instanceof File && image.size) imageUrl = await saveCommunityPostImage(image, id); }
+  catch (imageError) { return NextResponse.json({ message: imageError instanceof Error ? imageError.message : "Obrázek se nepodařilo uložit." }, { status: 422 }); }
+  const { data: saved, error } = await client.from("community_posts").update({ author_nickname: nickname, category: parsed.data.category ?? post.category, body, university_id: universityId, faculty_id: facultyId, place_id: placeId, image_url: imageUrl, duplicate_fingerprint: communityFingerprint(user.id, body) }).eq("id", id).eq("author_id", user.id).select("*").single();
+  if (error) { if (imageUrl && imageUrl !== post.image_url) await removeCommunityPostImage(imageUrl); return NextResponse.json({ message: error.code === "23505" ? "Stejný příspěvek už jste zveřejnili." : "Příspěvek se nepodařilo upravit." }, { status: error.code === "23505" ? 409 : 422 }); }
+  if (post.image_url && post.image_url !== imageUrl) await removeCommunityPostImage(post.image_url);
   await client.from("community_profiles").update({ nickname, university_id: universityId, faculty_id: facultyId }).eq("user_id", user.id);
   return NextResponse.json({ item: publicCommunityPost(saved, { owned: true }), message: "Příspěvek byl upraven." });
 }

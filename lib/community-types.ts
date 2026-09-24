@@ -9,7 +9,7 @@ export type CommunityComment = {
 export type CommunityPost = {
   id: string; nickname: string; category: CommunityCategory; body: string; imageUrl?: string; place?: CommunityPlace;
   universityId?: string; facultyId?: string; helpfulCount: number; commentCount: number; createdAt: string; updatedAt: string;
-  owned: boolean; viewerHelpful: boolean; author: PublicProfileIdentity;
+  owned: boolean; viewerHelpful: boolean; author: PublicProfileIdentity; status?: "active" | "hidden" | "deleted";
 };
 
 export const communityReportReasons = [
