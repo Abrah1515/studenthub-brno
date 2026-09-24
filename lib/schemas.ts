@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { communityEventCategories } from "@/lib/community-event-categories";
 import { faculties } from "@/lib/universities";
 import { communityCategories } from "@/lib/community-types";
 import { placeCategoryCodes, placeTraitCodes } from "@/lib/place-community";
@@ -50,7 +51,7 @@ const safeHttpsUrl = z.string().max(2000).url("Zadejte platný odkaz.").refine((
 
 const communityEventFields = z.object({
   title: z.string().trim().min(4, "Doplňte název akce.").max(140),
-  category: z.enum(["Kultura", "Sport", "Studium", "Zábava", "Ostatní"]),
+  category: z.enum(communityEventCategories),
   startsAt: z.string().datetime({ offset: true }),
   endsAt: z.string().datetime({ offset: true }).optional().or(z.literal("")),
   venue: z.string().trim().min(2, "Doplňte veřejné místo.").max(160),

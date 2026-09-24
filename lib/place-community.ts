@@ -1,18 +1,19 @@
 import { haversineDistanceKm } from "@/lib/places";
 
-export const placeCategoryCodes = ["restaurant","cafe","pub_bar","fast_food","canteen","library","study_room","coworking","public_toilet","sport","student_service","other"] as const;
+export const placeCategoryCodes = ["restaurant","cafe","pub_bar","fast_food","canteen","library","study_room","coworking","public_toilet","drinking_fountain","sport","student_service","counselling","park","bench","other"] as const;
 export type PlaceCategoryCode = (typeof placeCategoryCodes)[number];
 export const placeCategoryLabels: Record<PlaceCategoryCode,string> = {
   restaurant: "Restaurace", cafe: "Kavárna", pub_bar: "Hospoda a bar", fast_food: "Bistro a rychlé občerstvení",
   canteen: "Menza", library: "Knihovna", study_room: "Studovna", coworking: "Coworking",
-  public_toilet: "Veřejné toalety", sport: "Sport a pohyb", student_service: "Studentské služby", other: "Ostatní",
+  public_toilet: "Veřejné toalety", drinking_fountain: "Pítka", sport: "Sport a pohyb", student_service: "Studentské služby",
+  counselling: "Poradenství a pomoc", park: "Parky a zeleň", bench: "Lavičky a odpočinek", other: "Ostatní",
 };
 export const databasePlaceCategoryLabels: Record<string,(typeof placeCategoryLabels)[PlaceCategoryCode]> = {
   ...placeCategoryLabels, print: "Studentské služby", service: "Studentské služby",
 };
 export const placeCategoryColors: Record<PlaceCategoryCode,string> = {
   restaurant: "#dc6b2f", cafe: "#9a6735", pub_bar: "#7b4bb7", fast_food: "#e0a11b", canteen: "#d65c43", library: "#315ba6",
-  study_room: "#4f46e5", coworking: "#397b9b", public_toilet: "#64748b", sport: "#2563eb", student_service: "#b45309", other: "#6b7280",
+  study_room: "#4f46e5", coworking: "#397b9b", public_toilet: "#64748b", drinking_fountain: "#0284c7", sport: "#2563eb", student_service: "#b45309", counselling: "#7c3aed", park: "#15803d", bench: "#78716c", other: "#6b7280",
 };
 
 export const placeTraitCodes = ["quiet_study","group_work","good_wifi","many_outlets","low_price","accessible","evening_open","good_food"] as const;
