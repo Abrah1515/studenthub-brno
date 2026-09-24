@@ -6,6 +6,7 @@ import {
   evaluateHousingPublication,
   getOwnedHousingListings,
   getPublicHousingListing,
+  housingDuplicateFingerprint,
   recordHousingHistory,
   removeHousingPhotos,
 } from "@/lib/housing-server";
@@ -109,6 +110,8 @@ export async function PATCH(request: Request, context: Context) {
       changes[fieldMap[key] || key] = typeof value === "string" ? cleanHousingText(value, key === "description") : value;
     }
     const candidate = { ...owner.row, ...changes };
+    if (candidate.listing_type === "offer") Object.assign(changes, { wanted_person_count: null, lifestyle_preferences: [] });
+    else Object.assign(changes, { available_spots: null, current_occupants: null, furnished: null, features: [] });
     if (!candidate.utilities_included && candidate.utilities_amount == null) return NextResponse.json({ message: "Doplňte výši energií nebo označte, že jsou zahrnuté." }, { status: 422 });
     if (candidate.listing_type === "offer" && candidate.available_spots == null) return NextResponse.json({ message: "Doplňte počet volných míst." }, { status: 422 });
     if (candidate.listing_type === "wanted" && candidate.wanted_person_count == null) return NextResponse.json({ message: "Doplňte počet osob." }, { status: 422 });
@@ -125,7 +128,12 @@ export async function PATCH(request: Request, context: Context) {
       const { count } = await createServiceClient().from("housing_photos").select("id", { count: "exact", head: true }).eq("listing_id", id);
       if (!count) return NextResponse.json({ message: "Nabídka musí mít alespoň jednu bezpečně zpracovanou fotografii." }, { status: 422 });
     }
+    const duplicateFingerprint = housingDuplicateFingerprint({ title: String(candidate.title), locality: String(candidate.locality), description: String(candidate.description) });
+    const { data: duplicate } = await createServiceClient().from("housing_listings").select("id").eq("author_id", owner.account.id)
+      .eq("duplicate_fingerprint", duplicateFingerprint).neq("id", id).in("status", ["active", "pending_review", "hidden"]).limit(1).maybeSingle();
+    if (duplicate) return NextResponse.json({ message: "Stejný aktivní inzerát už existuje." }, { status: 409 });
     Object.assign(changes, {
+      duplicate_fingerprint: duplicateFingerprint,
       moderation_flags: decision.flags,
       moderation_reason: decision.outcome === "publish" ? "safe_rules_passed" : decision.flags[0],
       publication_mode: decision.outcome === "publish" ? "automatic" : null,
@@ -136,7 +144,7 @@ export async function PATCH(request: Request, context: Context) {
   }
 
   const { data, error } = await createServiceClient().from("housing_listings").update(changes).eq("id", id).eq("version", parsed.data.version).select("*").maybeSingle();
-  if (error || !data) return NextResponse.json({ message: "Souběžnou změnu se nepodařilo uložit. Obnovte stránku." }, { status: 409 });
+  if (error || !data) return NextResponse.json({ message: error?.code === "23505" ? "Stejný aktivní inzerát už existuje." : "Souběžnou změnu se nepodařilo uložit. Obnovte stránku." }, { status: 409 });
   const historyTypes: Record<string, string> = { update: "updated", hide: "hidden", archive: "archived", reopen: "restored", renew: "renewed" };
   const historyType = historyTypes[action] || action;
   await recordHousingHistory(id, historyType, previous, String(data.status), owner.account.id, changes);

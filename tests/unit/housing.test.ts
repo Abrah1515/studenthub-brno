@@ -178,4 +178,12 @@ describe("Bydlení – databázové a serverové bezpečnostní kontrakty", () =
     expect(form).toContain('done.status==="active"?"Inzerát byl zveřejněn":"Inzerát vyžaduje kontrolu"');
     expect(form).toContain('href="/brno/bydleni/moje"');
   });
+
+  it("při vlastní úpravě přepočítá deduplikační otisk a nepovolí podvržení vlastníka", () => {
+    const route = readFileSync("app/api/housing/listings/[id]/route.ts", "utf8");
+    expect(route).toContain("housingDuplicateFingerprint");
+    expect(route).toContain("duplicate_fingerprint: duplicateFingerprint");
+    expect(route).toContain('.eq("author_id", owner.account.id)');
+    expect(route).not.toMatch(/author_id\s*:\s*parsed/i);
+  });
 });
