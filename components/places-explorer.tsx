@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import {
   Armchair, Beer, BookOpen, BriefcaseBusiness, ChevronDown, Coffee, Droplets,
   Dumbbell, ExternalLink, HeartHandshake, Layers3, Library, LocateFixed, MapPin,
@@ -239,6 +240,7 @@ export function PlacesExplorer({ items, city }: { items: Place[]; city: City }) 
   const [studentOnly, setStudentOnly] = useState(false);
   const [accessibleOnly, setAccessibleOnly] = useState(false);
   const [suggestionOpen, setSuggestionOpen] = useState(search.get("navrh") === "1");
+  const editingSuggestionId = search.get("submission");
   const [correctionPlace, setCorrectionPlace] = useState<Place | null>(null);
   const [liveSummaries, setLiveSummaries] = useState<Record<string, PlaceLiveSummary>>({});
   const [layers, setLayers] = useState<MapLayerState>(defaultMapLayers);
@@ -306,7 +308,7 @@ export function PlacesExplorer({ items, city }: { items: Place[]; city: City }) 
         const result = { items: deduplicatePlaces(payload.items || []), truncated: payload.truncated === true };
         utilityCache.current.set(requestKey, result);
         setUtilityItems(result.items); setUtilityTruncated(result.truncated);
-      } catch (error) {
+      } catch {
         if (!controller.signal.aborted) setUtilityError("Vybavení v tomto výřezu se nepodařilo načíst.");
       } finally { if (!controller.signal.aborted) setUtilityLoading(false); }
     }, 380);
@@ -409,6 +411,7 @@ export function PlacesExplorer({ items, city }: { items: Place[]; city: City }) 
     <div className="location-toolbar">
       <button type="button" className="button button-secondary" onClick={requestLocation} disabled={locationStatus === "loading"}><LocateFixed size={17} />{locationStatus === "loading" ? "Zjišťuji polohu…" : userLocation ? "Aktualizovat moji polohu" : "Použít moji polohu"}</button>
       <button type="button" className="button button-secondary" aria-expanded={nearbyOpen} onClick={() => setNearbyOpen((value) => !value)}><Layers3 size={17} />Vybavení v okolí</button>
+      <Link className="button button-secondary" href={`/${city.slug}/nastaveni#profil`}><MapPin size={17} />Mé návrhy</Link>
       <button type="button" className="button button-primary" data-testid="suggest-place" onClick={() => { setCorrectionPlace(null); setSuggestionOpen(true); }}><PlusCircle size={17} />Navrhnout nové místo</button>
       {userLocation && filtered[0] && <span className="nearest-place">Nejblíž: <strong>{filtered[0].name}</strong></span>}
       {locationMessage && <p className={locationStatus === "error" ? "location-error" : "location-note"} role="status">{locationMessage}</p>}
@@ -431,6 +434,6 @@ export function PlacesExplorer({ items, city }: { items: Place[]; city: City }) 
         <div className="map-caption"><span><MapPin size={16} />{city.name} a okolí</span><small>Kolečko a touchpad mění přiblížení jen nad mapou · © OpenStreetMap</small></div>
       </div>
     </section>
-    <PlaceSuggestionDialog key={correctionPlace?.id || "new"} open={suggestionOpen} onClose={() => { setSuggestionOpen(false); setCorrectionPlace(null); if (search.get("navrh") === "1") replaceQuery({ navrh: undefined }); }} city={city} correctionPlace={correctionPlace} onOpenExisting={(id) => { setSelected(id); window.requestAnimationFrame(() => cardRefs.current.get(id)?.scrollIntoView({ block: "center", behavior: "smooth" })); }} />
+    <PlaceSuggestionDialog key={editingSuggestionId || correctionPlace?.id || "new"} open={suggestionOpen} submissionId={editingSuggestionId} onClose={() => { setSuggestionOpen(false); setCorrectionPlace(null); if (search.get("navrh") === "1") replaceQuery({ navrh: undefined, submission: undefined }); }} city={city} correctionPlace={correctionPlace} onOpenExisting={(id) => { setSelected(id); window.requestAnimationFrame(() => cardRefs.current.get(id)?.scrollIntoView({ block: "center", behavior: "smooth" })); }} />
   </>;
 }

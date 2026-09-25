@@ -14,9 +14,15 @@ import { getCurrentAccount } from "@/lib/user-auth";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const cityId = new URL(request.url).searchParams.get("city") || defaultCitySlug;
+  const source = new URL(request.url); const cityId = source.searchParams.get("city") || defaultCitySlug; const mine = source.searchParams.get("scope") === "mine";
   if (!await getPublishedCity(cityId)) return NextResponse.json({ message: "Město není aktivní." }, { status: 404 });
   const viewer = await getCurrentAccount();
+  if (mine) {
+    if (!viewer) return NextResponse.json({ message: "Pro zobrazení vlastních akcí se přihlaste." }, { status: 401 });
+    const rows = (await listRecords("community_events")).filter((row) => row.city_id === cityId && row.author_id === viewer.id && row.status !== "deleted");
+    const identity = (await publicIdentityForRows([viewer.id], viewer.id)).get(viewer.id) || legacyProfileIdentity;
+    return NextResponse.json({ items: rows.sort((a, b) => String(a.starts_at).localeCompare(String(b.starts_at))).map((row) => ({ ...publicCommunityEvent(row, identity), owned: true, status: row.status })) }, { headers: { "Cache-Control": "private, no-store" } });
+  }
   return NextResponse.json({ items: await getCommunityEvents(cityId, viewer?.id) }, { headers: { "Cache-Control": viewer ? "private, no-store" : "public, max-age=60, stale-while-revalidate=300" } });
 }
 

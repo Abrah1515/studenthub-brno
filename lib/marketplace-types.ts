@@ -10,7 +10,7 @@ export type MarketplaceListingType = (typeof marketplaceListingTypes)[number];
 export type MarketplaceCategory = (typeof marketplaceCategories)[number];
 export type MarketplaceFormat = (typeof marketplaceFormats)[number];
 export type MarketplaceCondition = (typeof marketplaceConditions)[number];
-export type MarketplacePublicStatus = (typeof marketplaceStatuses)[number] | "hidden" | "rejected" | "pending_verification";
+export type MarketplacePublicStatus = (typeof marketplaceStatuses)[number] | "hidden" | "rejected" | "pending_verification" | "pending_review";
 
 export type MarketplacePhoto = { id: string; url: string; width: number; height: number; sortOrder: number };
 
@@ -56,7 +56,7 @@ export const marketplaceLabels = {
   category: { textbook: "Učebnice", scripts: "Skripta", own_notes: "Vlastní poznámky", study_materials: "Studijní materiály", calculator_equipment: "Kalkulačky a vybavení", other: "Ostatní" },
   format: { printed: "Tištěné", digital: "Digitální", both: "Obojí" },
   condition: { new: "Nové", like_new: "Jako nové", used: "Použité", worn: "Více používané" },
-  status: { active: "Aktivní", reserved: "Rezervováno", sold: "Prodáno", archived: "Archivováno", expired: "Vypršelo", hidden: "Skryto", rejected: "Zamítnuto", pending_verification: "Čeká na ověření" },
+  status: { active: "Aktivní", reserved: "Rezervováno", sold: "Prodáno", archived: "Archivováno", expired: "Vypršelo", hidden: "Skryto", rejected: "Zamítnuto", pending_verification: "Čeká na ověření", pending_review: "Čeká na novou kontrolu" },
   semester: { winter: "Zimní", summer: "Letní", both: "Oba semestry", not_applicable: "Neurčeno" },
   handoff: { in_person: "Osobní předání", shipping: "Zaslání", digital: "Digitální předání", agreement: "Dohodou" },
 } as const;

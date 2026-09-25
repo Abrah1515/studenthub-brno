@@ -44,4 +44,50 @@ describe("správa vlastního uživatelského obsahu", () => {
     expect(dialog).toContain('role="dialog"'); expect(dialog).toContain('aria-modal="true"'); expect(dialog).toContain("Zrušit"); expect(dialog).toContain("Smazat");
     expect(read("app/globals.css")).toContain(".owner-delete-layer");
   });
+
+  it("upravuje návrh místa přes PATCH stejného ID a odstraní jen povolené stavy", () => {
+    const dialog=read("components/place-suggestion-dialog.tsx");const route=read("app/api/place-suggestions/[id]/route.ts");const summary=read("components/account-content-summary.tsx");
+    expect(dialog).toContain('method:submissionId?"PATCH":"POST"');
+    expect(dialog).toContain("removePhotoIds");
+    expect(route).toContain('["draft", "pending", "changes_requested"]');
+    expect(route).toContain('.update(changes).eq("id", id).eq("author_id", result.account.id)');
+    expect(route).not.toContain('insert({id');
+    expect(route).toContain('["draft", "withdrawn"]');
+    expect(summary).toContain("submission=${String(item.id)}");
+  });
+
+  it("sjednocuje povolené editace neveřejných stavů bez opětovného publikování", () => {
+    const market=read("app/api/marketplace/listings/[id]/route.ts");const housing=read("app/api/housing/listings/[id]/route.ts");const community=read("app/api/community/posts/[id]/route.ts");
+    expect(market).toContain('archived: ["update", "reopen"]');
+    expect(market).toContain('rejected: ["update"]');
+    expect(market).toContain('previous === "hidden"');
+    expect(housing).toContain('hidden: ["update", "archive", "reopen", "renew"]');
+    expect(housing).toContain('const preservedStatus = ["hidden", "occupied", "found", "archived", "expired"]');
+    expect(community).toContain('["active", "hidden"]');
+    expect(community).toContain('status: post.status === "hidden" ? "hidden" : "active"');
+  });
+
+  it("filtruje měkce smazaný obsah a nevystavuje nefunkční správu komentářů", () => {
+    const account=read("app/api/account/content/route.ts");
+    expect(account.match(/\.neq\("status","deleted"\)/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(account).toContain("comments:[]");
+  });
+
+  it("váže ruční návrhy brigád na session profil a nechává externí feed mimo správu", () => {
+    const jobs=read("app/api/jobs/route.ts");const detail=read("app/api/jobs/[id]/route.ts");const ui=read("components/job-explorer.tsx");const migration=read("supabase/migrations/202609250007_owned_content_workflow_policies.sql");
+    expect(jobs).toContain("author_id:account.id");
+    expect(detail).toContain('.eq("author_id",account.id)');
+    expect(detail).toContain('status:"pending"');
+    expect(detail).toContain('status:"deleted"');
+    expect(ui).toContain("Moje návrhy");
+    expect(migration).toContain("submissions_author_status_idx");
+    expect(detail).not.toContain("fajn-brigady");
+  });
+
+  it("nabízí správu vlastních komunitních akcí v kalendáři včetně obrázku", () => {
+    expect(read("components/community-events-explorer.tsx")).toContain("OwnerScopeTabs");
+    expect(read("app/api/community-events/route.ts")).toContain('source.searchParams.get("scope") === "mine"');
+    const manager=read("components/community-event-manager.tsx");
+    expect(manager).toContain("removeImage");expect(manager).toContain('type="file"');
+  });
 });

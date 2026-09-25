@@ -62,11 +62,11 @@ export async function PATCH(request: Request, context: Context) {
   const previous = String(owner.row.status);
   const allowed: Record<string, string[]> = {
     active: ["update", "hide", "archive", "renew", "occupied", "found"],
-    hidden: ["archive", "reopen", "renew"],
-    occupied: ["archive", "reopen", "renew"],
-    found: ["archive", "reopen", "renew"],
-    archived: ["reopen"],
-    expired: ["archive", "renew"],
+    hidden: ["update", "archive", "reopen", "renew"],
+    occupied: ["update", "archive", "reopen", "renew"],
+    found: ["update", "archive", "reopen", "renew"],
+    archived: ["update", "reopen"],
+    expired: ["update", "archive", "renew"],
     pending_review: ["update", "archive"],
     rejected: ["update", "archive"],
   };
@@ -97,7 +97,6 @@ export async function PATCH(request: Request, context: Context) {
     });
   }
   else {
-    if (owner.row.moderation_note) return NextResponse.json({ message: "Inzerát byl omezen administrátorem. Další zveřejnění vyžaduje moderátorskou kontrolu." }, { status: 409 });
     const fieldMap: Record<string, string> = {
       listingType: "listing_type",
       availableFrom: "available_from", stayLength: "stay_length", shortDescription: "short_description",
@@ -124,7 +123,11 @@ export async function PATCH(request: Request, context: Context) {
       depositAmount: candidate.deposit_amount == null ? undefined : Number(candidate.deposit_amount),
     });
     if (decision.outcome === "reject") return NextResponse.json({ message: decision.message, reason: decision.flags[0] }, { status: 422 });
-    if (decision.outcome === "publish" && candidate.listing_type === "offer") {
+    const preservedStatus = ["hidden", "occupied", "found", "archived", "expired"].includes(previous)
+      ? previous
+      : ["pending_review", "rejected"].includes(previous) ? "pending_review" : null;
+    const nextStatus = preservedStatus || (decision.outcome === "publish" ? "active" : "pending_review");
+    if (nextStatus === "active" && candidate.listing_type === "offer") {
       const { count } = await createServiceClient().from("housing_photos").select("id", { count: "exact", head: true }).eq("listing_id", id);
       if (!count) return NextResponse.json({ message: "Nabídka musí mít alespoň jednu bezpečně zpracovanou fotografii." }, { status: 422 });
     }
@@ -135,11 +138,11 @@ export async function PATCH(request: Request, context: Context) {
     Object.assign(changes, {
       duplicate_fingerprint: duplicateFingerprint,
       moderation_flags: decision.flags,
-      moderation_reason: decision.outcome === "publish" ? "safe_rules_passed" : decision.flags[0],
-      publication_mode: decision.outcome === "publish" ? "automatic" : null,
+      moderation_reason: previous === "hidden" && owner.row.moderation_reason ? owner.row.moderation_reason : decision.outcome === "publish" ? "safe_rules_passed" : decision.flags[0],
+      publication_mode: nextStatus === "active" ? "automatic" : owner.row.publication_mode || null,
       auto_evaluated_at: now,
-      status: decision.outcome === "publish" ? "active" : "pending_review",
-      published_at: decision.outcome === "publish" ? (owner.row.published_at || now) : null,
+      status: nextStatus,
+      published_at: nextStatus === "active" ? (owner.row.published_at || now) : owner.row.published_at || null,
     });
   }
 

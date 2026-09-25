@@ -12,7 +12,7 @@ export async function PATCH(request: Request, context: Context) {
   if (!isSupabaseConfigured()) return NextResponse.json({ message: "Úložiště není připojené." }, { status: 503 });
   const user = await getCurrentAccount(); if (!user) return NextResponse.json({ message: "Nepřihlášeno." }, { status: 401 }); if (!user.complete || user.accountStatus !== "active") return NextResponse.json({ message: "Profil není připravený pro komunitní akce." }, { status: 403 });
   if (!allowRequest(`community-post-edit:${user.id}:${requestFingerprint(request)}`, 20, 60 * 60 * 1000)) return NextResponse.json({ message: "Limit úprav byl vyčerpán." }, { status: 429 });
-  const id = (await context.params).id; const post = await owned(id, user.id); if (!post || post.status !== "active") return NextResponse.json({ message: "Příspěvek nebyl nalezen nebo vám nepatří." }, { status: 404 });
+  const id = (await context.params).id; const post = await owned(id, user.id); if (!post || !["active", "hidden"].includes(String(post.status))) return NextResponse.json({ message: "Příspěvek nebyl nalezen nebo vám nepatří." }, { status: 404 });
   const multipart = request.headers.get("content-type")?.includes("multipart/form-data");
   const form = multipart ? await request.formData().catch(() => null) : null;
   const input = form ? Object.fromEntries([...form.entries()].filter(([, value]) => typeof value === "string")) : await request.json().catch(() => null);
@@ -30,11 +30,11 @@ export async function PATCH(request: Request, context: Context) {
   let imageUrl = removeImage ? null : post.image_url;
   try { if (image instanceof File && image.size) imageUrl = await saveCommunityPostImage(image, id); }
   catch (imageError) { return NextResponse.json({ message: imageError instanceof Error ? imageError.message : "Obrázek se nepodařilo uložit." }, { status: 422 }); }
-  const { data: saved, error } = await client.from("community_posts").update({ author_nickname: nickname, category: parsed.data.category ?? post.category, body, university_id: universityId, faculty_id: facultyId, place_id: placeId, image_url: imageUrl, duplicate_fingerprint: communityFingerprint(user.id, body) }).eq("id", id).eq("author_id", user.id).select("*").single();
+  const { data: saved, error } = await client.from("community_posts").update({ author_nickname: nickname, category: parsed.data.category ?? post.category, body, university_id: universityId, faculty_id: facultyId, place_id: placeId, image_url: imageUrl, duplicate_fingerprint: communityFingerprint(user.id, body), status: post.status === "hidden" ? "hidden" : "active" }).eq("id", id).eq("author_id", user.id).select("*").single();
   if (error) { if (imageUrl && imageUrl !== post.image_url) await removeCommunityPostImage(imageUrl); return NextResponse.json({ message: error.code === "23505" ? "Stejný příspěvek už jste zveřejnili." : "Příspěvek se nepodařilo upravit." }, { status: error.code === "23505" ? 409 : 422 }); }
   if (post.image_url && post.image_url !== imageUrl) await removeCommunityPostImage(post.image_url);
   await client.from("community_profiles").update({ nickname, university_id: universityId, faculty_id: facultyId }).eq("user_id", user.id);
-  return NextResponse.json({ item: publicCommunityPost(saved, { owned: true }), message: "Příspěvek byl upraven." });
+  return NextResponse.json({ item: publicCommunityPost(saved, { owned: true }), message: post.status === "hidden" ? "Změna byla uložena. Příspěvek zůstává skrytý." : "Příspěvek byl upraven." });
 }
 
 export async function DELETE(request: Request, context: Context) {

@@ -23,10 +23,10 @@ export async function PATCH(request: Request, context: Context) {
   if (manageLimit.status === "error") { console.error("marketplace_rate_limit_failed", { action: "manage", code: manageLimit.code }); return NextResponse.json({ message: "Ochranu proti spamu se nepodařilo ověřit." }, { status: 503 }); }
   if (manageLimit.status === "limited") return NextResponse.json({ message: "Limit úprav byl vyčerpán." }, { status: 429 });
   const id = (await context.params).id; const row = await ownedItem(id); if (!row) return NextResponse.json({ message: "Inzerát nebyl nalezen nebo vám nepatří." }, { status: 404 });
-  if (["deleted", "rejected", "hidden"].includes(String(row.status))) return NextResponse.json({ message: row.status === "hidden" ? "Inzerát skryl správce a nelze jej obnovit." : "Tento inzerát už nelze upravit." }, { status: 409 });
+  if (row.status === "deleted") return NextResponse.json({ message: "Inzerát nebyl nalezen nebo vám nepatří." }, { status: 404 });
   const parsed = marketplaceListingUpdateSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte změny.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
   const value = parsed.data; const previous = String(row.status); const changes: Record<string, unknown> = {};
-  const allowedActions: Record<string, string[]> = { active: ["update", "reserve", "sold", "archive", "renew"], reserved: ["update", "sold", "archive", "reopen", "renew"], sold: ["update", "archive", "reopen", "renew"], archived: ["reopen"], expired: ["archive", "renew"] };
+  const allowedActions: Record<string, string[]> = { active: ["update", "reserve", "sold", "archive", "renew"], reserved: ["update", "sold", "archive", "reopen", "renew"], sold: ["update", "archive", "reopen", "renew"], archived: ["update", "reopen"], expired: ["update", "archive", "renew"], rejected: ["update"], hidden: ["update"], pending_review: ["update", "archive"] };
   if (!allowedActions[previous]?.includes(value.action)) return NextResponse.json({ message: "Tuto změnu nelze v aktuálním stavu provést." }, { status: 409 });
   if (value.action === "reserve") changes.status = "reserved";
   else if (value.action === "sold") changes.status = "sold";
@@ -49,6 +49,9 @@ export async function PATCH(request: Request, context: Context) {
     if (value.priceAmount !== undefined && !value.priceMode) { if (row.price_mode !== "fixed" && value.priceAmount != null) return NextResponse.json({ message: "Cenu lze doplnit jen u pevné ceny." }, { status: 422 }); changes.price_amount = value.priceAmount; } if (value.priceScope) changes.price_scope = value.priceScope; if (value.handoffMethod) changes.handoff_method = value.handoffMethod; if (value.handoffLocation !== undefined) changes.handoff_location = cleanMarketplaceText(value.handoffLocation) || null;
     const nextHandoff = String(changes.handoff_method || row.handoff_method); const nextLocation = changes.handoff_location === undefined ? row.handoff_location : changes.handoff_location;
     if (["in_person", "agreement"].includes(nextHandoff) && !nextLocation) return NextResponse.json({ message: "Doplňte přibližné místo předání." }, { status: 422 });
+    if (previous === "rejected") Object.assign(changes, { status: "pending_review", moderation_note: null });
+    else if (previous === "hidden") changes.status = "hidden";
+    else if (["archived", "expired", "pending_review"].includes(previous)) changes.status = previous;
   }
   const saved = await updateRecord("marketplace_listings", id, changes); const next = String(saved.status); const event = value.action === "reserve" ? "reserved" : value.action === "sold" ? "sold" : value.action === "archive" ? "archived" : value.action === "renew" ? "renewed" : value.action === "reopen" ? "reopened" : "updated";
   await recordMarketplaceHistory(id, event, previous, next, "seller", changes);
@@ -60,6 +63,7 @@ export async function DELETE(request: Request, context: Context) {
   if (deleteLimit.status === "error") { console.error("marketplace_rate_limit_failed", { action: "delete", code: deleteLimit.code }); return NextResponse.json({ message: "Ochranu proti spamu se nepodařilo ověřit." }, { status: 503 }); }
   if (deleteLimit.status === "limited") return NextResponse.json({ message: "Limit operací byl vyčerpán." }, { status: 429 });
   const id = (await context.params).id; const row = await ownedItem(id); if (!row) return NextResponse.json({ message: "Inzerát nebyl nalezen nebo vám nepatří." }, { status: 404 });
+  if (row.status === "deleted") return NextResponse.json({ message: "Inzerát nebyl nalezen nebo vám nepatří." }, { status: 404 });
   const photos = (await listRecords("marketplace_listing_photos")).filter((photo) => photo.listing_id === id); await removeMarketplacePhotos(photos.map((photo) => photo.storage_path)); for (const photo of photos) await deleteRecord("marketplace_listing_photos", String(photo.id));
   await updateRecord("marketplace_listings", id, { status: "deleted", deleted_at: new Date().toISOString(), seller_email: `deleted+${id}@invalid.local` }); await recordMarketplaceHistory(id, "deleted", row.status, "deleted", "seller");
   return new NextResponse(null, { status: 204 });

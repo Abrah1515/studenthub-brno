@@ -5,14 +5,16 @@ assertProductionConfiguration();
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 const enforceHttps = process.env.APP_ENV === "production" || process.env.VERCEL_ENV === "production";
+// QA INFRASTRUCTURE: exact local origins; production policy remains unchanged.
+const localQa = isDevelopment && !enforceHttps && process.env.STUDENTHUB_LOCAL_QA === 'true';
 const scriptSrc = ["'self'", "'unsafe-inline'", ...(isDevelopment ? ["'unsafe-eval'"] : [])].join(" ");
 const csp = [
   "default-src 'self'",
   `script-src ${scriptSrc}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://*.supabase.co",
+  localQa ? "img-src 'self' data: blob: http://127.0.0.1:54321" : "img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://*.supabase.co",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+  localQa ? "connect-src 'self' http://127.0.0.1:54321 ws://127.0.0.1:54321 ws://127.0.0.1:3107" : "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -65,3 +67,4 @@ const nextConfig: NextConfig = {
   },
 };
 export default nextConfig;
+

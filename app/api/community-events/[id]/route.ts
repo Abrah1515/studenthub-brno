@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { communityEventFingerprint, publicCommunityEvent, removeCommunityImage, sanitizePlainText } from "@/lib/community-events";
+import { communityEventFingerprint, publicCommunityEvent, removeCommunityImage, sanitizeAndUploadCommunityImage, sanitizePlainText } from "@/lib/community-events";
 import { listRecords, updateRecord } from "@/lib/data-store";
 import { allowRequest, requestFingerprint } from "@/lib/rate-limit";
 import { communityEventSchema, communityEventUpdateSchema } from "@/lib/schemas";
@@ -16,14 +16,21 @@ export async function GET(_request: Request, context: Context) {
 export async function PATCH(request: Request, context: Context) {
   if (!allowRequest(`community-edit:${requestFingerprint(request)}`, 20, 60 * 60 * 1000)) return NextResponse.json({ message: "Limit úprav byl vyčerpán." }, { status: 429 });
   const id = (await context.params).id; const managed = await managedEvent(id); if (!managed) return NextResponse.json({ message: "Akci nelze tímto účtem spravovat." }, { status: 404 }); const event = managed.row;
-  if (["deleted", "archived"].includes(String(event.status))) return NextResponse.json({ message: "Ukončenou akci už nelze upravit." }, { status: 409 });
-  const parsed = communityEventUpdateSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte změny.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
+  if (String(event.status) === "deleted") return NextResponse.json({ message: "Akce už není dostupná." }, { status: 404 });
+  const multipart = request.headers.get("content-type")?.includes("multipart/form-data"); const form = multipart ? await request.formData().catch(() => null) : null;
+  const raw = form ? { ...Object.fromEntries([...form.entries()].filter(([, value]) => typeof value === "string")), isFree: form.get("isFree") === "true", priceAmount: String(form.get("priceAmount") || "").trim() ? Number(form.get("priceAmount")) : undefined } : await request.json().catch(() => null);
+  const parsed = communityEventUpdateSchema.safeParse(raw); if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte změny.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
   const value = parsed.data;
   const complete = communityEventSchema.safeParse({ title: value.title ?? event.title, category: value.category ?? event.category, startsAt: value.startsAt ?? event.starts_at, endsAt: value.endsAt ?? event.ends_at ?? "", venue: value.venue ?? event.venue, description: value.description ?? event.description, isFree: value.isFree ?? event.is_free, priceAmount: value.priceAmount ?? event.price_amount ?? undefined, eventUrl: value.eventUrl ?? event.event_url ?? "", publicVenueConsent: true, company: "", cityId: event.city_id });
   if (!complete.success) return NextResponse.json({ message: "Zkontrolujte změny.", issues: complete.error.flatten().fieldErrors }, { status: 422 });
   const fingerprint = communityEventFingerprint({ cityId: String(event.city_id), title: sanitizePlainText(value.title ?? String(event.title)), startsAt: value.startsAt ?? String(event.starts_at), venue: sanitizePlainText(value.venue ?? String(event.venue)) });
-  const needsReview = Boolean(managed.account && !managed.account.trustedEventPublisher && event.status === "published");
-  const saved = await updateRecord("community_events", id, { ...(value.title ? { title: sanitizePlainText(value.title) } : {}), ...(value.category ? { category: value.category } : {}), ...(value.startsAt ? { starts_at: value.startsAt } : {}), ...(value.endsAt !== undefined ? { ends_at: value.endsAt || null } : {}), ...(value.venue ? { venue: sanitizePlainText(value.venue) } : {}), ...(value.description ? { description: sanitizePlainText(value.description, true) } : {}), ...(value.isFree !== undefined ? { is_free: value.isFree, price_amount: value.isFree ? null : value.priceAmount } : value.priceAmount !== undefined ? { price_amount: complete.data.isFree ? null : value.priceAmount } : {}), ...(value.eventUrl !== undefined ? { event_url: value.eventUrl || null } : {}), duplicate_fingerprint: fingerprint, ...(needsReview ? { status: "pending" } : {}) });
+  const needsReview = Boolean(managed.account && !managed.account.trustedEventPublisher && event.status === "published"); let imageUrl = event.image_url;
+  const image = form?.get("image"); const removeImage = form?.get("removeImage") === "true";
+  try { if (removeImage) imageUrl = null; if (image instanceof File && image.size) imageUrl = await sanitizeAndUploadCommunityImage(image, id); }
+  catch (error) { return NextResponse.json({ message: error instanceof Error ? error.message : "Obrázek se nepodařilo uložit." }, { status: 422 }); }
+  const preservedStatus = ["pending", "hidden", "archived"].includes(String(event.status)) ? event.status : needsReview ? "pending" : event.status;
+  const saved = await updateRecord("community_events", id, { ...(value.title ? { title: sanitizePlainText(value.title) } : {}), ...(value.category ? { category: value.category } : {}), ...(value.startsAt ? { starts_at: value.startsAt } : {}), ...(value.endsAt !== undefined ? { ends_at: value.endsAt || null } : {}), ...(value.venue ? { venue: sanitizePlainText(value.venue) } : {}), ...(value.description ? { description: sanitizePlainText(value.description, true) } : {}), ...(value.isFree !== undefined ? { is_free: value.isFree, price_amount: value.isFree ? null : value.priceAmount } : value.priceAmount !== undefined ? { price_amount: complete.data.isFree ? null : value.priceAmount } : {}), ...(value.eventUrl !== undefined ? { event_url: value.eventUrl || null } : {}), image_url: imageUrl || null, duplicate_fingerprint: fingerprint, status: preservedStatus });
+  if (event.image_url && event.image_url !== imageUrl) await removeCommunityImage(event.image_url);
   return NextResponse.json({ item: publicCommunityEvent(saved), status: saved.status, message: needsReview ? "Změna byla uložena a čeká na nové schválení." : "Akce byla upravena." });
 }
 
