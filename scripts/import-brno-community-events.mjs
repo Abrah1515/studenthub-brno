@@ -92,7 +92,7 @@ const events = [
     description: "Neformální studentské odpoledne s hudbou, aktivitami, jídlem a pitím zdarma v areálu PEF MENDELU.",
     isFree: true,
     eventUrl: "https://mendelu.cz/akce/pefday-2026/",
-    sourceUrl: "https://mendelu.cz/akce/",
+    sourceUrl: "https://mendelu.cz/akce/pefday-2026/",
     organizer: "Provozně ekonomická fakulta MENDELU",
     universityId: "mendelu",
     facultyId: "mendelu-pef",
