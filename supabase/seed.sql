@@ -38,7 +38,7 @@ update public.content_sources set source_url='https://www.fit.vut.cz/study/calen
 update public.content_sources set source_url='https://www.fme.vutbr.cz/studenti/plan?degree=0&mode=0', enabled=true, monitoring_mode='automatic_publish', requires_review=false, confidence=0.96 where id='src-vut-fsi';
 update public.content_sources set enabled=true, monitoring_mode='automatic_publish', requires_review=false, confidence=0.96 where id='src-mendelu-pef';
 update public.content_sources set source_url='https://www.vetuni.cz/Rozpis_vyuky_pro_akademicky_rok', official_domain='vetuni.cz', format='html', parser_key='linked-document-review', enabled=true, monitoring_mode='automatic_review', requires_review=true, refresh_interval=interval '9 hours' where id in ('src-vetuni-fvl','src-vetuni-fvhe');
-update public.content_sources set enabled=true, monitoring_mode='automatic_review', requires_review=true, refresh_interval=interval '9 hours' where source_type='academic_calendar' and id not in ('src-vut-fit','src-vut-fsi','src-mendelu-pef','src-mendelu-frrms') and university_id not in ('muni','jamu');
+update public.content_sources set enabled=true, monitoring_mode='automatic_review', requires_review=true, refresh_interval=interval '9 hours' where source_type='academic_calendar' and id not in ('src-vut-fit','src-vut-fsi','src-vut-fekt-exams','src-mendelu-pef','src-mendelu-frrms') and university_id not in ('muni','jamu');
 update public.content_sources set parser_key='not-found-monitor', enabled=true, monitoring_mode='not_found_monitored', requires_review=true, confidence=0, refresh_interval=interval '9 hours' where id='src-mendelu-frrms';
 
 -- Keep fresh environments aligned with the autonomous connectors introduced after
@@ -49,6 +49,12 @@ update public.content_sources set
   monitoring_mode='automatic_publish', requires_review=false, confidence=0.96,
   refresh_interval=interval '9 hours'
 where id='src-vut-fekt';
+update public.content_sources set
+  source_url='https://www.vut.cz/uredni-deska/vnitrni-legislativa-fekt/vyhlasky-pro-studenty-s27',
+  official_domain='vut.cz', parser_key='linked-document-auto', enabled=true,
+  monitoring_mode='automatic_publish', requires_review=false, confidence=0.96,
+  refresh_interval=interval '9 hours'
+where id='src-vut-fekt-exams';
 update public.content_sources set
   source_url=case id
     when 'src-vut-fch' then 'https://www.vut.cz/uredni-deska/vnitrni-legislativa-fch/vnitrni-normy-sp103'

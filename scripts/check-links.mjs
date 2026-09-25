@@ -72,18 +72,22 @@ function fsiUrl(source) { const url = new URL(source.sourceUrl); url.searchParam
 function discoverDocument(source, response) {
   const candidates = [];
   const pageFolded = `${response.url} ${String(response.text || "").match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || ""}`.replace(/<[^>]+>/g, " ").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-  const calendarDetailPage = /(harmonogram|casov.{0,3}plan|rozpis.{0,8}vyuk).{0,40}akademick.{0,8}rok|akademick.{0,8}rok.{0,40}(harmonogram|casov.{0,3}plan|rozpis.{0,8}vyuk)/i.test(pageFolded);
+  const calendarDetailPage = /(harmonogram|casov.{0,3}plan|rozpis|termin).{0,45}(akademick.{0,8}rok|zkousek|zapoc|kolokv|\bszz\b)|(?:zkousek|zapoc|kolokv|\bszz\b).{0,45}(?:plan|termin|harmonogram|rozpis)/i.test(pageFolded);
   for (const match of String(response.text || "").matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
     let url; try { url = new URL(match[1], response.url); } catch { continue; }
     if (!allowed(url, source)) continue;
     const label = `${match[2].replace(/<[^>]+>/g, " ")} ${url.href}`.replace(/\s+/g, " ");
     const folded = label.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
     const isPdfHint = /\.pdf(?:$|[?#])/i.test(url.href) || /^\s*pdf/i.test(match[2].replace(/<[^>]+>/g, " "));
-    const contextualAttachment = calendarDetailPage && isPdfHint && /(priloha|harmonogram|plan|rozpis|pdf)/i.test(folded);
-    if (!/(harmonogram|casov.{0,3}plan|rozpis.{0,8}vyuk|akademick.{0,8}rok)/i.test(folded) && !contextualAttachment) continue;
+    const subjectExam = /(?:casov.{0,3}plan|plan|termin|harmonogram|rozpis).{0,45}(?:zkousek|zapoc|kolokv)|(?:zkousek|zapoc|kolokv).{0,45}(?:plan|termin|harmonogram|rozpis)|exam(?:ination)? schedule/i.test(folded);
+    const finalExam = /statni.{0,15}zkous|\bszz\b|final examinations?/i.test(folded);
+    const contextualAttachment = calendarDetailPage && /(priloha|harmonogram|plan|rozpis|pdf|termin|zkous|zapoc|kolokv|\bszz\b)/i.test(folded);
+    if (!/(harmonogram|casov.{0,3}plan|rozpis.{0,8}vyuk|akademick.{0,8}rok|studijni.{0,8}terminar)/i.test(folded) && !subjectExam && !finalExam && !contextualAttachment) continue;
     if (/(prijimac|prijeti|stipendi|vyberov|grantov|soutez)/i.test(folded)) continue;
     const year = academicYear(label); const startYear = year ? Number(year.slice(0, 4)) : null;
     let score = isPdfHint ? 40 : 10;
+    if (subjectExam) score += 85;
+    if (finalExam) score += 55;
     if (contextualAttachment) score += 35;
     if (isPdfHint && /priloha/i.test(folded)) score += 65;
     if (startYear === currentStartYear) score += 80; else if (startYear) score -= Math.min(60, Math.abs(startYear - currentStartYear) * 12);

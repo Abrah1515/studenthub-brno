@@ -7,7 +7,24 @@ export type DiscoveredDocument = {
   academicYear: string | null;
   score: number;
   isPdfHint: boolean;
+  kind?: AcademicDocumentKind;
 };
+
+export type AcademicDocumentKind = "subject_exams" | "final_exams" | "academic_calendar" | "admissions" | "unknown";
+
+function fold(value: string) {
+  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("cs-CZ").replace(/\s+/g, " ").trim();
+}
+
+export function classifyAcademicDocumentCandidate(value: string): AcademicDocumentKind {
+  const text = fold(value);
+  if (/prijimac[^ ]* (?:rizeni|zkous)|zkousk[^ ]* k prijeti/.test(text)) return "admissions";
+  if (/statni zaverecn|\bszz\b|final examinations?/.test(text)) return "final_exams";
+  const subjectExam = /(?:casovy plan|plan|termin|harmonogram|rozpis)[^\n]{0,45}(?:zkousek|zapoc|kolokvi)|(?:zkousek|zapoc|kolokvi)[^\n]{0,45}(?:plan|termin|harmonogram|rozpis)|examination dates?|exam schedule/.test(text);
+  if (subjectExam) return "subject_exams";
+  if (/harmonogram|casovy plan|akademick[^\n]{0,15}rok|studijni terminar|verejn[^\n]{0,15}kalendar|zkouskove obdobi/.test(text)) return "academic_calendar";
+  return "unknown";
+}
 
 type HtmlAnchor = { url: URL; title: string; rawAttributes: string };
 
@@ -48,26 +65,30 @@ export function discoverAcademicDocuments(html: string, baseUrl: string, source:
   const base = new URL(baseUrl);
   const candidates: DiscoveredDocument[] = [];
   const heading = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi)].map((match) => htmlText(match[1])).join(" ");
-  const pageFolded = `${base.href} ${heading}`.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-  const calendarDetailPage = /(harmonogram|casov.{0,3}plan|rozpis.{0,8}vyuk).{0,40}akademick.{0,8}rok|akademick.{0,8}rok.{0,40}(harmonogram|casov.{0,3}plan|rozpis.{0,8}vyuk)/i.test(pageFolded);
+  const pageFolded = fold(`${base.href} ${heading}`);
+  const pageKind = classifyAcademicDocumentCandidate(pageFolded);
+  const calendarDetailPage = pageKind !== "unknown" && pageKind !== "admissions";
 
   for (const anchor of anchorsFromHtml(html, baseUrl, source)) {
     if (comparableUrl(anchor.url) === comparableUrl(base)) continue;
     const raw = `${anchor.title} ${anchor.url.href}`;
-    const folded = raw.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+    const folded = fold(raw);
+    const kind = classifyAcademicDocumentCandidate(raw);
     const isPdfHint = /\.pdf(?:$|[?#])/i.test(anchor.url.href)
       || /^pdf/i.test(anchor.title.trim())
       || /type=["']application\/pdf/i.test(anchor.rawAttributes);
-    const isStrongCalendar = /(harmonogram|casov.{0,3}plan).{0,30}akademick.{0,8}rok|akademick.{0,8}rok.{0,30}(harmonogram|casov.{0,3}plan)|rozpis.{0,8}vyuk/i.test(folded);
-    const contextualAttachment = calendarDetailPage && isPdfHint && /(priloha|harmonogram|plan|rozpis)/i.test(folded);
-    const isCalendar = isStrongCalendar || /(harmonogram|casov.{0,3}plan|akademick.{0,8}rok)/i.test(folded) || contextualAttachment;
+    const isStrongCalendar = kind === "subject_exams" || kind === "final_exams" || /(?:harmonogram|casov.{0,3}plan).{0,30}akademick.{0,8}rok|akademick.{0,8}rok.{0,30}(?:harmonogram|casov.{0,3}plan)|rozpis.{0,8}vyuk/i.test(folded);
+    const contextualAttachment = calendarDetailPage && /(priloha|harmonogram|plan|rozpis|termin|zkous|zapoc|kolokv|\bszz\b|kalendar)/i.test(folded);
+    const isCalendar = isStrongCalendar || kind === "academic_calendar" || contextualAttachment;
     if (!isCalendar) continue;
-    if (/(prijimac|prijeti|stipendi|vyberov|grantov|soutez|zapis.{0,12}1\.?\s*roc)/i.test(folded)) continue;
+    if (kind === "admissions" || /(stipendi|vyberov|grantov|soutez)/i.test(folded)) continue;
 
     const academicYear = academicYearFromText(raw);
     const startYear = academicYear ? Number(academicYear.slice(0, 4)) : null;
     let score = isPdfHint ? 40 : 12;
     if (isStrongCalendar) score += 55;
+    if (kind === "subject_exams") score += 85;
+    if (kind === "final_exams") score += 55;
     if (contextualAttachment) score += 35;
     if (isPdfHint && /priloha/i.test(folded)) score += 65;
     if (startYear === currentStartYear) score += 100;
@@ -79,6 +100,7 @@ export function discoverAcademicDocuments(html: string, baseUrl: string, source:
       academicYear,
       score,
       isPdfHint,
+      kind,
     });
   }
 

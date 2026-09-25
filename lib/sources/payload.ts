@@ -1,11 +1,12 @@
 import "server-only";
 import type { ContentSource } from "@/lib/sources/types";
 import type { DiscoveredDocument } from "@/lib/sources/discovery";
-import { discoverAcademicDocuments, discoverPaginationUrls } from "@/lib/sources/discovery";
+import { academicYearFromText, classifyAcademicDocumentCandidate, discoverAcademicDocuments, discoverPaginationUrls } from "@/lib/sources/discovery";
 import { fetchRegisteredSource } from "@/lib/sources/fetch-source";
 import { fitCalendarSourceForYear, fsiCalendarSourceForYear, inspectSourcePayload, SourceBlockedError } from "@/lib/sources/validation";
 
 type Conditional = { etag?: string | null; lastModified?: string | null };
+type DiscoveryOptions = { knownDocumentUrl?: string | null; deepDiscovery?: boolean };
 type FetchedSource = Awaited<ReturnType<typeof fetchRegisteredSource>>;
 
 async function retry<T>(task: () => Promise<T>, attempts = 3) {
@@ -33,6 +34,7 @@ function normalizedMime(fetched: FetchedSource) {
 
 function isPdfPayload(fetched: FetchedSource) {
   if (["application/pdf", "application/octet-stream"].includes(normalizedMime(fetched))) return true;
+  if (/filename\s*=.*\.pdf(?:["';]|$)/i.test(fetched.contentDisposition || "")) return true;
   return new TextDecoder().decode(fetched.body.slice(0, 5)) === "%PDF-";
 }
 
@@ -68,7 +70,31 @@ function rankedUnique(candidates: DiscoveredDocument[]) {
   return [...unique.values()].sort((a, b) => b.score - a.score || (b.academicYear || "").localeCompare(a.academicYear || ""));
 }
 
-async function fetchLinkedDocument(source: ContentSource, conditional: Conditional, now: Date) {
+async function fetchKnownDocument(source: ContentSource, url: string, conditional: Conditional) {
+  const candidate: DiscoveredDocument = {
+    url,
+    title: source.sourceDocumentTitle || "Známý oficiální akademický dokument",
+    academicYear: academicYearFromText(url) || source.academicYear,
+    score: 100,
+    isPdfHint: /\.pdf(?:$|[?#])/i.test(url),
+    kind: classifyAcademicDocumentCandidate(url),
+  };
+  const candidateSource = sourceAt(source, url, { academicYear: candidate.academicYear || source.academicYear });
+  const fetched = await retry(() => fetchRegisteredSource(candidateSource, conditional), 2);
+  const effectiveSource = documentSource(source, fetched, candidate);
+  assertPayload(effectiveSource, fetched);
+  return { fetched, effectiveSource, discovered: { ...candidate, url: fetched.finalUrl || url }, discoveryPerformed: false };
+}
+
+async function fetchLinkedDocument(source: ContentSource, conditional: Conditional, now: Date, options: DiscoveryOptions) {
+  if (options.knownDocumentUrl && !options.deepDiscovery) {
+    try { return await fetchKnownDocument(source, options.knownDocumentUrl, conditional); }
+    catch (error) {
+      if (error instanceof SourceBlockedError && ["robots_disallowed", "challenge", "login_page"].includes(error.issue.code)) throw error;
+      // Známý dokument mohl být nahrazen nebo přesunut. Bez publikace starých dat
+      // přejdeme zpět na omezené hledání z registrovaného oficiálního rozcestníku.
+    }
+  }
   const landing = await retry(() => fetchRegisteredSource(source));
   if (isPdfPayload(landing)) {
     const discovered: DiscoveredDocument = {
@@ -80,7 +106,7 @@ async function fetchLinkedDocument(source: ContentSource, conditional: Condition
     };
     const effectiveSource = documentSource(source, landing, discovered);
     assertPayload(effectiveSource, landing);
-    return { fetched: landing, effectiveSource, discovered };
+    return { fetched: landing, effectiveSource, discovered, discoveryPerformed: true };
   }
 
   assertPayload(sourceAt(source, landing.finalUrl, { format: "html" }), landing);
@@ -95,7 +121,7 @@ async function fetchLinkedDocument(source: ContentSource, conditional: Condition
   }
 
   const candidates = rankedUnique(pages.flatMap((page) => discoverAcademicDocuments(decodedHtml(page), page.finalUrl, source, now)));
-  if (!candidates.length) return { fetched: landing, effectiveSource: sourceAt(source, landing.finalUrl), discovered: null };
+  if (!candidates.length) return { fetched: landing, effectiveSource: sourceAt(source, landing.finalUrl), discovered: null, discoveryPerformed: true };
 
   let candidate = candidates[0];
   const visited = new Set<string>();
@@ -109,7 +135,7 @@ async function fetchLinkedDocument(source: ContentSource, conditional: Condition
 
     if (fetched.status === 304 || effectiveSource.format === "pdf") {
       assertPayload(effectiveSource, fetched);
-      return { fetched, effectiveSource, discovered: { ...candidate, url: fetched.finalUrl || candidate.url } };
+      return { fetched, effectiveSource, discovered: { ...candidate, url: fetched.finalUrl || candidate.url }, discoveryPerformed: true };
     }
 
     assertPayload(effectiveSource, fetched);
@@ -117,7 +143,7 @@ async function fetchLinkedDocument(source: ContentSource, conditional: Condition
     const nested = rankedUnique(discoverAcademicDocuments(html, fetched.finalUrl, effectiveSource, now))
       .filter((item) => !visited.has(item.url));
     if (!nested.length || depth + 1 >= maxDepth) {
-      return { fetched, effectiveSource, discovered: { ...candidate, url: fetched.finalUrl || candidate.url } };
+      return { fetched, effectiveSource, discovered: { ...candidate, url: fetched.finalUrl || candidate.url }, discoveryPerformed: true };
     }
     const next = nested[0];
     candidate = { ...next, academicYear: next.academicYear || candidate.academicYear };
@@ -126,13 +152,13 @@ async function fetchLinkedDocument(source: ContentSource, conditional: Condition
   throw new SourceBlockedError({ code: "invalid_document", status: "needs_review", message: "Oficiální dokument vytvořil cyklus odkazů a nebylo možné bezpečně vybrat konečný harmonogram." });
 }
 
-export async function fetchSourcePayload(source: ContentSource, conditional: Conditional = {}, now = new Date()) {
+export async function fetchSourcePayload(source: ContentSource, conditional: Conditional = {}, now = new Date(), discovery: DiscoveryOptions = {}) {
   if (["vut-fit-html", "vut-fsi-html"].includes(source.parserKey)) {
     const effectiveSource = source.parserKey === "vut-fit-html" ? fitCalendarSourceForYear(source, now) : fsiCalendarSourceForYear(source, now);
     try {
       const fetched = await retry(() => fetchRegisteredSource(effectiveSource, conditional));
       assertPayload(effectiveSource, fetched);
-      return { fetched, effectiveSource: { ...effectiveSource, sourceUrl: fetched.finalUrl }, discovered: null };
+      return { fetched, effectiveSource: { ...effectiveSource, sourceUrl: fetched.finalUrl }, discovered: null, discoveryPerformed: false };
     } catch (error) {
       if (error instanceof SourceBlockedError) throw error;
       const faculty = source.parserKey === "vut-fit-html" ? "FIT" : "FSI";
@@ -141,10 +167,10 @@ export async function fetchSourcePayload(source: ContentSource, conditional: Con
   }
 
   if (["linked-document-review", "linked-document-auto", "not-found-monitor"].includes(source.parserKey)) {
-    return fetchLinkedDocument(source, conditional, now);
+    return fetchLinkedDocument(source, conditional, now, discovery);
   }
 
   const fetched = await retry(() => fetchRegisteredSource(source, conditional));
   assertPayload(source, fetched);
-  return { fetched, effectiveSource: { ...source, sourceUrl: fetched.finalUrl }, discovered: null };
+  return { fetched, effectiveSource: { ...source, sourceUrl: fetched.finalUrl }, discovered: null, discoveryPerformed: false };
 }

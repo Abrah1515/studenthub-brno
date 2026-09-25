@@ -52,7 +52,7 @@ export async function fetchRegisteredSource(source: ContentSource, conditional: 
       const response = await fetch(url, { headers, signal: controller.signal, cache: "no-store", redirect: "manual" });
       // HTTP 304 patří podmíněnému GET a nemá Location. Musí se zpracovat před
       // obecnou 3xx větví, jinak se platná odpověď chybně označí za přesměrování.
-      if (response.status === 304) return { status: 304, body: new Uint8Array(), contentType: "", etag: response.headers.get("etag"), lastModified: response.headers.get("last-modified"), finalUrl: url.href };
+      if (response.status === 304) return { status: 304, body: new Uint8Array(), contentType: "", contentDisposition: response.headers.get("content-disposition"), etag: response.headers.get("etag"), lastModified: response.headers.get("last-modified"), finalUrl: url.href };
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location"); if (!location) throw new Error("Neplatné přesměrování zdroje.");
         const target = await validateSourceUrl(new URL(location, url).href, source);
@@ -71,7 +71,7 @@ export async function fetchRegisteredSource(source: ContentSource, conditional: 
         const cookie = response.headers.get("set-cookie")?.split(";", 1)[0];
         if (cookie) { headers.set("cookie", cookie); metaRefreshes += 1; redirects -= 1; await new Promise((resolve) => setTimeout(resolve, 100)); continue; }
       }
-      return { status: response.status, body, contentType, etag: response.headers.get("etag"), lastModified: response.headers.get("last-modified"), finalUrl: url.href };
+      return { status: response.status, body, contentType, contentDisposition: response.headers.get("content-disposition"), etag: response.headers.get("etag"), lastModified: response.headers.get("last-modified"), finalUrl: url.href };
     } finally { clearTimeout(timer); }
   }
   throw new Error("Zdroj překročil maximální počet přesměrování.");

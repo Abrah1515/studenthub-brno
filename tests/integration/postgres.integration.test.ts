@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(45);
+      expect(files).toHaveLength(46);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -198,8 +198,8 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await expect(db.exec("insert into public.community_reports(reporter_id,target_type,target_id,reason,city_id) values ('71111111-1111-4111-8111-111111111114','post','a1111111-1111-4111-8111-111111111199','spam','brno')")).rejects.toThrow(/report city does not match target/);
 
       const modes = await db.query<{ monitoring_mode: string; count: number }>("select monitoring_mode, count(*)::int as count from public.content_sources where source_type='academic_calendar' group by monitoring_mode order by monitoring_mode");
-      expect(modes.rows).toEqual([{ monitoring_mode: "automatic_publish", count: 18 }, { monitoring_mode: "automatic_review", count: 9 }]);
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.content_sources where source_type='academic_calendar' and enabled")).rows[0].count).toBe(27);
+      expect(modes.rows).toEqual([{ monitoring_mode: "automatic_publish", count: 19 }, { monitoring_mode: "automatic_review", count: 9 }]);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.content_sources where source_type='academic_calendar' and enabled")).rows[0].count).toBe(28);
 
       await db.query("select set_config('request.jwt.claim.role','service_role',false)");
       await db.exec("set role service_role");

@@ -2,6 +2,7 @@ import type { ConnectorContext, ConnectorResult, NormalizedEvent } from "@/lib/s
 import { academicYearFor, inferCategory, parseCzechDateRange, sha256 } from "@/lib/sources/normalize";
 import { academicYearFromText } from "@/lib/sources/discovery";
 import { currentAcademicYear } from "@/lib/sources/validation";
+import { parseSubjectExamPlanText } from "@/lib/sources/connectors/subject-exam-plan";
 
 const pdfMagic = new TextEncoder().encode("%PDF-");
 function hasPdfHeader(body: Uint8Array) { return pdfMagic.every((byte, index) => body[index] === byte); }
@@ -164,9 +165,10 @@ async function extractWithConfiguredOcr(body: Uint8Array) {
 }
 
 export async function parsePdf(context: ConnectorContext): Promise<ConnectorResult> {
-  const mime = context.contentType.toLowerCase().split(";", 1)[0].trim();
-  if (mime !== "application/pdf" && mime !== "application/octet-stream") throw new Error("Zdroj nevrátil povolený PDF MIME typ.");
-  if (!hasPdfHeader(context.body)) throw new Error("Stažený dokument nemá platnou PDF hlavičku.");
+  const validHeader = hasPdfHeader(context.body);
+  if (!validHeader) throw new Error("Stažený dokument nemá platnou PDF hlavičku.");
+  // Některé úřední desky vracejí PDF pod neprůhlednou URL a občas i s obecným
+  // MIME typem. Signatura %PDF je v takovém případě autoritativnější než přípona.
   const extracted = await extractPdfText(context.body);
   let pages = extracted.pages;
   let usedOcr = false;
@@ -177,6 +179,9 @@ export async function parsePdf(context: ConnectorContext): Promise<ConnectorResu
   const documentTitle = extracted.title || context.source.sourceDocumentTitle || "Oficiální PDF dokument";
   const documentAcademicYear = context.source.academicYear || academicYearFromText(`${documentTitle}\n${pages.map((page) => page.text).join("\n")}`);
   const effectiveContext: ConnectorContext = { ...context, source: { ...context.source, academicYear: documentAcademicYear } };
+  const completeText = pages.map((page) => page.text).join("\n");
+  const subjectPlan = await parseSubjectExamPlanText(completeText, effectiveContext, { documentTitle, usedOcr, sourcePage: pages[0]?.pageNumber || 1 });
+  if (subjectPlan) return subjectPlan;
   const results = await Promise.all(pages.map((page) => parsePdfExtractedText(page.text, effectiveContext, documentTitle, page.pageNumber, { usedOcr, documentAcademicYear, suppressWarnings: true })));
   const events = deduplicatePdfEvents(results.flatMap((result) => result.events));
   const sourceText = pages.map((page) => `[strana ${page.pageNumber}]\n${page.text}`).join("\n\n");
