@@ -50,6 +50,7 @@ yarn-error.log*
 /playwright-report/
 /test-results/
 /artifacts/
+/marketing-output/
 /dev.log
 /dev.err.log
 /dev.pid
