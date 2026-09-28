@@ -4,17 +4,19 @@ import { MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ChatContextType } from "@/lib/chat-types";
 import { classNames } from "@/lib/format";
+import { useCurrentCity } from "@/components/city-context";
 
 export const openChatComposerEvent = "studenthub-open-chat-composer";
 export type ChatComposerTarget = { contextType: ChatContextType; contextId?: string; recipientUsername?: string; label?: string };
 
 export function ChatStartButton({ contextType, contextId, recipientUsername, label = "Napsat", className }: ChatComposerTarget & { className?: string }) {
   const router = useRouter();
+  const city = useCurrentCity();
   function open() {
     const detail = { contextType, contextId, recipientUsername, label };
     if (window.matchMedia("(max-width: 860px)").matches) {
       const query = new URLSearchParams({ compose: contextType }); if (contextId) query.set("contextId", contextId); if (recipientUsername) query.set("to", recipientUsername); if (label) query.set("label", label);
-      router.push(`/brno/chat?${query}`); return;
+      router.push(`/${city.slug}/chat?${query}`); return;
     }
     window.dispatchEvent(new CustomEvent<ChatComposerTarget>(openChatComposerEvent, { detail }));
   }

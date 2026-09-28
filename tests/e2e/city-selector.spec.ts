@@ -48,4 +48,22 @@ test.describe("výběr města", () => {
     await expect(page.locator(".city-selection-logo-dark:visible")).toHaveCount(4);
     await expect(page.locator(".city-selection-logo-light:visible")).toHaveCount(0);
   });
+
+  test("Brno zůstává dostupné a rozpracovaná Olomouc není veřejná ani v sitemapě", async ({ request }) => {
+    for (const path of ["/brno", "/brno/kalendar", "/brno/komunita", "/brno/mista"]) {
+      const response = await request.get(path);
+      expect(response.status(), path).toBe(200);
+    }
+
+    for (const path of ["/olomouc", "/olomouc/kalendar", "/olomouc/komunita"]) {
+      const response = await request.get(path);
+      expect(response.status(), path).toBe(404);
+    }
+
+    const sitemap = await request.get("/sitemap.xml");
+    expect(sitemap.status()).toBe(200);
+    const body = await sitemap.text();
+    expect(body).toContain("https://studenthubapp.cz/brno");
+    expect(body).not.toContain("/olomouc");
+  });
 });

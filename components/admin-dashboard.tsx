@@ -14,6 +14,7 @@ import { ChatAdminPanel } from "@/components/chat-admin-panel";
 import { HousingAdminPanel } from "@/components/housing-admin-panel";
 import { isActionableSourceReview, sourceReviewReasonLabel } from "@/lib/sources/publish-policy";
 import { CalendarAiAdminPanel } from "@/components/calendar-ai-admin-panel";
+import { cityModuleKeys, type CityModule } from "@/lib/cities";
 
 type Row = Record<string, unknown>;
 type DataKey = "profiles" | "profile_reports" | "account_moderation_history" | "profile_permissions" | "profile_permission_audit" | "cities" | "academic_events" | "community_events" | "places" | "place_live_reports" | "moderation_actions" | "offers" | "jobs" | "marketplace_listings" | "marketplace_reports" | "marketplace_history" | "marketplace_moderation_actions" | "marketplace_abuse_blocks" | "housing_listings" | "housing_reports" | "housing_history" | "housing_moderation_actions" | "housing_maintenance_runs" | "service_requests" | "submissions" | "content_sources" | "source_review_queue" | "outbound_clicks" | "page_views" | "source_sync_runs" | "link_checks" | "content_publication_events" | "buddy_posts" | "buddy_join_requests" | "content_reports" | "contact_messages" | "academic_event_conflicts" | "community_profiles" | "community_posts" | "community_comments" | "community_reports" | "community_moderation_history" | "community_moderation_settings" | "chat_reports";
@@ -56,10 +57,53 @@ export function AdminDashboard({ adminEmail, mode, role, initialSection }: { adm
     </main></div>;
 }
 
+const cityModuleLabels: Record<CityModule, string> = {
+  calendar: "Kalendář", places: "Místa", community: "Komunita", buddy: "Parťák",
+  marketplace: "Burza", housing: "Bydlení", jobs: "Brigády", chat: "Chat",
+  watcher: "Hlídač", settings: "Nastavení", offers: "Nabídky",
+};
+
 function CitiesPanel({ rows, sources, content, role, mutate }: { rows: Row[]; sources: Row[]; content: Row[]; role: string; mutate: (resource: string, method: string, body?: Row, id?: string) => Promise<boolean> }) {
-  async function editCoordinates(row: Row) { const latitude = window.prompt("Zeměpisná šířka", String(row.latitude || "")); if (latitude == null) return; const longitude = window.prompt("Zeměpisná délka", String(row.longitude || "")); if (longitude == null) return; await mutate("cities", "PATCH", { id: row.id, latitude: Number(latitude), longitude: Number(longitude) }); }
-  async function createCity(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); const id = String(form.get("id") || "").trim().toLowerCase(); const latitude = Number(form.get("latitude")); const longitude = Number(form.get("longitude")); const ok = await mutate("cities", "POST", { id, slug: id, name: form.get("name"), region: form.get("region"), country_code: "CZ", timezone: "Europe/Prague", latitude, longitude, map_bounds: [[latitude - 0.08, longitude - 0.12], [latitude + 0.08, longitude + 0.12]], map_zoom: 13, enabled: false, public_status: "draft", sort_order: 900, brand_config: {} }); if (ok) event.currentTarget.reset(); }
-  return <section className="admin-panel"><div className="admin-section-head"><div><h2>Městské edice</h2><p>Veřejné jsou pouze zapnuté edice ve stavu „published“. Nové město zakládá super administrátor podle readiness checklistu.</p></div></div>{role === "super_admin" && <form className="admin-user-form" onSubmit={createCity}><input name="id" required pattern="[a-z0-9-]+" placeholder="ID a slug města" /><input name="name" required minLength={2} placeholder="Název města" /><input name="region" required minLength={2} placeholder="Kraj" /><input name="latitude" required type="number" step="0.000001" min="-90" max="90" placeholder="Zeměpisná šířka" /><input name="longitude" required type="number" step="0.000001" min="-180" max="180" placeholder="Zeměpisná délka" /><button className="button button-primary">Založit neveřejné město</button></form>}<div className="source-list">{rows.map((row) => { const id = String(row.id); const citySources = sources.filter((item) => item.city_id === id || (!item.city_id && id === "brno")); const missing = citySources.filter((item) => String(item.syncStatus || item.sync_status) === "not_found").length; const cityContent = content.filter((item) => item.city_id === id || (!item.city_id && id === "brno")).length; return <article key={id}><div><span className={`source-status source-${String(row.public_status)}`}>{String(row.public_status)}</span><h3>{String(row.name)} · /{String(row.slug)}</h3><small>{String(row.region)} · {String(row.latitude)}, {String(row.longitude)} · zoom {String(row.map_zoom)}</small><small>Hranice mapy: {JSON.stringify(row.map_bounds)}</small><small>{citySources.length} zdrojů · {cityContent} záznamů · {missing} zdrojů chybí</small><small>Readiness: {Boolean(row.enabled) && row.public_status === "published" && missing === 0 ? "připraveno" : "vyžaduje kontrolu"}</small></div><div className="source-actions"><button className="button button-secondary" onClick={() => editCoordinates(row)}>Souřadnice</button>{role === "super_admin" && <><button className="button button-secondary" onClick={() => mutate("cities", "PATCH", { id, enabled: !row.enabled })}>{row.enabled ? "Vypnout" : "Zapnout"}</button><button className="button button-secondary" onClick={() => mutate("cities", "PATCH", { id, public_status: row.public_status === "published" ? "review" : "published" })}>{row.public_status === "published" ? "Vrátit ke kontrole" : "Publikovat"}</button></>}</div></article>; })}</div></section>;
+  async function editCoordinates(row: Row) {
+    const latitude = window.prompt("Zeměpisná šířka", String(row.latitude || ""));
+    if (latitude == null) return;
+    const longitude = window.prompt("Zeměpisná délka", String(row.longitude || ""));
+    if (longitude == null) return;
+    await mutate("cities", "PATCH", { id: row.id, latitude: Number(latitude), longitude: Number(longitude) });
+  }
+  async function toggleModule(row: Row, module: CityModule) {
+    const config = row.module_config && typeof row.module_config === "object" ? row.module_config as Record<string, boolean> : {};
+    await mutate("cities", "PATCH", { id: row.id, module_config: { ...config, [module]: !config[module] } });
+  }
+  async function createCity(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const id = String(form.get("id") || "").trim().toLowerCase();
+    const latitude = Number(form.get("latitude"));
+    const longitude = Number(form.get("longitude"));
+    const module_config = Object.fromEntries(cityModuleKeys.map((key) => [key, false]));
+    const ok = await mutate("cities", "POST", { id, slug: id, name: form.get("name"), region: form.get("region"), country_code: "CZ", timezone: "Europe/Prague", latitude, longitude, map_bounds: [[latitude - 0.08, longitude - 0.12], [latitude + 0.08, longitude + 0.12]], map_zoom: 13, enabled: false, public_status: "draft", sort_order: 900, brand_config: {}, module_config });
+    if (ok) event.currentTarget.reset();
+  }
+  return <section className="admin-panel">
+    <div className="admin-section-head"><div><h2>Městské edice</h2><p>Veřejné jsou pouze zapnuté edice ve stavu „published“. Moduly se zapínají samostatně a každá změna se audituje.</p></div></div>
+    {role === "super_admin" && <form className="admin-user-form" onSubmit={createCity}><input name="id" required pattern="[a-z0-9-]+" placeholder="ID a slug města" /><input name="name" required minLength={2} placeholder="Název města" /><input name="region" required minLength={2} placeholder="Kraj" /><input name="latitude" required type="number" step="0.000001" min="-90" max="90" placeholder="Zeměpisná šířka" /><input name="longitude" required type="number" step="0.000001" min="-180" max="180" placeholder="Zeměpisná délka" /><button className="button button-primary">Založit neveřejné město</button></form>}
+    <div className="source-list">{rows.map((row) => {
+      const id = String(row.id);
+      const citySources = sources.filter((item) => item.city_id === id || (!item.city_id && id === "brno"));
+      const missing = citySources.filter((item) => String(item.syncStatus || item.sync_status) === "not_found").length;
+      const cityContent = content.filter((item) => item.city_id === id || (!item.city_id && id === "brno")).length;
+      const modules = row.module_config && typeof row.module_config === "object" ? row.module_config as Record<string, boolean> : {};
+      return <article key={id}>
+        <div><span className={`source-status source-${String(row.public_status)}`}>{String(row.public_status)}</span><h3>{String(row.name)} · /{String(row.slug)}</h3><small>{String(row.region)} · {String(row.latitude)}, {String(row.longitude)} · zoom {String(row.map_zoom)}</small><small>Hranice mapy: {JSON.stringify(row.map_bounds)}</small><small>{citySources.length} zdrojů · {cityContent} záznamů · {missing} zdrojů chybí</small><small>Readiness: {Boolean(row.enabled) && row.public_status === "published" && missing === 0 ? "připraveno" : "vyžaduje kontrolu"}</small></div>
+        <div className="source-actions" aria-label={`Moduly města ${String(row.name)}`}>
+          {cityModuleKeys.map((module) => <button key={module} type="button" className="button button-secondary" aria-pressed={Boolean(modules[module])} disabled={role !== "super_admin"} onClick={() => toggleModule(row, module)}>{cityModuleLabels[module]}: {modules[module] ? "zapnuto" : "vypnuto"}</button>)}
+          <button className="button button-secondary" onClick={() => editCoordinates(row)}>Souřadnice</button>
+          {role === "super_admin" && <><button className="button button-secondary" onClick={() => mutate("cities", "PATCH", { id, enabled: !row.enabled })}>{row.enabled ? "Vypnout edici" : "Zapnout edici"}</button><button className="button button-secondary" onClick={() => mutate("cities", "PATCH", { id, public_status: row.public_status === "published" ? "review" : "published" })}>{row.public_status === "published" ? "Vrátit ke kontrole" : "Publikovat"}</button></>}
+        </div>
+      </article>;
+    })}</div>
+  </section>;
 }
 
 function SourcesPanel({ rows, runs, content, role, onApi }: { rows: Row[]; runs: Row[]; content: Row[]; role: string; onApi: (url: string, options?: RequestInit) => Promise<boolean> }) {

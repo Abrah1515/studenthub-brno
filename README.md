@@ -157,6 +157,8 @@ Migrace jsou pořadové a nedestruktivní:
 - `202608250031_community_places.sql` – 12 veřejných kategorií míst, neveřejná fronta návrhů a fotografií, deduplikace přes aliasy/adresu/souřadnice/web, moderátorská historie, komunitní původ, zkušenosti, užitečnost, agregované vlastnosti, hlášení, přesná sloupcová oprávnění a RLS bez zveřejnění autora návrhu.
 - `202608260032_private_chat.sql` – soukromé konverzace dvou profilů, samostatná členství a stav přečtení, textové zprávy, žádosti a 30denní cooldown, databázová blokace druhé úvodní zprávy, Realtime, hlášení, omezený moderátorský audit, perzistentní rate limit a RLS pouze pro účastníky.
 - `202608310033_admin_role_scope_hardening.sql` – audit změn rolí, povinný městský/fakultní rozsah, ochrana jediného superadmina, oddělení citlivých městských dat od role `city_editor` a městský scope chatové moderace v API i RLS.
+- `202609280001_olomouc_multi_city_readiness.sql` – přidává Olomouc jako neveřejný `draft`, přepínače modulů v `cities.module_config`, audit konfigurace města, indexy městského obsahu a veřejné RLS podmíněné publikovaným městem. Migrace nezapíná Olomouc ani žádný její modul a neobsahuje ukázkový obsah.
+- `202609280002_deactivate_olomouc_until_launch.sql` – jednorázová idempotentní produkční pojistka pro dříve existující řádek Olomouce: nastaví `draft`, `enabled=false`, vypne všechny moduly a změnu zapíše do auditu. Neodstraňuje žádná data.
 - `202609080034_authenticated_content_ownership.sql` – sjednocuje vlastnictví nového uživatelského obsahu pod potvrzené profily.
 - `202609090035_unified_supabase_auth.sql` – zálohuje a archivuje legacy záznamy, odstraňuje vlastnické tokeny, zavádí databázově autoritativní role, bezpečnou změnu role s auditem a ochranou posledního aktivního superadmina.
 
@@ -240,6 +242,8 @@ Supabase Cron kontroluje splatné zdroje v minutách 17, 37 a 57; databázové `
 
 Nová edice nevzniká kopií projektu. Používá stejný kód, dynamické routy `app/[city]`, společné tabulky a městský scope. Postupujte v tomto pořadí:
 
+Olomouc je po migracích `202609280001` a `202609280002` už připravená v katalogu i databázi, ale záměrně zůstává `enabled=false`, `public_status='draft'` a všechny její moduly jsou vypnuté. Není v sitemap, veřejné routy vracejí bezpečnou 404 a produkční allowlist `PUBLISHED_CITY_SLUGS` nadále obsahuje pouze `brno`. Jeden manifest a jedna instalace PWA zůstávají společné pro celý StudentHub.
+
 1. Jako `super_admin` vložte do `cities` město ve stavu `draft`, s `enabled=false`, správným časovým pásmem, středem, zoomem a hranicemi mapy. Nevkládejte město jen kvůli ukázce.
 2. Propojte skutečně působící školy přes `university_cities`; jedna univerzita může mít více měst. Kampusy nejsou součástí aktivního profilu ani filtrování.
 3. Založte městské/referral komunity a přiřaďte `city_id`. Vytvořte editora s `role='city_editor'` a stejným `city_id` v profilu i App metadata.
@@ -248,7 +252,7 @@ Nová edice nevzniká kopií projektu. Používá stejný kód, dynamické routy
 6. Nahrajte reálná místa s `city_id`, volitelnou školou/fakultou a souřadnicemi, nabídky přes `offer_cities`, lokální brigády s `city_id`; vzdálená brigáda může být `remote` bez města. Nepoužívejte falešná produkční data.
 7. Doplňte `brand_config`, kontakty a povolené assety edice. Neměňte společnou značku a nepoužívejte univerzitní loga bez svolení. Generátor manifestu je v `lib/pwa-manifest.ts`.
 8. V administraci zkontrolujte readiness: souřadnice a hranice, počty obsahu, chybějící zdroje, právní texty, odpovědnou osobu a RLS test městského editora.
-9. Spusťte `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` a `pnpm test:e2e`; testovací druhé město smí existovat pouze ve fixture/testu. Ověřte 390×844, 768×1024 a 1440×900, canonical, OG, sitemap a 404 neaktivní edice.
+9. Spusťte `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` a `pnpm test:e2e`. Ověřte 390×844, 768×1024 a 1440×900, canonical, OG, sitemap, vypnuté moduly a 404 neaktivní edice.
 10. Teprve poté nastavte `public_status='published'`, `enabled=true`, přidejte slug do `PUBLISHED_CITY_SLUGS` a zapněte `MULTI_CITY_ENABLED=true` i `NEXT_PUBLIC_MULTI_CITY_ENABLED=true`. Ověřte, že selektor se ukáže až při nejméně dvou publikovaných městech a sitemap neobsahuje drafty.
 
 ## Příprava pro budoucí publikační automatizaci

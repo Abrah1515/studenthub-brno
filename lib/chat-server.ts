@@ -79,21 +79,21 @@ export async function resolveChatContext(service: SupabaseClient, type: ChatCont
     return { type, id, title: data ? `Profil: ${String(data.display_name || "Student")}` : "Původní profil", href: active && data?.profile_visibility === "public" && data.username ? `/profil/${data.username}` : null, active };
   }
   if (type === "buddy_post") {
-    const { data } = await service.from("buddy_posts").select("id,activity_type,approximate_location,description,status,moderation_status,expires_at").eq("id", id).maybeSingle();
+    const { data } = await service.from("buddy_posts").select("id,city_id,activity_type,approximate_location,description,status,moderation_status,expires_at").eq("id", id).maybeSingle();
     const active = Boolean(data && data.status === "active" && data.moderation_status === "approved" && new Date(String(data.expires_at)).getTime() > Date.now());
     const title = data ? String(data.description || "Hledám parťáka").replace(/\s+/g, " ").slice(0, 80) : "Původní příspěvek Hledám parťáka";
-    return { type, id, title: `Reakce na: ${title}`, detail: data?.approximate_location ? String(data.approximate_location) : undefined, href: active ? `/brno/partak?post=${id}` : null, active };
+    return { type, id, title: `Reakce na: ${title}`, detail: data?.approximate_location ? String(data.approximate_location) : undefined, href: active ? `/${String(data?.city_id || "brno")}/partak?post=${id}` : null, active };
   }
   if (type === "housing_listing") {
-    const { data } = await service.from("housing_listings").select("id,title,price_monthly,utilities_included,status,expires_at").eq("id", id).maybeSingle();
+    const { data } = await service.from("housing_listings").select("id,city_id,title,price_monthly,utilities_included,status,expires_at").eq("id", id).maybeSingle();
     const active = Boolean(data && data.status === "active" && (!data.expires_at || new Date(String(data.expires_at)).getTime() > Date.now()));
     const price = data ? `${Number(data.price_monthly).toLocaleString("cs-CZ")} Kč / měsíc${data.utilities_included ? " včetně energií" : " + energie"}` : undefined;
-    return { type, id, title: data ? `Reakce na bydlení: ${String(data.title)}` : "Původní inzerát bydlení", detail: data ? `${price} · ${active ? "aktivní" : "obsah už není aktivní"}` : undefined, href: active ? `/brno/bydleni/${id}` : null, active };
+    return { type, id, title: data ? `Reakce na bydlení: ${String(data.title)}` : "Původní inzerát bydlení", detail: data ? `${price} · ${active ? "aktivní" : "obsah už není aktivní"}` : undefined, href: active ? `/${String(data?.city_id || "brno")}/bydleni/${id}` : null, active };
   }
-  const { data } = await service.from("marketplace_listings").select("id,title,price_mode,price_amount,status,expires_at").eq("id", id).maybeSingle();
+  const { data } = await service.from("marketplace_listings").select("id,city_id,title,price_mode,price_amount,status,expires_at").eq("id", id).maybeSingle();
   const active = Boolean(data && ["active", "reserved"].includes(String(data.status)) && (!data.expires_at || new Date(String(data.expires_at)).getTime() > Date.now()));
   const price = data?.price_mode === "free" ? "Zdarma" : data?.price_amount != null ? `${Number(data.price_amount).toLocaleString("cs-CZ")} Kč` : "Dohodou";
-  return { type, id, title: data ? String(data.title) : "Původní burzovní inzerát", detail: data ? `${price} · ${data.status === "reserved" ? "rezervováno" : active ? "aktivní" : "neaktivní"}` : undefined, href: active ? `/brno/burza/${id}` : null, active };
+  return { type, id, title: data ? String(data.title) : "Původní burzovní inzerát", detail: data ? `${price} · ${data.status === "reserved" ? "rezervováno" : active ? "aktivní" : "neaktivní"}` : undefined, href: active ? `/${String(data?.city_id || "brno")}/burza/${id}` : null, active };
 }
 
 async function unreadFor(service: SupabaseClient, conversationId: string, viewerId: string, lastReadAt: unknown) {
@@ -176,9 +176,10 @@ export async function markChatRead(account: AccountProfile, conversationId: stri
 export async function notifyChatRecipient(conversationId: string, messageId: string, senderId: string, requestKind: boolean) {
   if (!isSupabaseConfigured()) return;
   const service = createServiceClient();
-  const { data: conversation } = await service.from("chat_conversations").select("initiator_id,recipient_id").eq("id", conversationId).maybeSingle();
+  const { data: conversation } = await service.from("chat_conversations").select("initiator_id,recipient_id,city_id").eq("id", conversationId).maybeSingle();
   if (!conversation) return;
   const recipientId = String(conversation.initiator_id) === senderId ? String(conversation.recipient_id) : String(conversation.initiator_id);
+  const citySlug = String(conversation.city_id || "brno");
   const { data: membership } = await service.from("chat_conversation_members").select("muted_until,left_at").eq("conversation_id", conversationId).eq("profile_id", recipientId).maybeSingle();
   if (!membership || membership.left_at || (membership.muted_until && Date.parse(String(membership.muted_until)) > Date.now())) return;
   const { data: installations } = await service.from("anonymous_installations").select("id").eq("user_id", recipientId);
@@ -188,7 +189,7 @@ export async function notifyChatRecipient(conversationId: string, messageId: str
     kind: requestKind ? "chat_request" : "chat_message",
     title: requestKind ? "Nová žádost o kontakt" : "Nová soukromá zpráva",
     body: requestKind ? "Někdo vám chce napsat ve StudentHubu." : "Máte novou soukromou zprávu ve StudentHubu.",
-    destination_url: `/brno/chat/${conversationId}`, dedupe_key: `chat:${messageId}`, available_at: new Date().toISOString(),
+    destination_url: `/${citySlug}/chat/${conversationId}`, dedupe_key: `chat:${messageId}`, available_at: new Date().toISOString(),
   })), { onConflict: "installation_id,dedupe_key", ignoreDuplicates: true });
   await sendPendingPushNotifications(20).catch((error) => console.error("chat_push_delivery_failed", { conversationId, messageId, error: error instanceof Error ? error.message : "unknown" }));
 }

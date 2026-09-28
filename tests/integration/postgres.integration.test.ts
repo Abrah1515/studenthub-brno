@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(49);
+      expect(files).toHaveLength(51);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -57,6 +57,10 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       }
       for (const statement of sqlStatements(await readFile("supabase/migrations/202609180040_academic_calendar_ai_review.sql", "utf8"))) await db.exec(`${statement};`);
       await db.exec(await readFile("supabase/seed.sql", "utf8"));
+      expect((await db.query<{ enabled:boolean;public_status:string;module_config:Record<string,boolean> }>("select enabled,public_status,module_config from public.cities where id='olomouc'")).rows[0]).toMatchObject({ enabled:false, public_status:"draft", module_config:{ calendar:false, places:false, community:false, buddy:false, marketplace:false, housing:false, jobs:false, chat:false } });
+      for (const table of ["places", "community_profiles", "anonymous_installations", "marketplace_listings", "place_submissions", "housing_listings"]) {
+        expect((await db.query<{ column_default:string|null }>("select column_default from information_schema.columns where table_schema='public' and table_name=$1 and column_name='city_id'", [table])).rows[0].column_default).toBeNull();
+      }
       const eventCountBeforeArchive = (await db.query<{ count: number }>("select count(*)::int as count from public.academic_events")).rows[0].count;
       await db.exec(`
         insert into public.academic_calendar_ai_runs(id,city_id,trigger_type,status,ai_provider) values
@@ -350,23 +354,23 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await db.exec(`
         update public.profiles set username='housing_author',display_name='Housing Author',community_rules_accepted_at=now(),account_status='active',is_blocked=false,allow_chat_requests=true
           where id='71111111-1111-4111-8111-111111111111';
-        insert into public.housing_listings(id,author_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,available_spots,current_occupants,furnished,features,wanted_person_count,duplicate_fingerprint,status,published_at,expires_at)
+        insert into public.housing_listings(id,author_id,city_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,available_spots,current_occupants,furnished,features,wanted_person_count,duplicate_fingerprint,status,published_at,expires_at)
         values
-          ('b4111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111111','offer','private_room','Integrační pokoj v Brně','Královo Pole','2032-10-01','6_12_months','Veřejný bezpečný popis integrační nabídky.','Integrační nabídka ověřuje bydlení, RLS, hlášení a chat bez přesné adresy nebo kontaktu.',7500,true,1,2,true,array['internet'],null,repeat('a',64),'active',now(),now()+interval '30 days'),
-          ('b4111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111114','wanted','apartment','Integrační poptávka po bytě','Bohunice','2032-09-20','over_year','Veřejný bezpečný popis integrační poptávky.','Integrační poptávka ověřuje automatickou expiraci bez opětovného zveřejnění starého obsahu.',11000,true,null,null,null,'{}',1,repeat('b',64),'active',now()-interval '40 days',now()-interval '1 day');
+          ('b4111111-1111-4111-8111-111111111111','71111111-1111-4111-8111-111111111111','brno','offer','private_room','Integrační pokoj v Brně','Královo Pole','2032-10-01','6_12_months','Veřejný bezpečný popis integrační nabídky.','Integrační nabídka ověřuje bydlení, RLS, hlášení a chat bez přesné adresy nebo kontaktu.',7500,true,1,2,true,array['internet'],null,repeat('a',64),'active',now(),now()+interval '30 days'),
+          ('b4111111-1111-4111-8111-111111111112','71111111-1111-4111-8111-111111111114','brno','wanted','apartment','Integrační poptávka po bytě','Bohunice','2032-09-20','over_year','Veřejný bezpečný popis integrační poptávky.','Integrační poptávka ověřuje automatickou expiraci bez opětovného zveřejnění starého obsahu.',11000,true,null,null,null,'{}',1,repeat('b',64),'active',now()-interval '40 days',now()-interval '1 day');
       `);
       expect((await db.query<{ expire_housing_listings:number }>("select public.expire_housing_listings()")).rows[0].expire_housing_listings).toBe(1);
       expect((await db.query<{ expire_housing_listings:number }>("select public.expire_housing_listings()")).rows[0].expire_housing_listings).toBe(0);
       expect((await db.query<{ status:string }>("select status from public.housing_listings where id='b4111111-1111-4111-8111-111111111112'")).rows[0].status).toBe("expired");
-      await expect(db.exec(`insert into public.housing_listings(author_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,available_spots,duplicate_fingerprint,status,published_at) values ('71111111-1111-4111-8111-111111111111','offer','private_room','Duplicitní pokoj','Žabovřesky','2032-10-01','agreement','Dostatečně dlouhý stručný text duplikátu.','Dostatečně dlouhý detailní text duplicitní nabídky studentského bydlení v Brně.',8000,true,1,repeat('a',64),'active',now())`)).rejects.toThrow();
+      await expect(db.exec(`insert into public.housing_listings(author_id,city_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,available_spots,duplicate_fingerprint,status,published_at) values ('71111111-1111-4111-8111-111111111111','brno','offer','private_room','Duplicitní pokoj','Žabovřesky','2032-10-01','agreement','Dostatečně dlouhý stručný text duplikátu.','Dostatečně dlouhý detailní text duplicitní nabídky studentského bydlení v Brně.',8000,true,1,repeat('a',64),'active',now())`)).rejects.toThrow();
       expect((await db.query<{ consume_housing_rate_limit:boolean }>("select public.consume_housing_rate_limit($1,'report',2,3600)",["abcdefabcdefabcdefabcdef"])).rows[0].consume_housing_rate_limit).toBe(true);
       expect((await db.query<{ consume_housing_rate_limit:boolean }>("select public.consume_housing_rate_limit($1,'report',2,3600)",["abcdefabcdefabcdefabcdef"])).rows[0].consume_housing_rate_limit).toBe(true);
       expect((await db.query<{ consume_housing_rate_limit:boolean }>("select public.consume_housing_rate_limit($1,'report',2,3600)",["abcdefabcdefabcdefabcdef"])).rows[0].consume_housing_rate_limit).toBe(false);
       await db.exec(`
-        insert into public.housing_listings(id,author_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,wanted_person_count,duplicate_fingerprint,status)
+        insert into public.housing_listings(id,author_id,city_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,wanted_person_count,duplicate_fingerprint,status)
         values
-          ('b4111111-1111-4111-8111-111111111113','71111111-1111-4111-8111-111111111111','wanted','private_room','Bezpečná starší poptávka','Žabovřesky','2032-10-01','agreement','Bezpečný text starší čekající poptávky po bydlení.','Bezpečná starší poptávka bez kontaktu, přesné adresy, odkazů a rizikových požadavků.',9000,true,1,repeat('d',64),'pending_review'),
-          ('b4111111-1111-4111-8111-111111111114','71111111-1111-4111-8111-111111111111','wanted','private_room','Riziková starší poptávka','Žabovřesky','2032-10-01','agreement','Starší čekající poptávka obsahuje veřejný odkaz.','Další údaje jsou na https://example.cz a proto položka musí zůstat v ruční kontrole.',9000,true,1,repeat('e',64),'pending_review');
+          ('b4111111-1111-4111-8111-111111111113','71111111-1111-4111-8111-111111111111','brno','wanted','private_room','Bezpečná starší poptávka','Žabovřesky','2032-10-01','agreement','Bezpečný text starší čekající poptávky po bydlení.','Bezpečná starší poptávka bez kontaktu, přesné adresy, odkazů a rizikových požadavků.',9000,true,1,repeat('d',64),'pending_review'),
+          ('b4111111-1111-4111-8111-111111111114','71111111-1111-4111-8111-111111111111','brno','wanted','private_room','Riziková starší poptávka','Žabovřesky','2032-10-01','agreement','Starší čekající poptávka obsahuje veřejný odkaz.','Další údaje jsou na https://example.cz a proto položka musí zůstat v ruční kontrole.',9000,true,1,repeat('e',64),'pending_review');
       `);
       expect((await db.query<{ reassess_pending_housing_listings:number }>("select public.reassess_pending_housing_listings()")).rows[0].reassess_pending_housing_listings).toBe(1);
       expect((await db.query<{ reassess_pending_housing_listings:number }>("select public.reassess_pending_housing_listings()")).rows[0].reassess_pending_housing_listings).toBe(0);
@@ -381,9 +385,18 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query("select id from public.chat_conversations where id=$1 and context_type='housing_listing'",[housingChat.rows[0].start_chat_request])).rows).toHaveLength(1);
       expect((await db.query("select id from public.chat_conversations where id=public.start_chat_request($1,'housing_listing',$2,$3,$4)",['71111111-1111-4111-8111-111111111111','b4111111-1111-4111-8111-111111111111','Opakovaný pokus vrátí stejnou konverzaci.','b4222222-2222-4222-8222-222222222223'])).rows).toHaveLength(1);
       await expect(db.exec("update public.housing_listings set author_id='71111111-1111-4111-8111-111111111114' where id='b4111111-1111-4111-8111-111111111111'")).rejects.toThrow();
-      await expect(db.exec(`insert into public.housing_listings(author_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,available_spots,duplicate_fingerprint,status,published_at) values ('71111111-1111-4111-8111-111111111114','offer','private_room','Přímý klientský zápis','Brno','2032-10-01','agreement','Přímý zápis nesmí projít přes RLS klienta.','Přímý zápis do bydlení musí odmítnout databázová oprávnění a RLS ochrana.',8000,true,1,repeat('c',64),'active',now())`)).rejects.toThrow();
+      await expect(db.exec(`insert into public.housing_listings(author_id,city_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,available_spots,duplicate_fingerprint,status,published_at) values ('71111111-1111-4111-8111-111111111114','brno','offer','private_room','Přímý klientský zápis','Brno','2032-10-01','agreement','Přímý zápis nesmí projít přes RLS klienta.','Přímý zápis do bydlení musí odmítnout databázová oprávnění a RLS ochrana.',8000,true,1,repeat('c',64),'active',now())`)).rejects.toThrow();
       await db.exec("reset role");
       await db.query("select set_config('request.jwt.claim.sub','',false)");
+
+      await db.exec(`
+        insert into public.buddy_posts(id,owner_id,city_id,activity_type,title,approximate_location,starts_at,description,max_participants,status,moderation_status,expires_at)
+        values ('b4999999-9999-4999-8999-999999999991','71111111-1111-4111-8111-111111111111','olomouc','study','Neveřejné setkání v Olomouci','Neveřejná Olomouc',now()+interval '3 days','Draft město nesmí tento aktivní příspěvek zveřejnit.',3,'active','approved',now()+interval '4 days');
+        insert into public.community_posts(id,author_id,author_nickname,city_id,category,body,status,duplicate_fingerprint)
+        values ('b4999999-9999-4999-8999-999999999992','71111111-1111-4111-8111-111111111111','Housing Author','olomouc','Ostatní','Draft město nesmí tento aktivní komunitní příspěvek zveřejnit.','active',repeat('9',64));
+        insert into public.housing_listings(id,author_id,city_id,listing_type,category,title,locality,available_from,stay_length,short_description,description,price_monthly,utilities_included,available_spots,duplicate_fingerprint,status,published_at,expires_at)
+        values ('b4999999-9999-4999-8999-999999999993','71111111-1111-4111-8111-111111111111','olomouc','offer','private_room','Neveřejný pokoj v Olomouci','Olomouc','2032-10-01','agreement','Draft město nesmí tuto nabídku zveřejnit.','Tento integrační záznam ověřuje, že veřejná RLS politika izoluje obsah nepublikovaného města.',8000,true,1,repeat('8',64),'active',now(),now()+interval '30 days');
+      `);
 
       await db.exec("set role anon");
       const publicEvents = await db.query<{ title: string }>("select title from public.academic_events where title like 'Integration %' order by title");
@@ -410,6 +423,9 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await expect(db.query("select * from public.place_submissions")).rejects.toThrow();
       expect((await db.query<{ approximate_location: string }>("select approximate_location from public.buddy_posts")).rows).toEqual([{ approximate_location: "Veřejná knihovna" }]);
       expect((await db.query<{ body: string }>("select body from public.community_posts order by created_at,id")).rows).toEqual([{ body: "Upravený text vlastní otázky pro integrační ověření." }]);
+      expect((await db.query("select id from public.buddy_posts where city_id='olomouc'")).rows).toHaveLength(0);
+      expect((await db.query("select id from public.community_posts where city_id='olomouc'")).rows).toHaveLength(0);
+      expect((await db.query("select title from public.housing_listings where city_id='olomouc'")).rows).toHaveLength(0);
       await expect(db.query("select author_id from public.community_posts")).rejects.toThrow();
       await expect(db.query("insert into public.page_views(path,city_id) values ('/obchazeni-souhlasu','brno')")).rejects.toThrow();
       await db.exec("reset role");

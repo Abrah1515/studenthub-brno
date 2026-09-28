@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, MousePointer2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrandSymbol } from "@/components/brand-logo";
+import { useCurrentCity } from "@/components/city-context";
 import { hasResolvedCookieConsent } from "@/components/cookie-consent";
 import { readPreference } from "@/lib/client-preferences";
 import { detectPwaInstallPlatform } from "@/lib/pwa-install";
@@ -37,7 +38,7 @@ type PopoverPosition = { placement: Exclude<TutorialPlacement, "auto">; style: R
 const safeEdge = 12;
 const targetGap = 14;
 
-function isBrnoPath(pathname: string) { return pathname === "/brno" || pathname.startsWith("/brno/"); }
+function isCityPath(pathname: string, cityRoot: string) { return pathname === cityRoot || pathname.startsWith(`${cityRoot}/`); }
 function reducedMotion() { return matchMedia("(prefers-reduced-motion: reduce)").matches; }
 function wait(milliseconds: number) { return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds)); }
 function nextFrame() { return new Promise<void>((resolve) => requestAnimationFrame(() => resolve())); }
@@ -62,13 +63,13 @@ async function lockAvailableSteps(layout: TutorialLayout): Promise<readonly Tuto
   return available;
 }
 
-function IntroConfirmation({ confirm }: { confirm: () => void }) {
+function IntroConfirmation({ confirm, cityName }: { confirm: () => void; cityName: string }) {
   const dialogRef = useModalDialog<HTMLDivElement>(true, undefined, { closeOnEscape: false });
   return <div ref={dialogRef} tabIndex={-1} className="tutorial-intro-layer" role="dialog" aria-modal="true" aria-labelledby="tutorial-intro-title" aria-describedby="tutorial-intro-description" data-testid="tutorial-intro" data-modal-layer>
     <div className="tutorial-intro-card">
       <BrandSymbol size={50} />
       <span className="eyebrow">Nezávislý studentský projekt</span>
-      <h2 id="tutorial-intro-title">Vítej ve StudentHub Brno</h2>
+      <h2 id="tutorial-intro-title">Vítej ve StudentHub {cityName}</h2>
       <p id="tutorial-intro-description">Praktické informace a studentské služby na jednom místě. Nejde o oficiální aplikaci žádné univerzity.</p>
       <button type="button" className="button button-primary" data-autofocus onClick={confirm}>Rozumím</button>
     </div>
@@ -459,6 +460,8 @@ function GuidedTour({ resumeAfterStepId, finish, skip }: { resumeAfterStepId: st
 }
 
 export function FeatureTutorial() {
+  const city = useCurrentCity();
+  const cityRoot = `/${city.slug}`;
   const pathname = usePathname();
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("closed");
@@ -472,24 +475,24 @@ export function FeatureTutorial() {
     menu(false);
     setResumeAfterStepId(resumeAfter);
     setPhase("preparing");
-    if (pathname !== "/brno") router.replace("/brno");
-  }, [pathname, router]);
+    if (pathname !== cityRoot) router.replace(cityRoot);
+  }, [cityRoot, pathname, router]);
 
   useEffect(() => {
-    if (phase !== "preparing" || pathname !== "/brno") return;
+    if (phase !== "preparing" || pathname !== cityRoot) return;
     window.scrollTo({ top: 0, behavior: "auto" });
     const timer = window.setTimeout(() => setPhase("tour"), 60);
     return () => window.clearTimeout(timer);
-  }, [pathname, phase]);
+  }, [cityRoot, pathname, phase]);
 
   useEffect(() => {
-    const manual = () => { if (isBrnoPath(pathname)) beginTour(true); };
+    const manual = () => { if (isCityPath(pathname, cityRoot)) beginTour(true); };
     window.addEventListener(openTutorialEvent, manual);
     return () => window.removeEventListener(openTutorialEvent, manual);
-  }, [beginTour, pathname]);
+  }, [beginTour, cityRoot, pathname]);
 
   useEffect(() => {
-    if (!isBrnoPath(pathname) || phase !== "closed") return;
+    if (!isCityPath(pathname, cityRoot) || phase !== "closed") return;
     let timer = 0;
     const tryOpen = () => {
       window.clearTimeout(timer);
@@ -503,7 +506,7 @@ export function FeatureTutorial() {
     };
     window.addEventListener("studenthub-preference-changed", tryOpen); window.addEventListener("studenthub-consent-changed", tryOpen); tryOpen();
     return () => { window.clearTimeout(timer); window.removeEventListener("studenthub-preference-changed", tryOpen); window.removeEventListener("studenthub-consent-changed", tryOpen); };
-  }, [beginTour, pathname, phase]);
+  }, [beginTour, cityRoot, pathname, phase]);
 
   const confirmIntro = useCallback(() => {
     saveTutorialState({ ...emptyTutorialState, introConfirmed: true, status: "in_progress" });
@@ -517,7 +520,7 @@ export function FeatureTutorial() {
     setPhase("closed");
   }, []);
 
-  if (phase === "intro") return <IntroConfirmation confirm={confirmIntro} />;
+  if (phase === "intro") return <IntroConfirmation confirm={confirmIntro} cityName={city.name} />;
   if (phase === "preparing") return <PreparingTutorial />;
   if (phase === "tour") return <GuidedTour resumeAfterStepId={resumeAfterStepId} finish={(step) => closeTour(step, "completed")} skip={(step) => closeTour(step, "skipped")} />;
   return null;

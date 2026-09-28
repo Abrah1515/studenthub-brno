@@ -21,8 +21,10 @@ describe("platformní routing a městské edice", () => {
   });
 
   it("překládá jen skutečné brněnské routy na existující implementaci", () => {
-    expect(internalRouteForBrno("/brno/chat/123")).toBe("/chat/123");
-    expect(internalRouteForBrno("/brno/nastaveni")).toBe("/nastaveni");
+    expect(internalRouteForBrno("/brno/profil/adam")).toBe("/profil/adam");
+    expect(internalRouteForBrno("/brno/profily")).toBe("/profily");
+    expect(internalRouteForBrno("/brno/chat/123")).toBeNull();
+    expect(internalRouteForBrno("/brno/nastaveni")).toBeNull();
     expect(internalRouteForBrno("/brno/kalendar")).toBeNull();
     expect(internalRouteForBrno("/praha/chat")).toBeNull();
   });

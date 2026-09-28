@@ -21,23 +21,27 @@ import { ChatBadge } from "@/components/chat-badge";
 import { ChatDock } from "@/components/chat-dock";
 import { BrandHorizontalLogo, BrandSymbol } from "@/components/brand-logo";
 import { LegalLinks } from "@/components/legal-links";
+import { CityProvider } from "@/components/city-context";
+import { isCityModuleEnabled, type CityModule } from "@/lib/cities";
 
-function navigationFor(citySlug: string, cityName: string) {
+function navigationFor(city: City) {
+  const citySlug = city.slug; const cityName = city.name;
   const cityBase = `/${citySlug}`;
+  const item = (module: CityModule | null, href: string, label: string, short: string, icon: typeof Home, tourId: string) => ({ module, href, label, short, icon, tourId });
   return [
-    { href: cityBase, label: "Přehled", short: "Přehled", icon: Home, tourId: "overview-navigation" },
-    { href: `${cityBase}/kalendar`, label: "Kalendář", short: "Termíny", icon: CalendarDays, tourId: "calendar-navigation" },
-    { href: `${cityBase}/hlidac`, label: "Hlídač", short: "Hlídač", icon: Bell, tourId: "watcher-navigation" },
-    { href: `${cityBase}/chat`, label: "Chat", short: "Chat", icon: MessageCircle, tourId: "chat-navigation" },
-    { href: `${cityBase}/mista`, label: `Místa – ${cityName}`, short: "Místa", icon: MapPinned, tourId: "places-navigation" },
-    { href: `${cityBase}/komunita`, label: "Studentská komunita", short: "Komunita", icon: MessageCircle, tourId: "community-navigation" },
-    { href: `${cityBase}/partak`, label: "Hledám parťáka", short: "Parťák", icon: Users, tourId: "buddy-navigation" },
-    { href: `${cityBase}/brigady`, label: "Brigády", short: "Brigády", icon: BriefcaseBusiness, tourId: "jobs-navigation" },
-    ...(featureFlags.offersEnabled ? [{ href: `${cityBase}/nabidky`, label: "Nabídky a slevy", short: "Slevy", icon: CalendarDays, tourId: "offers-navigation" }] : []),
-    { href: `${cityBase}/burza`, label: "Studentská burza", short: "Burza", icon: ShoppingBag, tourId: "marketplace-navigation" },
-    ...(citySlug === "brno" ? [{ href: `${cityBase}/bydleni`, label: "Bydlení", short: "Bydlení", icon: Building2, tourId: "housing-navigation" }] : []),
-    { href: `${cityBase}/nastaveni`, label: "Moje škola a profil", short: "Profil", icon: Settings, tourId: "settings-navigation" },
-  ];
+    item(null, cityBase, "Přehled", "Přehled", Home, "overview-navigation"),
+    item("calendar", `${cityBase}/kalendar`, "Kalendář", "Termíny", CalendarDays, "calendar-navigation"),
+    item("watcher", `${cityBase}/hlidac`, "Hlídač", "Hlídač", Bell, "watcher-navigation"),
+    item("chat", `${cityBase}/chat`, "Chat", "Chat", MessageCircle, "chat-navigation"),
+    item("places", `${cityBase}/mista`, `Místa – ${cityName}`, "Místa", MapPinned, "places-navigation"),
+    item("community", `${cityBase}/komunita`, "Studentská komunita", "Komunita", MessageCircle, "community-navigation"),
+    item("buddy", `${cityBase}/partak`, "Hledám parťáka", "Parťák", Users, "buddy-navigation"),
+    item("jobs", `${cityBase}/brigady`, "Brigády", "Brigády", BriefcaseBusiness, "jobs-navigation"),
+    ...(featureFlags.offersEnabled ? [item("offers", `${cityBase}/nabidky`, "Nabídky a slevy", "Slevy", CalendarDays, "offers-navigation")] : []),
+    item("marketplace", `${cityBase}/burza`, "Studentská burza", "Burza", ShoppingBag, "marketplace-navigation"),
+    item("housing", `${cityBase}/bydleni`, "Bydlení", "Bydlení", Building2, "housing-navigation"),
+    item("settings", `${cityBase}/nastaveni`, "Moje škola a profil", "Profil", Settings, "settings-navigation"),
+  ].filter((entry) => entry.module === null || isCityModuleEnabled(city, entry.module));
 }
 type Theme = "system" | "light" | "dark";
 const themePreferenceChangedEvent = "studenthub-theme-preference-changed";
@@ -123,6 +127,7 @@ function PreferenceAwareNavLink({ item, pathname, cityRoot, close, compact = fal
 
 function MobileMenu({ open, close, navigation, pathname, cityRoot, returnFocus, tourMode }: { open: boolean; close: () => void; navigation: ReturnType<typeof navigationFor>; pathname: string; cityRoot: string; returnFocus: () => HTMLElement | null; tourMode: boolean }) {
   const ref = useModalDialog<HTMLElement>(open && !tourMode, close);
+  const phoneExtraPaths = new Set([`${cityRoot}/chat`, `${cityRoot}/bydleni`, `${cityRoot}/hlidac`, `${cityRoot}/nastaveni`]);
   if (!open || typeof document === "undefined") return null;
   return createPortal(
     <div className={classNames("mobile-menu-layer", tourMode && "tutorial-menu-open")} data-modal-layer>
@@ -131,10 +136,7 @@ function MobileMenu({ open, close, navigation, pathname, cityRoot, returnFocus, 
         <div className="sidebar-head"><Brand href={cityRoot} /><button className="icon-button" data-autofocus={!tourMode || undefined} aria-label="Zavřít nabídku" onClick={close} tabIndex={tourMode ? -1 : undefined}><X size={20} /></button></div>
         <nav className="desktop-nav tablet-full-nav" aria-label="Hlavní navigace">{navigation.map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} close={close} tourVariant="menu" />)}</nav>
         <nav className="phone-extra-nav" aria-label="Doplňkové funkce">
-          <Link className="nav-link" href={`${cityRoot}/chat`} onClick={close} data-tour-id="chat-navigation-menu"><MessageCircle size={19} />Chat<ChatBadge /></Link>
-          <Link className="nav-link" href={`${cityRoot}/bydleni`} onClick={close} data-tour-id="housing-navigation-menu"><Building2 size={19} />Bydlení</Link>
-          <Link className="nav-link" href={`${cityRoot}/hlidac`} onClick={close} data-tour-id="watcher-navigation-menu"><Bell size={19} />Hlídač<WatcherBadge /></Link>
-          <Link className="nav-link" href={`${cityRoot}/nastaveni`} onClick={close} data-tour-id="settings-navigation-menu"><Settings size={19} />Moje škola a profil</Link>
+          {navigation.filter((item) => phoneExtraPaths.has(item.href)).map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} close={close} tourVariant="menu" />)}
           <div className="mobile-theme-block" data-tour-id="appearance-navigation-menu"><strong>Nastavení vzhledu</strong><ThemeSettings /></div>
         </nav>
         <AuxiliaryNavigation variant="menu" close={close} returnFocus={returnFocus} className="phone-menu-extras" />
@@ -156,13 +158,14 @@ export function SiteShell({ children, cities, catalog }: { children: React.React
   const currentCity = cities.find((city) => pathname === `/${city.slug}` || pathname.startsWith(`/${city.slug}/`)) || cities[0];
   const citySlug = currentCity?.slug || "brno";
   const cityRoot = `/${citySlug}`;
-  const navigation = navigationFor(citySlug, currentCity?.name || "Brně");
+  const navigation = navigationFor(currentCity || cities[0]);
+  const hasModule = (suffix: string) => navigation.some((item) => item.href === `${cityRoot}/${suffix}`);
   const chatConversationOpen = new RegExp(`^${cityRoot}/chat/[^/]+`).test(pathname);
-  return <AcademicCatalogProvider catalog={catalog}><div className={classNames("app-shell", chatConversationOpen && "chat-route-active")}>
+  return <AcademicCatalogProvider catalog={catalog}><CityProvider city={currentCity || cities[0]}><div className={classNames("app-shell", chatConversationOpen && "chat-route-active")}>
     <aside className="sidebar desktop-sidebar" aria-label="Postranní panel"><div className="sidebar-head"><div className="brand-context"><Brand href={cityRoot} tourId="brand-desktop" /><SelectedStudyContext /></div></div><nav className="desktop-nav" aria-label="Hlavní navigace">{navigation.map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} tourVariant="desktop" />)}</nav><div className="sidebar-note"><Info size={18} aria-hidden="true" /><p>Nezávislý projekt. Není oficiálně spojený s žádnou univerzitou.</p></div><AuxiliaryNavigation variant="desktop" /></aside>
     <MobileMenu open={menuOpen || tourMenuOpen} close={() => { setMenuOpen(false); setTourMenuOpen(false); }} navigation={navigation} pathname={pathname} cityRoot={cityRoot} returnFocus={() => menuTriggerRef.current} tourMode={tourMenuOpen && !menuOpen} />
     {cities.length > 1 && <CitySwitcher cities={cities} pathname={pathname} />}
-    <div className="main-column"><header className="topbar"><button ref={menuTriggerRef} className="icon-button mobile-only" aria-label="Otevřít nabídku" data-tour-id="menu-trigger" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><div className="mobile-brand"><Brand href={cityRoot} compact tourId="brand-compact" /></div><div className="topbar-spacer" /><Link href={`${cityRoot}/chat`} className="icon-button mobile-chat-link" aria-label="Chat" data-tour-id="chat-navigation-compact"><MessageCircle size={23} aria-hidden="true" /><ChatBadge compact /></Link><ThemeToggle /><Link href={`${cityRoot}/burza`} className="button button-primary topbar-help" aria-label="Studentská burza" data-tour-id="marketplace-navigation-topbar"><ShoppingBag size={18} /><span>Burza</span></Link></header><main id="hlavni-obsah" className="content">{children}</main><footer className="footer"><p><BrandSymbol size={22} />{brand.editionName} · nezávislý studentský projekt</p><LegalLinks includeCookieSettings /></footer></div>
-    <nav className="bottom-nav" aria-label="Mobilní navigace">{navigation.filter((item) => [cityRoot, `${cityRoot}/kalendar`, `${cityRoot}/mista`, `${cityRoot}/komunita`, `${cityRoot}/brigady`].includes(item.href)).map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} compact tourVariant="bottom" />)}</nav><Link href={`${cityRoot}/partak`} className="floating-help" title="Hledám parťáka" aria-label="Hledám parťáka" data-tour-id="buddy-navigation-floating"><Users size={22} /><span>Hledám parťáka</span></Link>{!pathname.startsWith(`${cityRoot}/chat`) && <ChatDock />}
-  </div></AcademicCatalogProvider>;
+    <div className="main-column"><header className="topbar"><button ref={menuTriggerRef} className="icon-button mobile-only" aria-label="Otevřít nabídku" data-tour-id="menu-trigger" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><div className="mobile-brand"><Brand href={cityRoot} compact tourId="brand-compact" /></div><div className="topbar-spacer" />{hasModule("chat") && <Link href={`${cityRoot}/chat`} className="icon-button mobile-chat-link" aria-label="Chat" data-tour-id="chat-navigation-compact"><MessageCircle size={23} aria-hidden="true" /><ChatBadge compact /></Link>}<ThemeToggle />{hasModule("burza") && <Link href={`${cityRoot}/burza`} className="button button-primary topbar-help" aria-label="Studentská burza" data-tour-id="marketplace-navigation-topbar"><ShoppingBag size={18} /><span>Burza</span></Link>}</header><main id="hlavni-obsah" className="content">{children}</main><footer className="footer"><p><BrandSymbol size={22} />{brand.editionName} · nezávislý studentský projekt</p><LegalLinks includeCookieSettings /></footer></div>
+    <nav className="bottom-nav" aria-label="Mobilní navigace">{navigation.filter((item) => [cityRoot, `${cityRoot}/kalendar`, `${cityRoot}/mista`, `${cityRoot}/komunita`, `${cityRoot}/brigady`].includes(item.href)).map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} compact tourVariant="bottom" />)}</nav>{hasModule("partak") && <Link href={`${cityRoot}/partak`} className="floating-help" title="Hledám parťáka" aria-label="Hledám parťáka" data-tour-id="buddy-navigation-floating"><Users size={22} /><span>Hledám parťáka</span></Link>}{hasModule("chat") && !pathname.startsWith(`${cityRoot}/chat`) && <ChatDock />}
+  </div></CityProvider></AcademicCatalogProvider>;
 }

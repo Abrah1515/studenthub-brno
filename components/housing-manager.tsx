@@ -3,13 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AlertTriangle, Eye, ImagePlus, Loader2, Pencil, RefreshCcw, Save, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { HousingListing } from "@/lib/housing-types";
 import { housingCategories, housingFeatures, housingLabels, housingLifestylePreferences, housingListingTypes, housingPriceLabel, housingStayLengths } from "@/lib/housing-types";
 import { OwnerScopeTabs } from "@/components/owner-scope-tabs";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
+import { useCurrentCity } from "@/components/city-context";
 
 export function HousingManager() {
+  const city = useCurrentCity();
   const [items, setItems] = useState<HousingListing[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
@@ -21,15 +23,15 @@ export function HousingManager() {
   const [draft, setDraft] = useState({ listingType: "offer" as HousingListing["listingType"], category: "private_room" as HousingListing["category"], title: "", locality: "", availableFrom: "", stayLength: "6_12_months" as HousingListing["stayLength"], shortDescription: "", description: "", priceMonthly: 0, utilitiesIncluded: false, utilitiesAmount: null as number | null, depositAmount: null as number | null, availableSpots: null as number | null, currentOccupants: null as number | null, furnished: null as boolean | null, transitAccess: "", features: [] as HousingListing["features"], wantedPersonCount: null as number | null, lifestylePreferences: [] as string[] });
   const [now] = useState(() => Date.now());
 
-  async function load() {
+  const load = useCallback(async () => {
     setState("loading");
-    const response = await fetch("/api/housing/mine", { cache: "no-store" });
+    const response = await fetch(`/api/housing/mine?city=${encodeURIComponent(city.id)}`, { cache: "no-store" });
     if (!response.ok) { setState("error"); return; }
     const data = await response.json();
     setItems(data.items);
     setState("ready");
-  }
-  useEffect(() => { void load(); }, []);
+  }, [city.id]);
+  useEffect(() => { void load(); }, [load]);
 
   async function mutate(item: HousingListing, body: Record<string, unknown>, method = "PATCH") {
     setMessage("");
@@ -61,21 +63,21 @@ export function HousingManager() {
     <div className="page-stack housing-manager">
       <header className="page-heading">
         <div><span className="eyebrow">Bydlení</span><h1>Moje inzeráty</h1><p>Správa stavu, platnosti a veřejných údajů. Kontakty zájemců zůstávají v soukromém chatu.</p></div>
-        <Link className="button button-primary" href="/brno/bydleni/novy">Přidat inzerát</Link>
+        <Link className="button button-primary" href={`/${city.slug}/bydleni/novy`}>Přidat inzerát</Link>
       </header>
-      <OwnerScopeTabs mine allHref="/brno/bydleni" mineHref="/brno/bydleni/moje" />
+      <OwnerScopeTabs mine allHref={`/${city.slug}/bydleni`} mineHref={`/${city.slug}/bydleni/moje`} />
       {message && <div className={message.includes("nepodařilo") ? "error-state" : "success-message"} role="status">{message}</div>}
       {state === "loading" ? <div className="settings-card"><Loader2 className="spin" />Načítám vaše inzeráty…</div> : state === "error" ? (
         <div className="error-state"><p>Inzeráty se nepodařilo načíst.</p><button className="button button-secondary" onClick={load}>Zkusit znovu</button></div>
       ) : items.length === 0 ? (
-        <div className="empty-state"><h2>Zatím nemáte žádný inzerát</h2><p>Po vložení zde uvidíte stav moderace, počet zobrazení i zahájených kontaktů.</p><Link className="button button-primary" href="/brno/bydleni/novy">Přidat inzerát</Link></div>
+        <div className="empty-state"><h2>Zatím nemáte žádný inzerát</h2><p>Po vložení zde uvidíte stav moderace, počet zobrazení i zahájených kontaktů.</p><Link className="button button-primary" href={`/${city.slug}/bydleni/novy`}>Přidat inzerát</Link></div>
       ) : (
         <div className="housing-manager-list">
           {items.map((item) => {
             const expiresSoon = item.status === "active" && new Date(item.expiresAt).getTime() <= now + 3 * 86400000;
             return (
               <article key={item.id}>
-                <header><div><span className={`status-pill status-${item.status}`}>{item.hiddenByAdmin ? "Skryto administrátorem" : housingLabels.status[item.status]}</span><h2>{item.title}</h2><p>{housingPriceLabel(item)} · {item.locality}</p></div><Link className="icon-button" href={`/brno/bydleni/${item.id}`} aria-label="Otevřít detail"><Eye size={18} /></Link></header>
+                <header><div><span className={`status-pill status-${item.status}`}>{item.hiddenByAdmin ? "Skryto administrátorem" : housingLabels.status[item.status]}</span><h2>{item.title}</h2><p>{housingPriceLabel(item)} · {item.locality}</p></div><Link className="icon-button" href={`/${city.slug}/bydleni/${item.id}`} aria-label="Otevřít detail"><Eye size={18} /></Link></header>
                 <div className="housing-owner-stats"><span><strong>{item.viewCount || 0}</strong> zobrazení</span><span><strong>{item.contactCount || 0}</strong> kontaktů</span><span>Platnost do <strong>{new Intl.DateTimeFormat("cs-CZ").format(new Date(item.expiresAt))}</strong></span></div>
                 {expiresSoon && <p className="warning-state"><AlertTriangle size={16} /> Inzerát brzy vyprší. Prodloužení je vždy ruční a přidá dalších 30 dní.</p>}
                 {item.moderationFlags?.length ? <p className="warning-state">Kontrola: {item.moderationFlags.join(", ")}</p> : null}

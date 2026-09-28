@@ -7,7 +7,7 @@ import { facultyById } from "@/lib/universities";
 
 const allowed = new Set<TableName>(["cities", "academic_events", "community_events", "places", "place_live_reports", "offers", "jobs", "submissions", "service_requests", "buddy_posts", "content_reports", "contact_messages", "academic_event_conflicts"]);
 const mutableFields: Partial<Record<TableName, ReadonlySet<string>>> = {
-  cities: new Set(["id", "slug", "name", "region", "country_code", "timezone", "latitude", "longitude", "map_bounds", "map_zoom", "enabled", "public_status", "sort_order", "brand_config"]),
+  cities: new Set(["id", "slug", "name", "region", "country_code", "timezone", "latitude", "longitude", "map_bounds", "map_zoom", "enabled", "public_status", "sort_order", "brand_config", "module_config"]),
   academic_events: new Set(["title", "description", "category", "school", "faculty", "starts_at", "ends_at", "source_name", "source_url", "source_updated_at", "status", "city_id", "university_id", "faculty_id", "scope_type", "academic_year", "study_years"]),
   community_events: new Set(["title", "category", "starts_at", "ends_at", "venue", "description", "is_free", "price_amount", "event_url", "status"]),
   places: new Set(["name", "category", "description", "address", "latitude", "longitude", "opening_hours", "website_url", "status", "city_id", "university_id", "faculty_id", "campus_id", "campus_name", "verification_status"]),
@@ -97,6 +97,7 @@ export async function POST(request: Request, context: Context) {
   const body = enforceWriteScope(resource, permitted(resource, await request.json() as Record<string, unknown>), user, true);
   if (!body) return NextResponse.json({ message: user.role === "faculty_editor" ? "Editor nemá přiřazenou fakultu." : "Editor nemá přiřazené město." }, { status: 403 });
   const saved = await insertRecord(resource, resource === "cities" ? body : { ...body, status: body.status || "pending", is_demo: false });
+  if (resource === "cities" && isSupabaseConfigured()) await createServiceClient().from("city_configuration_audit").insert({ city_id: saved.id, actor_id: user.id === "local-admin" ? null : user.id, action: "created", previous_config: {}, new_config: saved });
   if (resource === "offers" && isSupabaseConfigured() && user.cityId) await createServiceClient().from("offer_cities").upsert({ offer_id: saved.id, city_id: user.cityId });
   return NextResponse.json(saved, { status: 201 });
 }
@@ -109,6 +110,7 @@ export async function PATCH(request: Request, context: Context) {
   const body: Record<string, unknown> = { id: input.id, ...permitted(resource, input) };
   if (!await canEdit(resource, String(body.id), user)) return NextResponse.json({ message: "Záznam není v rozsahu editora." }, { status: 403 });
   const { id, ...rawChanges } = body;
+  const previous = resource === "cities" ? (await listRecords("cities")).find((item) => String(item.id) === String(id)) : null;
   const changes = enforceWriteScope(resource, rawChanges, user, false);
   if (!changes) return NextResponse.json({ message: user.role === "faculty_editor" ? "Editor nemá přiřazenou fakultu." : "Editor nemá přiřazené město." }, { status: 403 });
   if (resource === "place_live_reports") {
@@ -125,8 +127,13 @@ export async function PATCH(request: Request, context: Context) {
     changes.status = "actioned"; changes.reviewed_by = user.id === "local-admin" ? null : user.id; changes.reviewed_at = new Date().toISOString(); changes.resolution = body.blockAuthor ? "Obsah skryt a autor zablokován." : "Obsah skryt.";
     delete changes.hideTarget; delete changes.blockAuthor;
   }
-  if (resource === "cities" && user.role !== "super_admin") { delete changes.slug; delete changes.enabled; delete changes.public_status; }
-  return NextResponse.json(await updateRecord(resource, String(id), changes));
+  if (resource === "cities" && user.role !== "super_admin") { delete changes.slug; delete changes.enabled; delete changes.public_status; delete changes.module_config; }
+  const saved = await updateRecord(resource, String(id), changes);
+  if (resource === "cities" && isSupabaseConfigured()) {
+    const action = changes.public_status === "published" ? "published" : changes.public_status ? "unpublished" : changes.enabled === true ? "enabled" : changes.enabled === false ? "disabled" : "updated";
+    await createServiceClient().from("city_configuration_audit").insert({ city_id: id, actor_id: user.id === "local-admin" ? null : user.id, action, previous_config: previous || {}, new_config: saved });
+  }
+  return NextResponse.json(saved);
 }
 
 export async function DELETE(request: Request, context: Context) {

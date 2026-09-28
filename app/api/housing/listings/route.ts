@@ -14,6 +14,8 @@ import {
 } from "@/lib/housing-server";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 import { getCurrentAccount } from "@/lib/user-auth";
+import { defaultCitySlug } from "@/lib/cities";
+import { getPublishedCityModule } from "@/lib/city-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +28,9 @@ const number = (params: URLSearchParams, key: string) => {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const account = await getCurrentAccount();
-  const items = await getPublicHousingListings("brno", account?.id);
+  const city = await getPublishedCityModule(url.searchParams.get("city") || defaultCitySlug, "housing");
+  if (!city) return NextResponse.json({ message: "Bydlení v tomto městě není aktivní." }, { status: 404 });
+  const items = await getPublicHousingListings(city.id, account?.id);
   const filtered = filterHousingListings(items, {
     q: url.searchParams.get("q") || undefined,
     listingType: url.searchParams.get("type") || undefined,
@@ -69,6 +73,8 @@ export async function POST(request: Request) {
     cityId: form.get("cityId") || "brno", company: form.get("company") || "",
   });
   if (!parsed.success) return NextResponse.json({ message: "Zkontrolujte vyplněné údaje.", issues: parsed.error.flatten().fieldErrors }, { status: 422 });
+  const city = await getPublishedCityModule(parsed.data.cityId, "housing");
+  if (!city) return NextResponse.json({ message: "Bydlení v tomto městě není aktivní." }, { status: 422 });
 
   const photos = form.getAll("photos").filter((value): value is File => value instanceof File && value.size > 0);
   if (parsed.data.listingType === "offer" && (photos.length < 1 || photos.length > 8)) return NextResponse.json({ message: "Nabídka musí mít 1 až 8 fotografií." }, { status: 422 });
@@ -82,7 +88,7 @@ export async function POST(request: Request) {
   const client = createServiceClient();
   const fingerprint = housingDuplicateFingerprint(clean);
   const { data: duplicate } = await client.from("housing_listings").select("id").eq("author_id", account.id)
-    .eq("duplicate_fingerprint", fingerprint).in("status", ["active", "pending_review", "hidden"]).limit(1).maybeSingle();
+    .eq("city_id", city.id).eq("duplicate_fingerprint", fingerprint).in("status", ["active", "pending_review", "hidden"]).limit(1).maybeSingle();
   if (duplicate) return NextResponse.json({ message: "Stejný aktivní inzerát už existuje." }, { status: 409 });
 
   const since = new Date(Date.now() - 86400000).toISOString();
@@ -113,7 +119,7 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
   const id = randomUUID();
   const row = {
-    id, city_id: "brno", author_id: account.id, listing_type: parsed.data.listingType, category: parsed.data.category,
+    id, city_id: city.id, author_id: account.id, listing_type: parsed.data.listingType, category: parsed.data.category,
     title: clean.title, locality: clean.locality, available_from: parsed.data.availableFrom, stay_length: parsed.data.stayLength,
     short_description: clean.shortDescription, description: clean.description, price_monthly: parsed.data.priceMonthly,
     utilities_included: parsed.data.utilitiesIncluded, utilities_amount: parsed.data.utilitiesIncluded ? null : parsed.data.utilitiesAmount,
@@ -156,5 +162,5 @@ export async function POST(request: Request) {
   await recordHousingHistory(id, finalStatus === "active" ? "created" : "submitted_review", null, finalStatus, account.id, {
     moderation_reason: decision.outcome === "publish" ? "safe_rules_passed" : decision.flags[0], moderation_flags: decision.flags,
   });
-  return NextResponse.json({ id, href: `/brno/bydleni/${id}`, status: finalStatus, message: decision.message }, { status: 201 });
+  return NextResponse.json({ id, href: `/${city.slug}/bydleni/${id}`, status: finalStatus, message: decision.message }, { status: 201 });
 }

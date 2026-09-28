@@ -71,7 +71,8 @@ describe("Bydlení – validace a veřejné soukromí", () => {
     expect(housingListingSchema.safeParse({ ...baseForm, listingType: "offer", availableSpots: undefined }).success).toBe(false);
     expect(housingListingSchema.safeParse({ ...baseForm, listingType: "wanted", availableSpots: undefined, wantedPersonCount: 2 }).success).toBe(true);
     expect(housingListingSchema.safeParse({ ...baseForm, listingType: "wanted", availableSpots: undefined, wantedPersonCount: undefined }).success).toBe(false);
-    expect(housingListingSchema.safeParse({ ...baseForm, cityId: "praha" }).success).toBe(false);
+    expect(housingListingSchema.safeParse({ ...baseForm, cityId: "praha" }).success).toBe(true);
+    expect(housingListingSchema.safeParse({ ...baseForm, cityId: "Praha!" }).success).toBe(false);
     expect(housingListingSchema.safeParse({ ...baseForm, company: "spam" }).success).toBe(false);
   });
 
@@ -175,8 +176,8 @@ describe("Bydlení – databázové a serverové bezpečnostní kontrakty", () =
 
   it("uživatelské potvrzení rozlišuje zveřejnění a kontrolu", () => {
     const form = readFileSync("components/housing-listing-form.tsx", "utf8");
-    expect(form).toContain('done.status==="active"?"Inzerát byl zveřejněn":"Inzerát vyžaduje kontrolu"');
-    expect(form).toContain('href="/brno/bydleni/moje"');
+    expect(form).toContain('done.status === "active"');
+    expect(form).toContain('href={`/${city.slug}/bydleni/moje`}');
   });
 
   it("při vlastní úpravě přepočítá deduplikační otisk a nepovolí podvržení vlastníka", () => {

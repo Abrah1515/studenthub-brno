@@ -1,4 +1,7 @@
 export type CityStatus = "draft" | "review" | "published" | "archived";
+export const cityModuleKeys = ["calendar", "places", "community", "buddy", "marketplace", "housing", "jobs", "chat", "watcher", "settings", "offers"] as const;
+export type CityModule = (typeof cityModuleKeys)[number];
+export type CityModules = Record<CityModule, boolean>;
 export type MapBounds = [[number, number], [number, number]];
 export type City = {
   id: string;
@@ -15,6 +18,18 @@ export type City = {
   publicStatus: CityStatus;
   sortOrder: number;
   brandConfig: Record<string, unknown>;
+  modules: CityModules;
+  seo: { title: string; description: string };
+  selectionLogo: { light: string; dark: string; width: number; height: number };
+};
+
+const enabledBrnoModules: CityModules = {
+  calendar: true, places: true, community: true, buddy: true, marketplace: true,
+  housing: true, jobs: true, chat: true, watcher: true, settings: true, offers: true,
+};
+const disabledCityModules: CityModules = {
+  calendar: false, places: false, community: false, buddy: false, marketplace: false,
+  housing: false, jobs: false, chat: false, watcher: false, settings: false, offers: false,
 };
 
 export const brnoCity: City = {
@@ -32,10 +47,35 @@ export const brnoCity: City = {
   publicStatus: "published",
   sortOrder: 10,
   brandConfig: { editionName: "StudentHub Brno", editionShortName: "Brno" },
+  modules: enabledBrnoModules,
+  seo: { title: "StudentHub Brno – prakticky pro studenty", description: "Ověřené termíny, místa, komunita a praktické služby pro studenty v Brně." },
+  selectionLogo: { light: "/brand/cities/studenthub-brno-v1.png", dark: "/brand/cities/studenthub-brno-dark-v1.png", width: 391, height: 396 },
 };
+
+export const olomoucCity: City = {
+  id: "olomouc", slug: "olomouc", name: "Olomouc", region: "Olomoucký kraj", countryCode: "CZ",
+  timezone: "Europe/Prague", latitude: 49.5938, longitude: 17.2509,
+  mapBounds: [[49.535, 17.185], [49.655, 17.34]], mapZoom: 13,
+  enabled: false, publicStatus: "draft", sortOrder: 40,
+  brandConfig: { editionName: "StudentHub Olomouc", editionShortName: "Olomouc" },
+  modules: disabledCityModules,
+  seo: { title: "StudentHub Olomouc – připravujeme", description: "Připravovaná městská edice StudentHubu pro studenty v Olomouci." },
+  selectionLogo: { light: "/brand/cities/studenthub-olomouc-v1.png", dark: "/brand/cities/studenthub-olomouc-dark-v1.png", width: 394, height: 397 },
+};
+
+const plannedCities: City[] = [
+  { ...olomoucCity, id: "praha", slug: "praha", name: "Praha", region: "Hlavní město Praha", latitude: 50.0755, longitude: 14.4378, mapBounds: [[49.94, 14.22], [50.18, 14.71]], sortOrder: 20, brandConfig: { editionName: "StudentHub Praha", editionShortName: "Praha" }, seo: { title: "StudentHub Praha – připravujeme", description: "Připravovaná městská edice StudentHubu pro studenty v Praze." }, selectionLogo: { light: "/brand/cities/studenthub-praha-v1.png", dark: "/brand/cities/studenthub-praha-dark-v1.png", width: 392, height: 396 } },
+  { ...olomoucCity, id: "ostrava", slug: "ostrava", name: "Ostrava", region: "Moravskoslezský kraj", latitude: 49.8209, longitude: 18.2625, mapBounds: [[49.72, 18.08], [49.91, 18.38]], sortOrder: 30, brandConfig: { editionName: "StudentHub Ostrava", editionShortName: "Ostrava" }, seo: { title: "StudentHub Ostrava – připravujeme", description: "Připravovaná městská edice StudentHubu pro studenty v Ostravě." }, selectionLogo: { light: "/brand/cities/studenthub-ostrava-v1.png", dark: "/brand/cities/studenthub-ostrava-dark-v1.png", width: 393, height: 397 } },
+  olomoucCity,
+];
+
+export const cityCatalog: readonly City[] = [brnoCity, ...plannedCities];
 
 export const defaultCitySlug = process.env.DEFAULT_CITY_SLUG || process.env.NEXT_PUBLIC_DEFAULT_CITY_SLUG || "brno";
 export const multiCityEnabled = process.env.MULTI_CITY_ENABLED === "true" || process.env.NEXT_PUBLIC_MULTI_CITY_ENABLED === "true";
 
-export function staticCityBySlug(slug: string) { return slug === brnoCity.slug ? brnoCity : undefined; }
+export function staticCityBySlug(slug: string) { return cityCatalog.find((city) => city.slug === slug); }
 export function isCityPublic(city: City) { return city.enabled && city.publicStatus === "published"; }
+export function isCityModuleEnabled(city: City, module: CityModule) { return isCityPublic(city) && city.modules[module]; }
+export function cityHref(city: Pick<City, "slug"> | string, path = "") { const slug = typeof city === "string" ? city : city.slug; const suffix = path && !path.startsWith("/") ? `/${path}` : path; return `/${slug}${suffix}`; }
+export function citySlugFromPathname(pathname: string, fallback = defaultCitySlug) { const slug = pathname.split("/").filter(Boolean)[0]?.toLowerCase(); return staticCityBySlug(slug || "")?.slug || fallback; }

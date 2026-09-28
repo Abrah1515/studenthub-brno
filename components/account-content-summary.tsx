@@ -1,25 +1,285 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, MapPin, MessageCircle, Pencil, ShoppingBag, Trash2, Users } from "lucide-react";
-import { useEffect,useState } from "react";
+import {
+  CalendarDays,
+  MapPin,
+  MessageCircle,
+  Pencil,
+  ShoppingBag,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useCurrentCity } from "@/components/city-context";
 
 type Row = Record<string, unknown>;
-type Content = { posts?: Row[]; comments?: Row[]; buddy?: Row[]; listings?: Row[]; events?: Row[]; placeSuggestions?:Row[] };
+type Content = {
+  posts?: Row[];
+  comments?: Row[];
+  buddy?: Row[];
+  listings?: Row[];
+  events?: Row[];
+  placeSuggestions?: Row[];
+};
 
-export function AccountContentSummary({ content, onRefresh }: { content: Content; onRefresh: () => void }) {
-  const [localPlaceDraft,setLocalPlaceDraft]=useState(false);useEffect(()=>{setLocalPlaceDraft(Boolean(localStorage.getItem("studenthub-place-suggestion-v1")))},[]);
-  async function removeEvent(id: string) { if (!confirm("Zrušit a odstranit vlastní akci?")) return; const response = await fetch(`/api/community-events/${id}`, { method: "DELETE" }); if (response.ok) onRefresh(); }
-  async function listingAction(id: string, action: "reserve" | "sold") { const response = await fetch(`/api/marketplace/listings/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }) }); if (response.ok) onRefresh(); }
-  async function removeListing(id: string) { if (!confirm("Odstranit vlastní inzerát?")) return; const response = await fetch(`/api/marketplace/listings/${id}`, { method: "DELETE" }); if (response.ok) onRefresh(); }
-  async function withdrawPlace(id:string){if(!confirm("Stáhnout návrh místa ze schvalování?"))return;const response=await fetch(`/api/place-suggestions/${id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action:"withdraw"})});if(response.ok)onRefresh()}
-  async function removePlace(id:string){if(!confirm("Trvale odstranit rozpracovaný nebo stažený návrh?"))return;const response=await fetch(`/api/place-suggestions/${id}`,{method:"DELETE"});if(response.ok)onRefresh()}
-  const placeStatus:Record<string,string>={draft:"Rozpracované",pending:"Čeká na schválení",changes_requested:"Vráceno k doplnění",approved:"Schváleno",rejected:"Zamítnuto",withdrawn:"Staženo",merged:"Sloučeno s existujícím místem",archived:"Archivováno"};
-  return <div className="account-content-summary">
-    <section><h3><MessageCircle size={17} /> Komunita ({content.posts?.length || 0})</h3>{content.posts?.length ? content.posts.map((item) => <Link key={String(item.id)} href={`/brno/komunita?post=${item.id}`}>{String(item.body).slice(0, 100)}</Link>) : <p>Žádný vlastní příspěvek.</p>}</section>
-    <section><h3><Users size={17} /> Hledám parťáka ({content.buddy?.length || 0})</h3><Link href="/brno/partak/moje">Otevřít správu vlastních příspěvků</Link></section>
-    <section><h3><ShoppingBag size={17} /> Burza ({content.listings?.length || 0})</h3>{content.listings?.length ? content.listings.map((item) => { const title = String(item.title); const id = String(item.id); return <div key={id}><Link href={`/${String(item.city_id || "brno")}/burza/${id}`}>{title}</Link><span className="card-actions"><button className="button button-secondary" aria-label={`Rezervovat: ${title}`} onClick={() => listingAction(id, "reserve")}>Rezervovat</button><button className="button button-secondary" aria-label={`Označit jako prodané: ${title}`} onClick={() => listingAction(id, "sold")}>Prodáno</button><button className="button button-quiet" aria-label={`Odstranit: ${title}`} onClick={() => removeListing(id)}><Trash2 size={14} /> Odstranit</button></span></div>; }) : <p>Žádný vlastní inzerát.</p>}</section>
-    <section><h3><CalendarDays size={17} /> Komunitní akce ({content.events?.length || 0})</h3>{content.events?.length ? content.events.map((item) => <div key={String(item.id)}><Link href={item.status === "published" ? `/brno/kalendar?view=community#${item.id}` : `/akce/sprava?id=${item.id}`}>{String(item.title)} · {item.status === "pending" ? "čeká na schválení" : String(item.status)}</Link><span className="card-actions"><Link className="button button-quiet" href={`/akce/sprava?id=${item.id}`}><Pencil size={14} /> Upravit</Link><button className="button button-quiet" onClick={() => removeEvent(String(item.id))}><Trash2 size={14} /> Zrušit</button></span></div>) : <p>Žádná vlastní akce.</p>}</section>
-    <section><h3><MapPin size={17}/> Moje navržená místa ({(content.placeSuggestions?.length||0)+Number(localPlaceDraft)})</h3>{localPlaceDraft&&<div><span><strong>Rozepsaný návrh v tomto zařízení</strong> · Rozpracované</span><span className="card-actions"><Link className="button button-quiet" href="/brno/mista?navrh=1"><Pencil size={14}/>Pokračovat</Link><button className="button button-quiet" onClick={()=>{localStorage.removeItem("studenthub-place-suggestion-v1");setLocalPlaceDraft(false)}}><Trash2 size={14}/>Zahodit</button></span></div>}{content.placeSuggestions?.length?content.placeSuggestions.map((item)=><div key={String(item.id)}><span><strong>{String(item.name)}</strong> · {placeStatus[String(item.status)]||String(item.status)}{Boolean(item.moderator_notes)?<small> · {String(item.moderator_notes)}</small>:null}</span><span className="card-actions">{Boolean(item.published_place_id)&&<Link className="button button-quiet" href={`/brno/mista#${String(item.published_place_id)}`}><MapPin size={14}/>Otevřít</Link>}{["draft","pending","changes_requested"].includes(String(item.status))&&<Link className="button button-quiet" href={`/brno/mista?navrh=1&submission=${String(item.id)}`}><Pencil size={14}/>{item.status==="changes_requested"?"Doplnit":"Upravit"}</Link>}{["pending","changes_requested"].includes(String(item.status))&&<button className="button button-quiet" onClick={()=>withdrawPlace(String(item.id))}>Stáhnout</button>}{["draft","withdrawn"].includes(String(item.status))&&<button className="button button-quiet" onClick={()=>removePlace(String(item.id))}><Trash2 size={14}/>Odstranit</button>}</span></div>):!localPlaceDraft&&<p>Žádný návrh. <Link href="/brno/mista?navrh=1">Navrhnout nové místo</Link></p>}</section>
-  </div>;
+export function AccountContentSummary({
+  content,
+  onRefresh,
+}: {
+  content: Content;
+  onRefresh: () => void;
+}) {
+  const city = useCurrentCity();
+  const [localPlaceDraft, setLocalPlaceDraft] = useState(false);
+  useEffect(() => {
+    setLocalPlaceDraft(
+      Boolean(localStorage.getItem("studenthub-place-suggestion-v1")),
+    );
+  }, []);
+  async function removeEvent(id: string) {
+    if (!confirm("Zrušit a odstranit vlastní akci?")) return;
+    const response = await fetch(`/api/community-events/${id}`, {
+      method: "DELETE",
+    });
+    if (response.ok) onRefresh();
+  }
+  async function listingAction(id: string, action: "reserve" | "sold") {
+    const response = await fetch(`/api/marketplace/listings/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (response.ok) onRefresh();
+  }
+  async function removeListing(id: string) {
+    if (!confirm("Odstranit vlastní inzerát?")) return;
+    const response = await fetch(`/api/marketplace/listings/${id}`, {
+      method: "DELETE",
+    });
+    if (response.ok) onRefresh();
+  }
+  async function withdrawPlace(id: string) {
+    if (!confirm("Stáhnout návrh místa ze schvalování?")) return;
+    const response = await fetch(`/api/place-suggestions/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "withdraw" }),
+    });
+    if (response.ok) onRefresh();
+  }
+  async function removePlace(id: string) {
+    if (!confirm("Trvale odstranit rozpracovaný nebo stažený návrh?")) return;
+    const response = await fetch(`/api/place-suggestions/${id}`, {
+      method: "DELETE",
+    });
+    if (response.ok) onRefresh();
+  }
+  const placeStatus: Record<string, string> = {
+    draft: "Rozpracované",
+    pending: "Čeká na schválení",
+    changes_requested: "Vráceno k doplnění",
+    approved: "Schváleno",
+    rejected: "Zamítnuto",
+    withdrawn: "Staženo",
+    merged: "Sloučeno s existujícím místem",
+    archived: "Archivováno",
+  };
+  return (
+    <div className="account-content-summary">
+      <section>
+        <h3>
+          <MessageCircle size={17} /> Komunita ({content.posts?.length || 0})
+        </h3>
+        {content.posts?.length ? (
+          content.posts.map((item) => (
+            <Link key={String(item.id)} href={`/${city.slug}/komunita?post=${item.id}`}>
+              {String(item.body).slice(0, 100)}
+            </Link>
+          ))
+        ) : (
+          <p>Žádný vlastní příspěvek.</p>
+        )}
+      </section>
+      <section>
+        <h3>
+          <Users size={17} /> Hledám parťáka ({content.buddy?.length || 0})
+        </h3>
+        <Link href={`/${city.slug}/partak/moje`}>Otevřít správu vlastních příspěvků</Link>
+      </section>
+      <section>
+        <h3>
+          <ShoppingBag size={17} /> Burza ({content.listings?.length || 0})
+        </h3>
+        {content.listings?.length ? (
+          content.listings.map((item) => {
+            const title = String(item.title);
+            const id = String(item.id);
+            return (
+              <div key={id}>
+                <Link href={`/${String(item.city_id || "brno")}/burza/${id}`}>
+                  {title}
+                </Link>
+                <span className="card-actions">
+                  <button
+                    className="button button-secondary"
+                    aria-label={`Rezervovat: ${title}`}
+                    onClick={() => listingAction(id, "reserve")}
+                  >
+                    Rezervovat
+                  </button>
+                  <button
+                    className="button button-secondary"
+                    aria-label={`Označit jako prodané: ${title}`}
+                    onClick={() => listingAction(id, "sold")}
+                  >
+                    Prodáno
+                  </button>
+                  <button
+                    className="button button-quiet"
+                    aria-label={`Odstranit: ${title}`}
+                    onClick={() => removeListing(id)}
+                  >
+                    <Trash2 size={14} /> Odstranit
+                  </button>
+                </span>
+              </div>
+            );
+          })
+        ) : (
+          <p>Žádný vlastní inzerát.</p>
+        )}
+      </section>
+      <section>
+        <h3>
+          <CalendarDays size={17} /> Komunitní akce (
+          {content.events?.length || 0})
+        </h3>
+        {content.events?.length ? (
+          content.events.map((item) => (
+            <div key={String(item.id)}>
+              <Link
+                href={
+                  item.status === "published"
+                    ? `/${city.slug}/kalendar?view=community#${item.id}`
+                    : `/akce/sprava?id=${item.id}`
+                }
+              >
+                {String(item.title)} ·{" "}
+                {item.status === "pending"
+                  ? "čeká na schválení"
+                  : String(item.status)}
+              </Link>
+              <span className="card-actions">
+                <Link
+                  className="button button-quiet"
+                  href={`/akce/sprava?id=${item.id}`}
+                >
+                  <Pencil size={14} /> Upravit
+                </Link>
+                <button
+                  className="button button-quiet"
+                  onClick={() => removeEvent(String(item.id))}
+                >
+                  <Trash2 size={14} /> Zrušit
+                </button>
+              </span>
+            </div>
+          ))
+        ) : (
+          <p>Žádná vlastní akce.</p>
+        )}
+      </section>
+      <section>
+        <h3>
+          <MapPin size={17} /> Moje navržená místa (
+          {(content.placeSuggestions?.length || 0) + Number(localPlaceDraft)})
+        </h3>
+        {localPlaceDraft && (
+          <div>
+            <span>
+              <strong>Rozepsaný návrh v tomto zařízení</strong> · Rozpracované
+            </span>
+            <span className="card-actions">
+              <Link className="button button-quiet" href={`/${city.slug}/mista?navrh=1`}>
+                <Pencil size={14} />
+                Pokračovat
+              </Link>
+              <button
+                className="button button-quiet"
+                onClick={() => {
+                  localStorage.removeItem("studenthub-place-suggestion-v1");
+                  setLocalPlaceDraft(false);
+                }}
+              >
+                <Trash2 size={14} />
+                Zahodit
+              </button>
+            </span>
+          </div>
+        )}
+        {content.placeSuggestions?.length
+          ? content.placeSuggestions.map((item) => (
+              <div key={String(item.id)}>
+                <span>
+                  <strong>{String(item.name)}</strong> ·{" "}
+                  {placeStatus[String(item.status)] || String(item.status)}
+                  {Boolean(item.moderator_notes) ? (
+                    <small> · {String(item.moderator_notes)}</small>
+                  ) : null}
+                </span>
+                <span className="card-actions">
+                  {Boolean(item.published_place_id) && (
+                    <Link
+                      className="button button-quiet"
+                      href={`/${city.slug}/mista#${String(item.published_place_id)}`}
+                    >
+                      <MapPin size={14} />
+                      Otevřít
+                    </Link>
+                  )}
+                  {["draft", "pending", "changes_requested"].includes(
+                    String(item.status),
+                  ) && (
+                    <Link
+                      className="button button-quiet"
+                      href={`/${city.slug}/mista?navrh=1&submission=${String(item.id)}`}
+                    >
+                      <Pencil size={14} />
+                      {item.status === "changes_requested"
+                        ? "Doplnit"
+                        : "Upravit"}
+                    </Link>
+                  )}
+                  {["pending", "changes_requested"].includes(
+                    String(item.status),
+                  ) && (
+                    <button
+                      className="button button-quiet"
+                      onClick={() => withdrawPlace(String(item.id))}
+                    >
+                      Stáhnout
+                    </button>
+                  )}
+                  {["draft", "withdrawn"].includes(String(item.status)) && (
+                    <button
+                      className="button button-quiet"
+                      onClick={() => removePlace(String(item.id))}
+                    >
+                      <Trash2 size={14} />
+                      Odstranit
+                    </button>
+                  )}
+                </span>
+              </div>
+            ))
+          : !localPlaceDraft && (
+              <p>
+                Žádný návrh.{" "}
+                <Link href={`/${city.slug}/mista?navrh=1`}>Navrhnout nové místo</Link>
+              </p>
+            )}
+      </section>
+    </div>
+  );
 }

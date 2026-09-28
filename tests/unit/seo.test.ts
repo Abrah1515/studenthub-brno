@@ -53,7 +53,7 @@ describe("SEO a indexace", () => {
     for (const path of ["/admin", "/api", "/ucet", "/brno/nastaveni", "/brno/hlidac", "/brno/partak/moje", "/navrhnout-obsah"]) {
       expect(source, path).not.toContain(`"${path}"`);
     }
-    expect(source).toContain("featureFlags.offersEnabled ? [\"/nabidky\"] : []");
+    expect(source).toContain("featureFlags.offersEnabled && city.modules.offers");
   });
 
   it("posílá noindex v metadatech i HTTP hlavičkách neveřejných stránek", () => {

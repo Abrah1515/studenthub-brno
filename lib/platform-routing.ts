@@ -20,6 +20,11 @@ const cityScopedPrefixes = [
   "/akce/sprava",
 ] as const;
 
+// These legacy global pages have not moved under app/[city] because their
+// identity is platform-wide. The bridge is intentionally small; city modules
+// are served by their real dynamic routes.
+const internalBrnoBridgePrefixes = ["/profily", "/profil", "/akce/sprava"] as const;
+
 const legacyCitySectionPrefixes = [
   "/kalendar",
   "/mista",
@@ -56,7 +61,7 @@ export function legacyPublicPath(pathname: string) {
 export function internalRouteForBrno(pathname: string) {
   if (!pathname.startsWith("/brno/")) return null;
   const unscoped = pathname.slice("/brno".length);
-  return cityScopedPrefixes.some((prefix) => isPathOrChild(unscoped, prefix)) ? unscoped : null;
+  return internalBrnoBridgePrefixes.some((prefix) => isPathOrChild(unscoped, prefix)) ? unscoped : null;
 }
 
 export function canonicalRedirectTarget(hostname: string, pathname: string) {
