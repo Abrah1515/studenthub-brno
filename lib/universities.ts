@@ -1,13 +1,14 @@
 import type { AcademicCatalog, Faculty, University } from "@/lib/types";
 
-const verifiedAt = "2026-08-02T00:00:00.000Z";
+const verifiedAt = "2026-09-28T00:00:00.000Z";
 
 export const universities: University[] = [
-  { id: "muni", slug: "muni", name: "Masarykova univerzita", shortName: "MUNI", color: "#2856a4", officialUrl: "https://www.muni.cz/", active: true, lastVerifiedAt: verifiedAt },
-  { id: "vut", slug: "vut", name: "Vysoké učení technické v Brně", shortName: "VUT", color: "#4f46e5", officialUrl: "https://www.vut.cz/", active: true, lastVerifiedAt: verifiedAt },
-  { id: "mendelu", slug: "mendelu", name: "Mendelova univerzita v Brně", shortName: "MENDELU", color: "#475569", officialUrl: "https://mendelu.cz/", active: true, lastVerifiedAt: verifiedAt },
-  { id: "vetuni", slug: "vetuni", name: "Veterinární univerzita Brno", shortName: "VETUNI", color: "#7b4e2d", officialUrl: "https://www.vetuni.cz/", active: true, lastVerifiedAt: verifiedAt },
-  { id: "jamu", slug: "jamu", name: "Janáčkova akademie múzických umění", shortName: "JAMU", color: "#7c3a68", officialUrl: "https://www.jamu.cz/", active: true, lastVerifiedAt: verifiedAt },
+  { id: "muni", slug: "muni", name: "Masarykova univerzita", shortName: "MUNI", color: "#2856a4", officialUrl: "https://www.muni.cz/", active: true, lastVerifiedAt: verifiedAt, cityIds: ["brno"] },
+  { id: "vut", slug: "vut", name: "Vysoké učení technické v Brně", shortName: "VUT", color: "#4f46e5", officialUrl: "https://www.vut.cz/", active: true, lastVerifiedAt: verifiedAt, cityIds: ["brno"] },
+  { id: "mendelu", slug: "mendelu", name: "Mendelova univerzita v Brně", shortName: "MENDELU", color: "#475569", officialUrl: "https://mendelu.cz/", active: true, lastVerifiedAt: verifiedAt, cityIds: ["brno"] },
+  { id: "vetuni", slug: "vetuni", name: "Veterinární univerzita Brno", shortName: "VETUNI", color: "#7b4e2d", officialUrl: "https://www.vetuni.cz/", active: true, lastVerifiedAt: verifiedAt, cityIds: ["brno"] },
+  { id: "jamu", slug: "jamu", name: "Janáčkova akademie múzických umění", shortName: "JAMU", color: "#7c3a68", officialUrl: "https://www.jamu.cz/", active: true, lastVerifiedAt: verifiedAt, cityIds: ["brno"] },
+  { id: "upol", slug: "upol", name: "Univerzita Palackého v Olomouci", shortName: "UP", color: "#1f4e79", officialUrl: "https://www.upol.cz/", active: true, lastVerifiedAt: verifiedAt, cityIds: ["olomouc"] },
 ];
 
 const faculty = (id: string, universityId: string, name: string, shortName: string, officialUrl: string): Faculty => ({ id, slug: id, universityId, name, shortName, officialUrl, active: true, lastVerifiedAt: verifiedAt });
@@ -17,6 +18,7 @@ export const faculties: Faculty[] = [
   faculty("mendelu-af", "mendelu", "Agronomická fakulta", "AF", "https://af.mendelu.cz/"), faculty("mendelu-ldf", "mendelu", "Lesnická a dřevařská fakulta", "LDF", "https://ldf.mendelu.cz/"), faculty("mendelu-pef", "mendelu", "Provozně ekonomická fakulta", "PEF", "https://pef.mendelu.cz/"), faculty("mendelu-zf", "mendelu", "Zahradnická fakulta", "ZF", "https://zf.mendelu.cz/"), faculty("mendelu-frrms", "mendelu", "Fakulta regionálního rozvoje a mezinárodních studií", "FRRMS", "https://frrms.mendelu.cz/"),
   faculty("vetuni-fvl", "vetuni", "Fakulta veterinárního lékařství", "FVL", "https://fvl.vetuni.cz/"), faculty("vetuni-fvhe", "vetuni", "Fakulta veterinární hygieny a ekologie", "FVHE", "https://fvhe.vetuni.cz/"),
   faculty("jamu-hf", "jamu", "Hudební fakulta", "HF", "https://hf.jamu.cz/"), faculty("jamu-df", "jamu", "Divadelní fakulta", "DF", "https://df.jamu.cz/"),
+  faculty("upol-cmtf", "upol", "Cyrilometodějská teologická fakulta", "CMTF", "https://www.cmtf.upol.cz/"), faculty("upol-lf", "upol", "Lékařská fakulta", "LF", "https://www.lf.upol.cz/"), faculty("upol-ff", "upol", "Filozofická fakulta", "FF", "https://www.ff.upol.cz/"), faculty("upol-prf", "upol", "Přírodovědecká fakulta", "PřF", "https://www.prf.upol.cz/"), faculty("upol-pdf", "upol", "Pedagogická fakulta", "PdF", "https://www.pdf.upol.cz/"), faculty("upol-ftk", "upol", "Fakulta tělesné kultury", "FTK", "https://ftk.upol.cz/"), faculty("upol-pf", "upol", "Právnická fakulta", "PF", "https://www.pf.upol.cz/"), faculty("upol-fzv", "upol", "Fakulta zdravotnických věd", "FZV", "https://www.fzv.upol.cz/"),
 ];
 
 export const fallbackAcademicCatalog: AcademicCatalog = { universities, faculties };
@@ -24,6 +26,8 @@ export const fallbackAcademicCatalog: AcademicCatalog = { universities, facultie
 export function universityById(id?: string | null) { return universities.find((item) => item.id === id); }
 export function facultiesFor(universityId?: string | null) { return faculties.filter((item) => item.universityId === universityId); }
 export function facultyById(id?: string | null) { return faculties.find((item) => item.id === id); }
+export function universitiesForCity(cityId: string, catalog: AcademicCatalog = fallbackAcademicCatalog) { return catalog.universities.filter((item) => item.active && item.cityIds.includes(cityId)); }
+export function academicCatalogForCity(cityId: string, catalog: AcademicCatalog = fallbackAcademicCatalog): AcademicCatalog { const selectedUniversities = universitiesForCity(cityId, catalog); const ids = new Set(selectedUniversities.map((item) => item.id)); return { universities: selectedUniversities, faculties: catalog.faculties.filter((item) => item.active && ids.has(item.universityId)) }; }
 export function resolveStudySelection(universityId?: string | null, facultyId?: string | null, catalog: AcademicCatalog = fallbackAcademicCatalog) {
   const university = catalog.universities.find((item) => item.id === universityId && item.active);
   const faculty = university ? catalog.faculties.find((item) => item.id === facultyId && item.universityId === university.id && item.active) : undefined;

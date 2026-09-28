@@ -8,7 +8,7 @@ import { readPreference, resetPreference, savePreference } from "@/lib/client-pr
 import type { AcademicCatalog } from "@/lib/types";
 import type { StudyYear } from "@/lib/types";
 import { studyYears } from "@/lib/study-years";
-import { fallbackAcademicCatalog } from "@/lib/universities";
+import { fallbackAcademicCatalog, universitiesForCity } from "@/lib/universities";
 import { hasResolvedCookieConsent } from "@/components/cookie-consent";
 import { useModalDialog } from "@/lib/use-modal-dialog";
 
@@ -18,7 +18,7 @@ export function PreferenceForm({ compact = false, onSaved, cities = [brnoCity], 
     const update = () => { const initial = readPreference(catalog); setCityId(cities.some((city) => city.id === initial.cityId) ? initial.cityId : cities[0]?.id || "brno"); setUniversityId(initial.universityId || ""); setFacultyId(initial.facultyId || ""); setStudyYear(initial.studyYear || ""); };
     update(); window.addEventListener("studenthub-preference-changed", update); return () => window.removeEventListener("studenthub-preference-changed", update);
   }, [catalog, cities]);
-  const availableUniversities = useMemo(() => catalog.universities.filter((item) => item.active), [catalog]);
+  const availableUniversities = useMemo(() => universitiesForCity(cityId, catalog), [catalog, cityId]);
   const availableFaculties = useMemo(() => catalog.faculties.filter((item) => item.active && item.universityId === universityId), [catalog, universityId]);
   function save() { savePreference({ cityId, universityId: universityId || null, facultyId: facultyId || null, studyYear: studyYear || null, completed: true }, catalog); onSaved?.(); }
   return <div className={`preference-form ${compact ? "compact" : ""}`}><label><span>Moje město</span><select aria-label="Moje město" value={cityId} onChange={(event) => { setCityId(event.target.value); setUniversityId(""); setFacultyId(""); }}>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label><label><span>Moje škola</span><select aria-label="Moje škola" value={universityId} onChange={(event) => { setUniversityId(event.target.value); setFacultyId(""); }}><option value="">Celé město / bez výběru</option>{availableUniversities.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span>Moje fakulta</span><select aria-label="Moje fakulta" value={facultyId} onChange={(event) => setFacultyId(event.target.value)} disabled={!universityId}><option value="">Všechny fakulty</option>{availableFaculties.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span>Můj ročník</span><select aria-label="Můj ročník" value={studyYear} onChange={(event) => setStudyYear(event.target.value ? Number(event.target.value) as StudyYear : "")}><option value="">Bez omezení ročníku</option>{studyYears.map((year) => <option key={year} value={year}>{year}. ročník</option>)}</select></label><button className="button button-primary" type="button" onClick={save}>Uložit výběr <ArrowRight size={17} /></button></div>;

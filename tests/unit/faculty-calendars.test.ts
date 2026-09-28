@@ -10,7 +10,7 @@ import type { Job, Offer, Place } from "@/lib/types";
 const event = (scope: AcademicEvent["scope"], universityId?: string, facultyId?: string): AcademicEvent => ({ id: `${scope}-${facultyId || universityId || "city"}`, title: "Termín", category: "Výuka", school: universityId || "Brno", faculty: facultyId || "Všechny fakulty", start: "2026-09-14T00:00:00+02:00", source: "Oficiální zdroj", sourceUrl: "https://example.edu/", updatedAt: "2026-08-02", lastVerifiedAt: "2026-08-02", description: "Test rozsahu", scope, universityId, facultyId });
 
 describe("stabilní katalog fakult", () => {
-  it("obsahuje 27 aktivních a oficiálně odkazovaných fakult", () => { expect(universities).toHaveLength(5); expect(faculties).toHaveLength(27); expect(faculties.every((faculty) => faculty.active && faculty.slug === faculty.id && faculty.officialUrl.startsWith("https://"))).toBe(true); });
+  it("obsahuje 35 aktivních a oficiálně odkazovaných fakult v Brně a Olomouci", () => { expect(universities).toHaveLength(6); expect(faculties).toHaveLength(35); expect(faculties.every((faculty) => faculty.active && faculty.slug === faculty.id && faculty.officialUrl.startsWith("https://"))).toBe(true); });
   it("má nejméně jeden registrovaný akademický zdroj pro každou fakultu", () => { const academicSources = contentSources.filter((source) => source.sourceType === "academic_calendar"); expect(new Set(academicSources.map((source) => source.facultyId))).toEqual(new Set(faculties.map((faculty) => faculty.id))); expect(contentSources.every((source) => source.notes && source.officialDomain)).toBe(true); });
 });
 

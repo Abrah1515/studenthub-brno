@@ -13,6 +13,7 @@ import type { City } from "@/lib/cities";
 import { useStudentPreference } from "@/lib/client-preferences";
 import { filterMarketplaceListings } from "@/lib/marketplace-public";
 import { marketplaceCategories, marketplaceConditions, marketplaceFormats, marketplaceLabels, marketplaceListingTypes, marketplacePriceLabel, marketplaceStatuses, type MarketplaceListing } from "@/lib/marketplace-types";
+import { universitiesForCity } from "@/lib/universities";
 
 const favoritesKey = "studenthub-marketplace-favorites-v1";
 const emptyFilters = { q: "", listingType: "", category: "", university: "", faculty: "", subject: "", teacher: "", year: "", format: "", condition: "", status: "", minPrice: "", maxPrice: "", location: "", sort: "newest" };
@@ -38,7 +39,7 @@ export function MarketplaceExplorer({ city, initialItems, emailReady }: { city: 
   const filterControls = <div className="housing-filter-fields marketplace-filter-grid">
     <label><span>Typ</span><select value={filters.listingType} onChange={(event) => change("listingType", event.target.value)}><option value="">Vše</option>{marketplaceListingTypes.map((value) => <option key={value} value={value}>{marketplaceLabels.listingType[value]}</option>)}</select></label>
     <label><span>Kategorie</span><select value={filters.category} onChange={(event) => change("category", event.target.value)}><option value="">Vše</option>{marketplaceCategories.map((value) => <option key={value} value={value}>{marketplaceLabels.category[value]}</option>)}</select></label>
-    <label><span>Univerzita</span><select value={filters.university} onChange={(event) => change("university", event.target.value)}><option value="">Všechny školy</option>{catalog.universities.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label>
+    <label><span>Univerzita</span><select value={filters.university} onChange={(event) => change("university", event.target.value)}><option value="">Všechny školy</option>{universitiesForCity(city.id, catalog).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label>
     <label><span>Fakulta</span><select value={filters.faculty} disabled={!university} onChange={(event) => change("faculty", event.target.value)}><option value="">Všechny fakulty</option>{facultyOptions.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label>
     <label><span>Předmět / kód</span><input value={filters.subject} onChange={(event) => change("subject", event.target.value)} /></label>
     <label><span>Vyučující</span><input value={filters.teacher} onChange={(event) => change("teacher", event.target.value)} /></label>

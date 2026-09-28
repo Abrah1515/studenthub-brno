@@ -37,6 +37,7 @@ import {
 import { PlaceExperiences } from "@/components/place-experiences";
 import { PlaceLiveStatus } from "@/components/place-live-status";
 import { PlaceSuggestionDialog } from "@/components/place-suggestion-dialog";
+import { useAcademicCatalog } from "@/components/academic-catalog-provider";
 import type { City } from "@/lib/cities";
 import { useStudentPreference } from "@/lib/client-preferences";
 import { formatPragueTimestamp } from "@/lib/format";
@@ -73,7 +74,7 @@ import {
 } from "@/lib/places";
 import { includesFolded } from "@/lib/search";
 import type { Place } from "@/lib/types";
-import { facultiesFor, universities } from "@/lib/universities";
+import { universitiesForCity } from "@/lib/universities";
 
 const allCategories = "Všechny";
 const categorySymbols: Record<PlaceCategoryCode, string> = {
@@ -423,7 +424,7 @@ function PlacesMap({
     map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), targetZoom), {
       duration: 0.35,
     });
-    marker.openPopup();
+    if (!marker.isPopupOpen()) marker.openPopup();
   }, [mainItems, selectedId, utilityItems]);
 
   useEffect(
@@ -450,8 +451,14 @@ export function PlacesExplorer({
   city: City;
 }) {
   const search = useSearchParams();
+  const searchKey = search.toString();
   const pathname = usePathname();
   const router = useRouter();
+  const catalog = useAcademicCatalog();
+  const cityUniversities = useMemo(
+    () => universitiesForCity(city.id, catalog),
+    [catalog, city.id],
+  );
   const preference = useStudentPreference();
   const campusQuery = search.get("campus") || "";
   const [query, setQuery] = useState(search.get("q") || campusQuery);
@@ -507,7 +514,7 @@ export function PlacesExplorer({
   const utilityCache = useRef(
     new Map<string, { items: Place[]; truncated: boolean }>(),
   );
-  const urlUniversity = universities.some(
+  const urlUniversity = cityUniversities.some(
     (item) => item.id === search.get("university"),
   )
     ? search.get("university")!
@@ -520,7 +527,10 @@ export function PlacesExplorer({
       : search.has("university")
         ? urlUniversity
         : (preference.universityId ?? ""));
-  const urlFaculty = facultiesFor(universityId).some(
+  const availableFaculties = catalog.faculties.filter(
+    (item) => item.active && item.universityId === universityId,
+  );
+  const urlFaculty = availableFaculties.some(
     (item) => item.id === search.get("faculty"),
   )
     ? search.get("faculty")!
@@ -723,6 +733,18 @@ export function PlacesExplorer({
     sortMode !== "default",
     ...activeUtilities,
   ].filter(Boolean).length;
+  const mapMainItems = useMemo(
+    () =>
+      filtered.filter(
+        (place) => !isUtilityCategory(placeCategoryCode(place)),
+      ),
+    [filtered],
+  );
+  const mapUtilityItems = useMemo(
+    () =>
+      filtered.filter((place) => isUtilityCategory(placeCategoryCode(place))),
+    [filtered],
+  );
 
   useEffect(() => {
     const ids = mainItems
@@ -738,23 +760,24 @@ export function PlacesExplorer({
   }, [mainItems]);
 
   useEffect(() => {
-    setQuery(search.get("q") || search.get("campus") || "");
-    setCategory(search.get("category") || allCategories);
+    const current = new URLSearchParams(searchKey);
+    setQuery(current.get("q") || current.get("campus") || "");
+    setCategory(current.get("category") || allCategories);
     setSchoolFilter(
-      search.get("filters") === "all"
+      current.get("filters") === "all"
         ? ""
-        : search.has("university")
+        : current.has("university")
           ? urlUniversity
           : null,
     );
     setFacultyFilter(
-      search.get("filters") === "all"
+      current.get("filters") === "all"
         ? ""
-        : search.has("faculty")
+        : current.has("faculty")
           ? urlFaculty
           : null,
     );
-  }, [search, urlFaculty, urlUniversity]);
+  }, [searchKey, urlFaculty, urlUniversity]);
   useEffect(() => {
     if (search.get("navrh") === "1") setSuggestionOpen(true);
   }, [search]);
@@ -938,7 +961,7 @@ export function PlacesExplorer({
           }}
         >
           <option value="">Všechny školy</option>
-          {universities.map((item) => (
+          {cityUniversities.map((item) => (
             <option key={item.id} value={item.id}>
               {item.shortName}
             </option>
@@ -959,7 +982,7 @@ export function PlacesExplorer({
           disabled={!universityId}
         >
           <option value="">Všechny fakulty</option>
-          {facultiesFor(universityId).map((item) => (
+          {availableFaculties.map((item) => (
             <option key={item.id} value={item.id}>
               {item.shortName}
             </option>
@@ -1459,12 +1482,8 @@ export function PlacesExplorer({
             <MapLayerControls layers={layers} onChange={changeLayers} compact />
           </div>
           <PlacesMap
-            mainItems={filtered.filter(
-              (place) => !isUtilityCategory(placeCategoryCode(place)),
-            )}
-            utilityItems={filtered.filter((place) =>
-              isUtilityCategory(placeCategoryCode(place)),
-            )}
+            mainItems={mapMainItems}
+            utilityItems={mapUtilityItems}
             city={city}
             layers={layers}
             userLocation={userLocation}

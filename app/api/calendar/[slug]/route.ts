@@ -2,7 +2,7 @@ import { defaultCitySlug } from "@/lib/cities";
 import { getPublishedCity } from "@/lib/city-data";
 import { getAcademicEvents } from "@/lib/public-data";
 import { getAcademicCatalog } from "@/lib/academic-catalog";
-import { resolveStudySelection } from "@/lib/universities";
+import { academicCatalogForCity, resolveStudySelection } from "@/lib/universities";
 import { academicCalendarDocument } from "@/lib/calendar-export";
 import { parseStudyYear } from "@/lib/study-years";
 import { eventLifecycle } from "@/lib/event-lifecycle";
@@ -11,7 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   const id = (await params).slug.replace(/\.ics$/, ""); const query = new URL(request.url).searchParams;
   const city = await getPublishedCity(query.get("city") || defaultCitySlug); if (!city) return new Response("Město nenalezeno.", { status: 404 });
   const requestedUniversity = query.get("university"); const requestedFaculty = query.get("faculty"); const requestedYear = query.get("year"); const category = query.get("category"); const textQuery = query.get("q")?.trim().toLocaleLowerCase("cs-CZ") || ""; const includeEnded = query.get("ended") === "1";
-  const resolved = resolveStudySelection(requestedUniversity, requestedFaculty, await getAcademicCatalog());
+  const resolved = resolveStudySelection(requestedUniversity, requestedFaculty, academicCatalogForCity(city.id, await getAcademicCatalog()));
   if ((requestedUniversity && resolved.universityId !== requestedUniversity) || (requestedFaculty && resolved.facultyId !== requestedFaculty)) return new Response("Neplatná kombinace univerzity a fakulty.", { status: 400 });
   const studyYear = parseStudyYear(requestedYear);
   if (requestedYear && !studyYear) return new Response("Neplatný ročník.", { status: 400 });

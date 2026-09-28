@@ -27,9 +27,9 @@ const enabledBrnoModules: CityModules = {
   calendar: true, places: true, community: true, buddy: true, marketplace: true,
   housing: true, jobs: true, chat: true, watcher: true, settings: true, offers: true,
 };
-const disabledCityModules: CityModules = {
-  calendar: false, places: false, community: false, buddy: false, marketplace: false,
-  housing: false, jobs: false, chat: false, watcher: false, settings: false, offers: false,
+const preparedOlomoucModules: CityModules = {
+  calendar: true, places: true, community: true, buddy: true, marketplace: true,
+  housing: true, jobs: false, chat: true, watcher: true, settings: true, offers: false,
 };
 
 export const brnoCity: City = {
@@ -58,7 +58,7 @@ export const olomoucCity: City = {
   mapBounds: [[49.535, 17.185], [49.655, 17.34]], mapZoom: 13,
   enabled: false, publicStatus: "draft", sortOrder: 40,
   brandConfig: { editionName: "StudentHub Olomouc", editionShortName: "Olomouc" },
-  modules: disabledCityModules,
+  modules: preparedOlomoucModules,
   seo: { title: "StudentHub Olomouc – připravujeme", description: "Připravovaná městská edice StudentHubu pro studenty v Olomouci." },
   selectionLogo: { light: "/brand/cities/studenthub-olomouc-v1.png", dark: "/brand/cities/studenthub-olomouc-dark-v1.png", width: 394, height: 397 },
 };

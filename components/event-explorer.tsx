@@ -17,6 +17,7 @@ import { academicEventMatchesSelection } from "@/lib/academic-events";
 import { studyYears } from "@/lib/study-years";
 import { SavedEventActions } from "@/components/saved-event-actions";
 import { LiveCalendarSubscribe } from "@/components/live-calendar-subscribe";
+import { universitiesForCity } from "@/lib/universities";
 
 const allCategories = "Všechny";
 
@@ -35,7 +36,7 @@ export function EventExplorer({ events, initialUniversityId = "", initialFaculty
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [shareNotice, setShareNotice] = useState("");
   const initialized = useRef(false);
-  const availableUniversities = useMemo(() => catalog.universities.filter((item) => item.active), [catalog]);
+  const availableUniversities = useMemo(() => universitiesForCity(cityId, catalog), [catalog, cityId]);
   const availableFaculties = useMemo(() => catalog.faculties.filter((item) => item.active && item.universityId === universityId), [catalog, universityId]);
   const hasPreferredScope = preference.cityId === cityId && Boolean(preference.universityId || preference.studyYear);
   const activeFilterCount = [query.trim(), category !== allCategories, universityId, facultyId, studyYear, showEnded].filter(Boolean).length;

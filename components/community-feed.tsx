@@ -30,6 +30,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { useAcademicCatalog } from "@/components/academic-catalog-provider";
+import { universitiesForCity } from "@/lib/universities";
 import {
   MobileFilterDialog,
   MobileFilterToolbar,
@@ -149,6 +150,7 @@ export function CommunityFeed({ places }: { places: PlaceOption[] }) {
     () => catalog.faculties.filter((item) => item.universityId === university),
     [catalog.faculties, university],
   );
+  const cityUniversities = useMemo(() => universitiesForCity(city.id, catalog), [catalog, city.id]);
   const load = useCallback(
     async (page = 1, append = false) => {
       setLoading(true);
@@ -255,7 +257,7 @@ export function CommunityFeed({ places }: { places: PlaceOption[] }) {
           }}
         >
           <option value="">Celé město</option>
-          {catalog.universities.map((item) => (
+          {cityUniversities.map((item) => (
             <option key={item.id} value={item.id}>
               {item.shortName}
             </option>
@@ -556,6 +558,10 @@ function ComposeDialog({
 }) {
   const dialogRef = useModalDialog<HTMLDivElement>(open, onClose);
   const catalog = useAcademicCatalog();
+  const cityUniversities = useMemo(
+    () => universitiesForCity(city.id, catalog),
+    [catalog, city.id],
+  );
   const [image, setImage] = useState<File | null>(null);
   const [imageError, setImageError] = useState("");
   const [serverError, setServerError] = useState("");
@@ -826,7 +832,7 @@ function ComposeDialog({
                     }}
                   >
                     <option value="">Celé {city.name}</option>
-                    {catalog.universities.map((item) => (
+                    {cityUniversities.map((item) => (
                       <option value={item.id} key={item.id}>
                         {item.name}
                       </option>

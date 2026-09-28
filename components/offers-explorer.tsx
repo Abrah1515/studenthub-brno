@@ -7,13 +7,14 @@ import type { Offer } from "@/lib/types";
 import { MobileFilterDialog, MobileFilterToolbar } from "@/components/mobile-filter-toolbar";
 import { formatDate, formatPragueTimestamp } from "@/lib/format";
 import { useStudentPreference } from "@/lib/client-preferences";
-import { facultiesFor, universities } from "@/lib/universities";
+import { academicCatalogForCity, facultiesFor } from "@/lib/universities";
 import { includesFolded } from "@/lib/search";
 
 const allCategories = "Všechny";
 const recommended = "Doporučené";
 
 export function OffersExplorer({ items }: { items: Offer[] }) {
+  const brnoUniversities = academicCatalogForCity("brno").universities;
   const search = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -25,7 +26,7 @@ export function OffersExplorer({ items }: { items: Offer[] }) {
   const [schoolFilter, setSchoolFilter] = useState<string | null>(null);
   const [facultyFilter, setFacultyFilter] = useState<string | null>(null);
   const showAll = search.get("filters") === "all";
-  const urlUniversity = universities.some((item) => item.id === search.get("university")) ? search.get("university")! : "";
+  const urlUniversity = brnoUniversities.some((item) => item.id === search.get("university")) ? search.get("university")! : "";
   const universityId = schoolFilter ?? (showAll ? "" : search.has("university") ? urlUniversity : preference.universityId ?? "");
   const urlFaculty = facultiesFor(universityId).some((item) => item.id === search.get("faculty")) ? search.get("faculty")! : "";
   const facultyId = facultyFilter ?? (showAll ? "" : search.has("faculty") ? urlFaculty : preference.facultyId ?? "");
@@ -53,7 +54,7 @@ export function OffersExplorer({ items }: { items: Offer[] }) {
   async function track(offer: Offer) {
     try { await fetch("/api/clicks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetType: "offer", targetId: offer.id, destinationHost: new URL(offer.url).hostname, universityId: preference.universityId, facultyId: preference.facultyId, referralCode: sessionStorage.getItem("studenthub-referral") }) }); } catch { /* Navigace nesmí být blokovaná. */ }
   }
-  const filterControls = <><label className="search-field"><span>Hledat nabídku</span><div><Search size={17} /><input value={query} onChange={(event) => { setQuery(event.target.value); replaceQuery({ q: event.target.value.trim() || undefined, filters: undefined }); }} placeholder="Název nebo partner…" /></div></label><label><span>Kategorie</span><select value={category} onChange={(event) => { setCategory(event.target.value); replaceQuery({ category: event.target.value === allCategories ? undefined : event.target.value, filters: undefined }); }}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label><label><span>Univerzita</span><select value={universityId} onChange={(event) => { setSchoolFilter(event.target.value); setFacultyFilter(""); replaceQuery({ university: event.target.value || undefined, faculty: undefined, filters: undefined }); }}><option value="">Všechny školy</option>{universities.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label><label><span>Fakulta</span><select value={facultyId} onChange={(event) => { setFacultyFilter(event.target.value); replaceQuery({ faculty: event.target.value || undefined, filters: undefined }); }} disabled={!universityId}><option value="">Všechny</option>{facultiesFor(universityId).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label><label><span>Řazení</span><div className="select-with-icon"><ArrowUpDown size={16} /><select value={sort} onChange={(event) => { setSort(event.target.value); replaceQuery({ sort: event.target.value === "Platnost" ? "validity" : undefined, filters: undefined }); }}><option>{recommended}</option><option>Platnost</option></select></div></label><div className="filter-actions"><button className="button button-secondary" onClick={resetFilters}><RotateCcw size={16} />Resetovat filtry</button></div></>;
+  const filterControls = <><label className="search-field"><span>Hledat nabídku</span><div><Search size={17} /><input value={query} onChange={(event) => { setQuery(event.target.value); replaceQuery({ q: event.target.value.trim() || undefined, filters: undefined }); }} placeholder="Název nebo partner…" /></div></label><label><span>Kategorie</span><select value={category} onChange={(event) => { setCategory(event.target.value); replaceQuery({ category: event.target.value === allCategories ? undefined : event.target.value, filters: undefined }); }}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label><label><span>Univerzita</span><select value={universityId} onChange={(event) => { setSchoolFilter(event.target.value); setFacultyFilter(""); replaceQuery({ university: event.target.value || undefined, faculty: undefined, filters: undefined }); }}><option value="">Všechny školy</option>{brnoUniversities.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label><label><span>Fakulta</span><select value={facultyId} onChange={(event) => { setFacultyFilter(event.target.value); replaceQuery({ faculty: event.target.value || undefined, filters: undefined }); }} disabled={!universityId}><option value="">Všechny</option>{facultiesFor(universityId).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label><label><span>Řazení</span><div className="select-with-icon"><ArrowUpDown size={16} /><select value={sort} onChange={(event) => { setSort(event.target.value); replaceQuery({ sort: event.target.value === "Platnost" ? "validity" : undefined, filters: undefined }); }}><option>{recommended}</option><option>Platnost</option></select></div></label><div className="filter-actions"><button className="button button-secondary" onClick={resetFilters}><RotateCcw size={16} />Resetovat filtry</button></div></>;
   return <>
     <MobileFilterToolbar open={filtersOpen} activeCount={activeFilterCount} onToggle={() => setFiltersOpen(true)} controlsId="offers-mobile-filters" />
     <section className="filter-panel offers-filters responsive-filter-desktop" aria-label="Filtry nabídek">{filterControls}</section>

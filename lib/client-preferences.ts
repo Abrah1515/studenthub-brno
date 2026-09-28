@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { AcademicCatalog, StudentPreference } from "@/lib/types";
 
 import { defaultCitySlug } from "@/lib/cities";
-import { fallbackAcademicCatalog, resolveStudySelection } from "@/lib/universities";
+import { academicCatalogForCity, fallbackAcademicCatalog, resolveStudySelection } from "@/lib/universities";
 
 import { academicCycleStartYear, isStudyYear } from "@/lib/study-years";
 
@@ -16,7 +16,8 @@ export const calendarPreferenceRequestedEvent = "studenthub-calendar-preference-
 export const defaultPreference: StudentPreference = { version: 4, cityId: defaultCitySlug, universityId: null, facultyId: null, studyYear: null, studyYearCycleStart: null, completed: false };
 
 export function normalizePreference(value: Partial<StudentPreference> & Record<string, unknown>, catalog: AcademicCatalog = fallbackAcademicCatalog, now = new Date()): StudentPreference {
-  const selected = resolveStudySelection(value.universityId, value.facultyId, catalog);
+  const cityId = typeof value.cityId === "string" && value.cityId ? value.cityId : defaultCitySlug;
+  const selected = resolveStudySelection(value.universityId, value.facultyId, academicCatalogForCity(cityId, catalog));
   const studyYear = isStudyYear(value.studyYear) ? value.studyYear : null;
   const currentCycle = academicCycleStartYear(now);
   const savedCycle = studyYear && Number.isInteger(value.studyYearCycleStart) ? Number(value.studyYearCycleStart) : null;
@@ -24,7 +25,7 @@ export function normalizePreference(value: Partial<StudentPreference> & Record<s
   const candidateYear = studyYear == null ? null : studyYear + elapsedCycles;
   const advancedYear = isStudyYear(candidateYear) ? candidateYear : null;
   const requiresNewSelection = studyYear != null && candidateYear != null && !isStudyYear(candidateYear);
-  return { version: 4, cityId: typeof value.cityId === "string" && value.cityId ? value.cityId : defaultCitySlug, universityId: selected.universityId || null, facultyId: selected.facultyId || null, studyYear: advancedYear, studyYearCycleStart: advancedYear == null ? null : currentCycle, completed: requiresNewSelection ? false : Boolean(value.completed) };
+  return { version: 4, cityId, universityId: selected.universityId || null, facultyId: selected.facultyId || null, studyYear: advancedYear, studyYearCycleStart: advancedYear == null ? null : currentCycle, completed: requiresNewSelection ? false : Boolean(value.completed) };
 }
 
 export function readPreference(catalog: AcademicCatalog = fallbackAcademicCatalog, now = new Date()): StudentPreference {
