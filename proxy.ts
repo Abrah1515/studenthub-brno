@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { authCookieOptions, copyResponseCookies, isSupabaseSessionCookie } from "@/lib/auth-cookies";
+import { isCityModuleEnabled, staticCityBySlug, type CityModule } from "@/lib/cities";
 import { canonicalRedirectTarget, internalRouteForBrno, legacyPublicPath } from "@/lib/platform-routing";
 
 const reservedTopLevelRoutes = new Set([
@@ -36,6 +37,20 @@ const reservedTopLevelRoutes = new Set([
 
 const removedAuthEndpoints = new Set(["/api/auth/google", "/api/auth/otp"]);
 
+const cityModuleByRoute = new Map<string, CityModule>([
+  ["kalendar", "calendar"],
+  ["mista", "places"],
+  ["komunita", "community"],
+  ["partak", "buddy"],
+  ["burza", "marketplace"],
+  ["bydleni", "housing"],
+  ["brigady", "jobs"],
+  ["chat", "chat"],
+  ["hlidac", "watcher"],
+  ["nastaveni", "settings"],
+  ["nabidky", "offers"],
+]);
+
 function publishedCitySlugs() {
   const defaultCity = process.env.DEFAULT_CITY_SLUG?.trim().toLowerCase() || "brno";
   if (process.env.MULTI_CITY_ENABLED !== "true") return new Set([defaultCity]);
@@ -50,7 +65,7 @@ function publishedCitySlugs() {
 
 function cityNotFoundResponse() {
   return new NextResponse(
-    `<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Město není dostupné | StudentHub</title><style>:root{color-scheme:light dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#f8fafc;color:#0f172a}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:#f8fafc}.card{width:min(560px,100%);padding:32px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;text-align:center;box-shadow:0 12px 32px rgba(15,23,42,.09)}.mark{width:58px;height:58px;margin:0 auto 18px;display:block;object-fit:contain}h1{margin:0 0 10px;font-size:28px}p{margin:0 0 22px;color:#64748b;line-height:1.6}a{min-height:42px;padding:10px 16px;display:inline-flex;align-items:center;border-radius:7px;background:#4f46e5;color:#fff;font-weight:800;text-decoration:none}@media(prefers-color-scheme:dark){:root,body{background:#0f172a;color:#f8fafc}.card{border-color:#273244;background:#111827}.card p{color:#cbd5e1}a{background:#818cf8;color:#020617}}</style></head><body><main class="card"><img class="mark" src="/brand/brno/studenthub-icon-v3-192.png" alt=""><h1>Tady nic není</h1><p>Tato městská edice není publikovaná. StudentHub je nyní veřejně dostupný pouze pro Brno.</p><a href="/brno">Přejít na StudentHub Brno</a></main></body></html>`,
+    `<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Město není dostupné | StudentHub</title><style>:root{color-scheme:light dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#f8fafc;color:#0f172a}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:#f8fafc}.card{width:min(560px,100%);padding:32px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;text-align:center;box-shadow:0 12px 32px rgba(15,23,42,.09)}.mark{width:58px;height:58px;margin:0 auto 18px;display:block;object-fit:contain}h1{margin:0 0 10px;font-size:28px}p{margin:0 0 22px;color:#64748b;line-height:1.6}a{min-height:42px;padding:10px 16px;display:inline-flex;align-items:center;border-radius:7px;background:#4f46e5;color:#fff;font-weight:800;text-decoration:none}@media(prefers-color-scheme:dark){:root,body{background:#0f172a;color:#f8fafc}.card{border-color:#273244;background:#111827}.card p{color:#cbd5e1}a{background:#818cf8;color:#020617}}</style></head><body><main class="card"><img class="mark" src="/brand/brno/studenthub-icon-v3-192.png" alt=""><h1>Tady nic není</h1><p>Tato městská edice zatím není publikovaná. Vyberte si některé z dostupných měst.</p><a href="/">Vybrat město</a></main></body></html>`,
     {
       status: 404,
       headers: {
@@ -146,12 +161,24 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const firstSegment = pathname.split("/").filter(Boolean)[0]?.toLowerCase();
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const firstSegment = pathSegments[0]?.toLowerCase();
   if (
     firstSegment &&
     !firstSegment.includes(".") &&
     !reservedTopLevelRoutes.has(firstSegment) &&
     !publishedCitySlugs().has(firstSegment)
+  ) {
+    return cityNotFoundResponse();
+  }
+
+  const city = firstSegment ? staticCityBySlug(firstSegment) : undefined;
+  const requestedModule = cityModuleByRoute.get(pathSegments[1]?.toLowerCase() || "");
+  if (
+    city &&
+    publishedCitySlugs().has(city.slug) &&
+    requestedModule &&
+    !isCityModuleEnabled(city, requestedModule)
   ) {
     return cityNotFoundResponse();
   }

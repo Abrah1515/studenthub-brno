@@ -44,10 +44,10 @@ type StepInput = Omit<TutorialStep, "availability">;
 const define = (value: StepInput): TutorialStep => ({ ...value, availability: "target-present" });
 
 export const mobileTourSteps: readonly TutorialStep[] = [
-  define({ id: "welcome", order: 1, targetId: "brand-compact", title: "Vítej ve StudentHub Brno", description: "Nejdřív projdeme hlavní ovládání aplikace. Celý návod zůstane na Přehledu.", preferredPlacement: "bottom", menuState: "closed", scrollArea: "none" }),
+  define({ id: "welcome", order: 1, targetId: "brand-compact", title: "Vítej ve StudentHubu", description: "Nejdřív projdeme hlavní ovládání aplikace. Celý návod zůstane na Přehledu.", preferredPlacement: "bottom", menuState: "closed", scrollArea: "none" }),
   define({ id: "overview", order: 2, targetId: "overview-navigation-bottom", title: "Přehled", description: "Tady se vždy vrátíš k personalizovanému souhrnu.", preferredPlacement: "top", menuState: "closed", scrollArea: "none" }),
   define({ id: "calendar", order: 3, targetId: "calendar-navigation-bottom", title: "Kalendář", description: "Školní termíny a studentské akce najdeš na jednom místě.", preferredPlacement: "top", menuState: "closed", scrollArea: "none" }),
-  define({ id: "places", order: 4, targetId: "places-navigation-bottom", title: "Místa", description: "Seznam, mapa, filtry a navigace k užitečným místům v Brně.", preferredPlacement: "top", menuState: "closed", scrollArea: "none" }),
+  define({ id: "places", order: 4, targetId: "places-navigation-bottom", title: "Místa", description: "Seznam, mapa, filtry a navigace k užitečným místům ve městě.", preferredPlacement: "top", menuState: "closed", scrollArea: "none" }),
   define({ id: "community", order: 5, targetId: "community-navigation-bottom", title: "Studentská komunita", description: "Příspěvky, komentáře a bezpečné nahlašování veřejného obsahu.", preferredPlacement: "top", menuState: "closed", scrollArea: "none" }),
   define({ id: "jobs", order: 6, targetId: "jobs-navigation-bottom", title: "Brigády", description: "Aktuální studentské práce s odměnou a původním zdrojem.", preferredPlacement: "top", menuState: "closed", scrollArea: "none" }),
   define({ id: "buddy", order: 7, targetId: "buddy-navigation-floating", title: "Hledám parťáka", description: "Najdi spolužáka na sport, kulturu, cestu nebo společné učení.", preferredPlacement: "top", menuState: "closed", scrollArea: "none" }),
@@ -67,7 +67,7 @@ export const mobileTourSteps: readonly TutorialStep[] = [
 ];
 
 export const tabletTourSteps: readonly TutorialStep[] = [
-  define({ id: "welcome", order: 1, targetId: "brand-compact", title: "Vítej ve StudentHub Brno", description: "Nejdřív projdeme hlavní ovládání tabletového rozhraní. Celý návod zůstane na Přehledu.", preferredPlacement: "bottom", menuState: "closed", scrollArea: "none" }),
+  define({ id: "welcome", order: 1, targetId: "brand-compact", title: "Vítej ve StudentHubu", description: "Nejdřív projdeme hlavní ovládání tabletového rozhraní. Celý návod zůstane na Přehledu.", preferredPlacement: "bottom", menuState: "closed", scrollArea: "none" }),
   ...mobileTourSteps.slice(1, 6).map((item, index) => ({ ...item, order: index + 2 })),
   define({ id: "chat", order: 7, targetId: "chat-navigation-compact", title: "Chat", description: "Tady uvidíš zprávy a žádosti o kontakt.", preferredPlacement: "bottom", menuState: "closed", scrollArea: "none" }),
   define({ id: "appearance", order: 8, targetId: "appearance-navigation-topbar", title: "Nastavení vzhledu", description: "Vyber systémový, světlý nebo tmavý režim.", preferredPlacement: "bottom", menuState: "closed", scrollArea: "none" }),
@@ -86,12 +86,12 @@ export const tabletTourSteps: readonly TutorialStep[] = [
 ];
 
 export const desktopTourSteps: readonly TutorialStep[] = [
-  define({ id: "welcome", order: 1, targetId: "brand-desktop", title: "Vítej ve StudentHub Brno", description: "Projdeme levý panel shora dolů a nakonec horní lištu. Celý návod zůstane na Přehledu.", preferredPlacement: "right", menuState: "closed", scrollArea: "none" }),
+  define({ id: "welcome", order: 1, targetId: "brand-desktop", title: "Vítej ve StudentHubu", description: "Projdeme levý panel shora dolů a nakonec horní lištu. Celý návod zůstane na Přehledu.", preferredPlacement: "right", menuState: "closed", scrollArea: "none" }),
   define({ id: "overview", order: 2, targetId: "overview-navigation-desktop", title: "Přehled", description: "Tady se vždy vrátíš k personalizovanému souhrnu.", preferredPlacement: "right", menuState: "closed", scrollArea: "sidebar" }),
   define({ id: "calendar", order: 3, targetId: "calendar-navigation-desktop", title: "Kalendář", description: "Školní termíny a studentské akce najdeš na jednom místě.", preferredPlacement: "right", menuState: "closed", scrollArea: "sidebar" }),
   define({ id: "watcher", order: 4, targetId: "watcher-navigation-desktop", title: "Hlídač", description: "Sledované termíny, akce a důležité ověřené změny.", preferredPlacement: "right", menuState: "closed", scrollArea: "sidebar" }),
   define({ id: "chat", order: 5, targetId: "chat-navigation-desktop", title: "Chat", description: "Tady uvidíš zprávy a žádosti o kontakt.", preferredPlacement: "right", menuState: "closed", scrollArea: "sidebar" }),
-  define({ id: "places", order: 6, targetId: "places-navigation-desktop", title: "Místa", description: "Seznam, mapa, filtry a navigace k užitečným místům v Brně.", preferredPlacement: "right", menuState: "closed", scrollArea: "sidebar" }),
+  define({ id: "places", order: 6, targetId: "places-navigation-desktop", title: "Místa", description: "Seznam, mapa, filtry a navigace k užitečným místům ve městě.", preferredPlacement: "right", menuState: "closed", scrollArea: "sidebar" }),
   define({ id: "community", order: 7, targetId: "community-navigation-desktop", title: "Studentská komunita", description: "Příspěvky, komentáře a bezpečné nahlašování veřejného obsahu.", preferredPlacement: "right", menuState: "closed", scrollArea: "sidebar" }),
   define({ id: "buddy", order: 8, targetId: "buddy-navigation-desktop", title: "Hledám parťáka", description: "Najdi spolužáka na sport, kulturu, cestu nebo společné učení.", preferredPlacement: "right", menuState: "closed", scrollArea: "sidebar" }),
   define({ id: "jobs", order: 9, targetId: "jobs-navigation-desktop", title: "Brigády", description: "Aktuální studentské práce s odměnou a původním zdrojem.", preferredPlacement: "right", menuState: "closed", scrollArea: "sidebar" }),

@@ -25,7 +25,7 @@ test("utility jsou výchozí skryté a aktivní vrstva se načte jen jednou pro 
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: utilities.filter((item) => categories.includes(item.categoryCode)), truncated: false }) });
   });
   await page.goto("/brno/mista", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".leaflet-host")).toBeVisible();
+  await expect(page.locator(".leaflet-host:visible")).toHaveCount(1);
   await page.waitForTimeout(500);
   expect(requests).toBe(0);
   await expect(page.locator(".place-map-marker.utility")).toHaveCount(0);

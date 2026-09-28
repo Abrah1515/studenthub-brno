@@ -16,7 +16,8 @@ test.describe("výběr města", () => {
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://studenthubapp.cz");
     await expect(page.getByText("Vyber si město", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Otevřít StudentHub Brno" })).toHaveAttribute("href", "/brno");
-    await expect(page.getByText("Připravujeme", { exact: true })).toHaveCount(3);
+    await expect(page.getByText("Připravujeme", { exact: true })).toHaveCount(2);
+    await expect(page.getByRole("link", { name: "Otevřít StudentHub Olomouc" })).toHaveAttribute("href", "/olomouc");
     await expect(page.locator(".city-selection-card-inactive a, .city-selection-card-inactive button")).toHaveCount(0);
     await expect(page.locator('[aria-modal="true"]')).toHaveCount(0);
     await expect(page.locator(".app-shell")).toHaveCount(0);
@@ -49,21 +50,23 @@ test.describe("výběr města", () => {
     await expect(page.locator(".city-selection-logo-light:visible")).toHaveCount(0);
   });
 
-  test("Brno zůstává dostupné a rozpracovaná Olomouc není veřejná ani v sitemapě", async ({ request }) => {
+  test("Brno i Olomouc jsou dostupné, ale olomoucké Brigády zůstávají vypnuté", async ({ request }) => {
     for (const path of ["/brno", "/brno/kalendar", "/brno/komunita", "/brno/mista"]) {
       const response = await request.get(path);
       expect(response.status(), path).toBe(200);
     }
 
-    for (const path of ["/olomouc", "/olomouc/kalendar", "/olomouc/komunita"]) {
+    for (const path of ["/olomouc", "/olomouc/kalendar", "/olomouc/komunita", "/olomouc/mista"]) {
       const response = await request.get(path);
-      expect(response.status(), path).toBe(404);
+      expect(response.status(), path).toBe(200);
     }
+    expect((await request.get("/olomouc/brigady")).status()).toBe(404);
 
     const sitemap = await request.get("/sitemap.xml");
     expect(sitemap.status()).toBe(200);
     const body = await sitemap.text();
     expect(body).toContain("https://studenthubapp.cz/brno");
-    expect(body).not.toContain("/olomouc");
+    expect(body).toContain("https://studenthubapp.cz/olomouc");
+    expect(body).not.toContain("/olomouc/brigady");
   });
 });

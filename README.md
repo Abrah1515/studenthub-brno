@@ -60,8 +60,8 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 |---|---|---:|---|
 | `NEXT_PUBLIC_SITE_URL` | klient/server | ano | canonical URL, sitemap a Open Graph |
 | `DEFAULT_CITY_SLUG` / `NEXT_PUBLIC_DEFAULT_CITY_SLUG` | server / klient | ano | výchozí edice; nyní vždy `brno` |
-| `MULTI_CITY_ENABLED` / `NEXT_PUBLIC_MULTI_CITY_ENABLED` | server / klient | ano | globální pojistka; dokud je veřejné jen Brno, ponechat `false` |
-| `PUBLISHED_CITY_SLUGS` | pouze server | ano | čárkami oddělená allowlist edic pro časnou HTTP 404; musí odpovídat publikovaným městům v DB |
+| `MULTI_CITY_ENABLED` / `NEXT_PUBLIC_MULTI_CITY_ENABLED` | server / klient | ano | globální přepínač veřejných městských edic; v produkci je po spuštění Olomouce `true` |
+| `PUBLISHED_CITY_SLUGS` | pouze server | ano | čárkami oddělená allowlist edic pro časnou HTTP 404; v produkci `brno,olomouc` |
 | `NEXT_PUBLIC_SUPABASE_URL` | klient/server | ano | URL Supabase projektu |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | klient/server | ano | veřejný anon klíč, chráněný RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | pouze server | ano | serverové formuláře, synchronizace a administrace; nikdy ne do klienta |
@@ -242,7 +242,7 @@ Supabase Cron kontroluje splatné zdroje v minutách 17, 37 a 57; databázové `
 
 Nová edice nevzniká kopií projektu. Používá stejný kód, dynamické routy `app/[city]`, společné tabulky a městský scope. Postupujte v tomto pořadí:
 
-Olomouc je po migracích `202609280001` a `202609280002` už připravená v katalogu i databázi, ale záměrně zůstává `enabled=false`, `public_status='draft'` a všechny její moduly jsou vypnuté. Není v sitemap, veřejné routy vracejí bezpečnou 404 a produkční allowlist `PUBLISHED_CITY_SLUGS` nadále obsahuje pouze `brno`. Jeden manifest a jedna instalace PWA zůstávají společné pro celý StudentHub.
+Olomouc je po migracích `202609280001` až `202609280004` druhou veřejnou edicí. Migrace `202609280004` doplňuje aktivační minimum z oficiálních zdrojů UP a teprve potom nastavuje `enabled=true` a `public_status='published'`. Brigády a nabídky zůstávají pro Olomouc vypnuté, dokud nemají ověřený lokální zdroj. Jeden manifest a jedna instalace PWA zůstávají společné pro celý StudentHub.
 
 1. Jako `super_admin` vložte do `cities` město ve stavu `draft`, s `enabled=false`, správným časovým pásmem, středem, zoomem a hranicemi mapy. Nevkládejte město jen kvůli ukázce.
 2. Propojte skutečně působící školy přes `university_cities`; jedna univerzita může mít více měst. Kampusy nejsou součástí aktivního profilu ani filtrování.
@@ -253,7 +253,7 @@ Olomouc je po migracích `202609280001` a `202609280002` už připravená v kata
 7. Doplňte `brand_config`, kontakty a povolené assety edice. Neměňte společnou značku a nepoužívejte univerzitní loga bez svolení. Generátor manifestu je v `lib/pwa-manifest.ts`.
 8. V administraci zkontrolujte readiness: souřadnice a hranice, počty obsahu, chybějící zdroje, právní texty, odpovědnou osobu a RLS test městského editora.
 9. Spusťte `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` a `pnpm test:e2e`. Ověřte 390×844, 768×1024 a 1440×900, canonical, OG, sitemap, vypnuté moduly a 404 neaktivní edice.
-10. Teprve poté nastavte `public_status='published'`, `enabled=true`, přidejte slug do `PUBLISHED_CITY_SLUGS` a zapněte `MULTI_CITY_ENABLED=true` i `NEXT_PUBLIC_MULTI_CITY_ENABLED=true`. Ověřte, že selektor se ukáže až při nejméně dvou publikovaných městech a sitemap neobsahuje drafty.
+10. Při dalším městě teprve po průchodu aktivační brány nastavte `public_status='published'`, `enabled=true`, přidejte slug do `PUBLISHED_CITY_SLUGS` a ověřte, že sitemap neobsahuje drafty.
 
 ## Příprava pro budoucí publikační automatizaci
 
@@ -320,9 +320,9 @@ ISIC_FEED_ENABLED=false
 ISIC_FEED_PERMISSION_CONFIRMED=false
 DEFAULT_CITY_SLUG=brno
 NEXT_PUBLIC_DEFAULT_CITY_SLUG=brno
-MULTI_CITY_ENABLED=false
-NEXT_PUBLIC_MULTI_CITY_ENABLED=false
-PUBLISHED_CITY_SLUGS=brno
+MULTI_CITY_ENABLED=true
+NEXT_PUBLIC_MULTI_CITY_ENABLED=true
+PUBLISHED_CITY_SLUGS=brno,olomouc
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=<veřejný VAPID klíč>
 VAPID_PRIVATE_KEY=<serverové tajemství>
 VAPID_SUBJECT=mailto:studenthubbrno@gmail.com

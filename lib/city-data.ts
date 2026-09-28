@@ -1,6 +1,6 @@
 import "server-only";
 import { unstable_noStore as noStore } from "next/cache";
-import { brnoCity, cityModuleKeys, staticCityBySlug, type City, type CityModule, type CityModules, isCityModuleEnabled, isCityPublic, multiCityEnabled } from "@/lib/cities";
+import { brnoCity, cityCatalog, cityModuleKeys, staticCityBySlug, type City, type CityModule, type CityModules, isCityModuleEnabled, isCityPublic, multiCityEnabled } from "@/lib/cities";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase-server";
 import { universities } from "@/lib/universities";
 
@@ -23,7 +23,7 @@ function fromRow(row: Record<string, unknown>): City {
 
 export async function getPublishedCities(): Promise<City[]> {
   noStore();
-  if (!isSupabaseConfigured()) return [brnoCity];
+  if (!isSupabaseConfigured()) return multiCityEnabled ? cityCatalog.filter(isCityPublic) : [brnoCity];
   const { data, error } = await createServiceClient().from("cities").select("*").eq("enabled", true).eq("public_status", "published").order("sort_order");
   if (error) throw error;
   const cities = (data || []).map((row) => fromRow(row as Record<string, unknown>)).filter(isCityPublic);

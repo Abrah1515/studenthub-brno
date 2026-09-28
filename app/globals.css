@@ -313,7 +313,7 @@ button { color: inherit; }
 
 @media (max-width: 860px) {
   :root { --sidebar: 0px; --bottom-nav-height: calc(66px + env(safe-area-inset-bottom)); }
-  .city-switcher { left: auto; right: 64px; top: 10px; bottom: auto; width: 132px; }
+  .city-switcher { left: auto; right: 208px; top: 10px; bottom: auto; width: 132px; }
   .city-switcher > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .desktop-sidebar { display: none; }
   .main-column { margin-left: 0; }
@@ -339,6 +339,8 @@ button { color: inherit; }
 .mobile-menu-panel .sidebar-note { margin-top: auto; }
 
 @media (max-width: 720px) {
+
+  .city-switcher { display: none; }
 
   .consent-panel {
     grid-template-columns: 40px minmax(0, 1fr);

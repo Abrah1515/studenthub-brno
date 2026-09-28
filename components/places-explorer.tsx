@@ -514,6 +514,8 @@ export function PlacesExplorer({
   const utilityCache = useRef(
     new Map<string, { items: Place[]; truncated: boolean }>(),
   );
+  const pendingSearchKey = useRef<string | null>(null);
+  const syncedSearchKey = useRef(searchKey);
   const urlUniversity = cityUniversities.some(
     (item) => item.id === search.get("university"),
   )
@@ -760,6 +762,10 @@ export function PlacesExplorer({
   }, [mainItems]);
 
   useEffect(() => {
+    if (pendingSearchKey.current && searchKey !== pendingSearchKey.current) return;
+    pendingSearchKey.current = null;
+    if (syncedSearchKey.current === searchKey) return;
+    syncedSearchKey.current = searchKey;
     const current = new URLSearchParams(searchKey);
     setQuery(current.get("q") || current.get("campus") || "");
     setCategory(current.get("category") || allCategories);
@@ -794,6 +800,7 @@ export function PlacesExplorer({
       if (value) next.set(key, value);
       else next.delete(key);
     }
+    pendingSearchKey.current = next.toString();
     router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
       scroll: false,
     });
@@ -927,6 +934,7 @@ export function PlacesExplorer({
         <div className="select-wrap">
           <select
             value={category}
+            disabled={!layersHydrated}
             onChange={(event) => {
               setCategory(event.target.value);
               replaceQuery({

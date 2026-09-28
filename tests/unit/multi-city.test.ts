@@ -9,6 +9,7 @@ const migration = readFileSync("supabase/migrations/202608020004_multi_city_foun
 const olomoucMigration = readFileSync("supabase/migrations/202609280001_olomouc_multi_city_readiness.sql", "utf8");
 const olomoucSafetyMigration = readFileSync("supabase/migrations/202609280002_deactivate_olomouc_until_launch.sql", "utf8");
 const olomoucContentMigration = readFileSync("supabase/migrations/202609280003_olomouc_verified_content.sql", "utf8");
+const olomoucLaunchMigration = readFileSync("supabase/migrations/202609280004_publish_olomouc.sql", "utf8");
 const privacyMigration = readFileSync("supabase/migrations/202608040009_community_help_and_privacy.sql", "utf8");
 const publicData = readFileSync("lib/public-data.ts", "utf8");
 const map = readFileSync("components/places-explorer.tsx", "utf8");
@@ -22,11 +23,12 @@ describe("víceměstský základ", () => {
   it("podporuje remote brigádu i bez města a univerzitní událost bez města", () => { expect(migration).toContain("work_location_mode = 'remote' or city_id is not null"); expect(migration).toContain("scope_type = 'university' and university_id is not null"); expect(migration).toContain("scope_type in ('city','university','faculty','national')"); });
   it("izoluje městské editory a veřejné dotazy podle aktivního města", () => { expect(migration).toContain("role in ('city_editor','admin') and city_id = target_city"); expect(migration).toContain("city staff manage places"); expect(migration).toContain("public.can_manage_city(city_id)"); expect(publicData).toContain('.eq("city_id", cityId)'); expect(publicData).toContain('work_location_mode.eq.remote'); expect(publicData).toContain('offer_cities!inner(city_id)'); });
   it("skrývá neaktivní města ze sitemap a veřejné konfigurace", () => { const inactive: City = { ...brnoCity, id: "test-city", slug: "test-city", name: "Test city", enabled: false, publicStatus: "draft" }; expect(isCityPublic(brnoCity)).toBe(true); expect(isCityPublic(inactive)).toBe(false); expect(sitemap).toContain("getPublishedCities"); });
-  it("vede města z jednoho katalogu a drží Olomouc jako neveřejný připravený draft", () => {
+  it("vede města z jednoho katalogu a publikuje připravenou Olomouc", () => {
     expect(cityCatalog.map((city) => city.slug)).toEqual(["brno", "praha", "ostrava", "olomouc"]);
-    expect(olomoucCity).toMatchObject({ id: "olomouc", slug: "olomouc", enabled: false, publicStatus: "draft", timezone: "Europe/Prague" });
+    expect(olomoucCity).toMatchObject({ id: "olomouc", slug: "olomouc", enabled: true, publicStatus: "published", timezone: "Europe/Prague" });
     expect(olomoucCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: false, offers: false });
-    expect(isCityModuleEnabled(olomoucCity, "chat")).toBe(false);
+    expect(isCityModuleEnabled(olomoucCity, "chat")).toBe(true);
+    expect(isCityModuleEnabled(olomoucCity, "jobs")).toBe(false);
     expect(cityHref(olomoucCity, "kalendar")).toBe("/olomouc/kalendar");
   });
   it("odděluje univerzity a fakulty podle města", () => {
@@ -46,6 +48,15 @@ describe("víceměstský základ", () => {
     expect(olomoucContentMigration).toContain("'olomouc','Hlavní menza UP'");
     expect(olomoucContentMigration).toContain("enabled=false,public_status='draft'");
     expect(olomoucContentMigration).toContain('"jobs":false');
+  });
+  it("publikuje Olomouc až po idempotentním doplnění aktivačního minima", () => {
+    expect(olomoucLaunchMigration).toContain("upol-speak-dating-2026");
+    expect(olomoucLaunchMigration).toContain("upol-dorm-generala-svobody");
+    expect(olomoucLaunchMigration).toContain("enabled=true,public_status='published'");
+    expect(olomoucLaunchMigration).toContain('"jobs":false');
+    expect(olomoucLaunchMigration).toContain("on conflict (city_id,source_external_id)");
+    expect(olomoucLaunchMigration.match(/'upol-[a-z0-9-]+-2026'/g)?.length).toBeGreaterThanOrEqual(10);
+    expect(olomoucLaunchMigration.match(/'63222222-3333-4333-8333-3333333333\d\d'/g)?.length).toBe(18);
   });
   it("přidává Olomouc idempotentně bez jejího zveřejnění a odstraňuje slepé výchozí Brno", () => {
     expect(olomoucMigration).toContain("'olomouc', 'olomouc', 'Olomouc'");

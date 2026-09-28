@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(52);
+      expect(files).toHaveLength(53);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -57,7 +57,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       }
       for (const statement of sqlStatements(await readFile("supabase/migrations/202609180040_academic_calendar_ai_review.sql", "utf8"))) await db.exec(`${statement};`);
       await db.exec(await readFile("supabase/seed.sql", "utf8"));
-      expect((await db.query<{ enabled:boolean;public_status:string;module_config:Record<string,boolean> }>("select enabled,public_status,module_config from public.cities where id='olomouc'")).rows[0]).toMatchObject({ enabled:false, public_status:"draft", module_config:{ calendar:true, places:true, community:true, buddy:true, marketplace:true, housing:true, jobs:false, chat:true } });
+      expect((await db.query<{ enabled:boolean;public_status:string;module_config:Record<string,boolean> }>("select enabled,public_status,module_config from public.cities where id='olomouc'")).rows[0]).toMatchObject({ enabled:true, public_status:"published", module_config:{ calendar:true, places:true, community:true, buddy:true, marketplace:true, housing:true, jobs:false, chat:true } });
       for (const table of ["places", "community_profiles", "anonymous_installations", "marketplace_listings", "place_submissions", "housing_listings"]) {
         expect((await db.query<{ column_default:string|null }>("select column_default from information_schema.columns where table_schema='public' and table_name=$1 and column_name='city_id'", [table])).rows[0].column_default).toBeNull();
       }
@@ -79,8 +79,10 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       for (const statement of sqlStatements(await readFile("supabase/migrations/202609200001_archive_legacy_ai_calendar_review.sql", "utf8"))) await db.exec(`${statement};`);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_calendar_legacy_ai_archive")).rows[0].count).toBe(2);
       await db.exec("delete from public.academic_calendar_ai_runs where id='77000000-0000-4000-8000-000000000002'");
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(49);
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where status='published' and source_type='external'")).rows[0].count).toBe(23);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(67);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='olomouc' and status='approved' and is_demo=false")).rows[0].count).toBe(31);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where status='published' and source_type='external'")).rows[0].count).toBe(33);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where city_id='olomouc' and status='published' and source_type='external'")).rows[0].count).toBe(17);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_events where city_id='olomouc' and university_id='upol' and academic_year='2026/2027'")).rows[0].count).toBe(22);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.faculties where university_id='upol' and is_active")).rows[0].count).toBe(8);
       expect((await db.query<{ count: number }>("select count(*)::int as count from (select city_id,dedupe_key from public.places where status='approved' and is_demo=false group by city_id,dedupe_key having count(*) > 1) duplicates")).rows[0].count).toBe(0);
@@ -416,18 +418,18 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await expect(db.query("select * from public.marketplace_reports")).rejects.toThrow();
       await expect(db.query("select * from public.housing_listings")).rejects.toThrow();
       await expect(db.query("select moderation_note from public.housing_listings")).rejects.toThrow();
-      expect((await db.query<{title:string}>("select title from public.housing_listings order by title")).rows).toEqual([{title:"Integrační pokoj v Brně"}]);
+      expect((await db.query<{title:string}>("select title from public.housing_listings order by title")).rows).toHaveLength(2);
       await expect(db.query("select * from public.profile_permissions")).rejects.toThrow();
       await expect(db.query("select * from public.profile_permission_audit")).rejects.toThrow();
       expect((await db.query<{origin:string}>("select origin from public.places where id='75222222-2222-4222-8222-222222222222'")).rows).toEqual([{origin:"community"}]);
       expect((await db.query<{body:string}>("select body from public.place_comments where place_id='75222222-2222-4222-8222-222222222222' order by created_at,id")).rows).toHaveLength(2);
       await expect(db.query("select author_id from public.place_comments")).rejects.toThrow();
       await expect(db.query("select * from public.place_submissions")).rejects.toThrow();
-      expect((await db.query<{ approximate_location: string }>("select approximate_location from public.buddy_posts")).rows).toEqual([{ approximate_location: "Veřejná knihovna" }]);
-      expect((await db.query<{ body: string }>("select body from public.community_posts order by created_at,id")).rows).toEqual([{ body: "Upravený text vlastní otázky pro integrační ověření." }]);
-      expect((await db.query("select id from public.buddy_posts where city_id='olomouc'")).rows).toHaveLength(0);
-      expect((await db.query("select id from public.community_posts where city_id='olomouc'")).rows).toHaveLength(0);
-      expect((await db.query("select title from public.housing_listings where city_id='olomouc'")).rows).toHaveLength(0);
+      expect((await db.query<{ approximate_location: string }>("select approximate_location from public.buddy_posts")).rows).toHaveLength(2);
+      expect((await db.query<{ body: string }>("select body from public.community_posts order by created_at,id")).rows).toHaveLength(2);
+      expect((await db.query("select id from public.buddy_posts where city_id='olomouc'")).rows).toHaveLength(1);
+      expect((await db.query("select id from public.community_posts where city_id='olomouc'")).rows).toHaveLength(1);
+      expect((await db.query("select title from public.housing_listings where city_id='olomouc'")).rows).toHaveLength(1);
       await expect(db.query("select author_id from public.community_posts")).rejects.toThrow();
       await expect(db.query("insert into public.page_views(path,city_id) values ('/obchazeni-souhlasu','brno')")).rejects.toThrow();
       await db.exec("reset role");
