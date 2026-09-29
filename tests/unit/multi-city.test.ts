@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { brnoCity, cityCatalog, cityHref, isCityModuleEnabled, isCityPublic, olomoucCity, type City } from "@/lib/cities";
+import { brnoCity, cityCatalog, cityHref, isCityModuleEnabled, isCityPublic, olomoucCity, prahaCity, type City } from "@/lib/cities";
 import { manifestForCity } from "@/lib/pwa-manifest";
 import { academicCatalogForCity } from "@/lib/universities";
 
@@ -10,6 +10,7 @@ const olomoucMigration = readFileSync("supabase/migrations/202609280001_olomouc_
 const olomoucSafetyMigration = readFileSync("supabase/migrations/202609280002_deactivate_olomouc_until_launch.sql", "utf8");
 const olomoucContentMigration = readFileSync("supabase/migrations/202609280003_olomouc_verified_content.sql", "utf8");
 const olomoucLaunchMigration = readFileSync("supabase/migrations/202609280004_publish_olomouc.sql", "utf8");
+const prahaMigration = readFileSync("supabase/migrations/202609290001_publish_praha.sql", "utf8");
 const privacyMigration = readFileSync("supabase/migrations/202608040009_community_help_and_privacy.sql", "utf8");
 const publicData = readFileSync("lib/public-data.ts", "utf8");
 const map = readFileSync("components/places-explorer.tsx", "utf8");
@@ -23,8 +24,12 @@ describe("víceměstský základ", () => {
   it("podporuje remote brigádu i bez města a univerzitní událost bez města", () => { expect(migration).toContain("work_location_mode = 'remote' or city_id is not null"); expect(migration).toContain("scope_type = 'university' and university_id is not null"); expect(migration).toContain("scope_type in ('city','university','faculty','national')"); });
   it("izoluje městské editory a veřejné dotazy podle aktivního města", () => { expect(migration).toContain("role in ('city_editor','admin') and city_id = target_city"); expect(migration).toContain("city staff manage places"); expect(migration).toContain("public.can_manage_city(city_id)"); expect(publicData).toContain('.eq("city_id", cityId)'); expect(publicData).toContain('work_location_mode.eq.remote'); expect(publicData).toContain('offer_cities!inner(city_id)'); });
   it("skrývá neaktivní města ze sitemap a veřejné konfigurace", () => { const inactive: City = { ...brnoCity, id: "test-city", slug: "test-city", name: "Test city", enabled: false, publicStatus: "draft" }; expect(isCityPublic(brnoCity)).toBe(true); expect(isCityPublic(inactive)).toBe(false); expect(sitemap).toContain("getPublishedCities"); });
-  it("vede města z jednoho katalogu a publikuje připravenou Olomouc", () => {
+  it("vede města z jednoho katalogu a publikuje připravené edice", () => {
     expect(cityCatalog.map((city) => city.slug)).toEqual(["brno", "praha", "ostrava", "olomouc"]);
+    expect(prahaCity).toMatchObject({ id: "praha", slug: "praha", enabled: true, publicStatus: "published", timezone: "Europe/Prague" });
+    expect(prahaCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: false, offers: false });
+    expect(prahaCity.selectionLogo.symbol).toBe("/brand/cities/studenthub-praha-symbol-v1.png");
+    expect(cityHref(prahaCity, "kalendar")).toBe("/praha/kalendar");
     expect(olomoucCity).toMatchObject({ id: "olomouc", slug: "olomouc", enabled: true, publicStatus: "published", timezone: "Europe/Prague" });
     expect(olomoucCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: false, offers: false });
     expect(olomoucCity.selectionLogo.symbol).toBe("/brand/cities/studenthub-olomouc-symbol-v1.png");
@@ -34,12 +39,33 @@ describe("víceměstský základ", () => {
   });
   it("odděluje univerzity a fakulty podle města", () => {
     const brno = academicCatalogForCity("brno");
+    const praha = academicCatalogForCity("praha");
     const olomouc = academicCatalogForCity("olomouc");
     expect(brno.universities.map((item) => item.id)).toEqual(["muni", "vut", "mendelu", "vetuni", "jamu"]);
     expect(brno.faculties).toHaveLength(27);
+    expect(praha.universities.map((item) => item.id)).toEqual(["cuni", "cvut", "vse", "czu", "vscht"]);
+    expect(praha.faculties).toHaveLength(37);
+    expect(praha.faculties.every((item) => praha.universities.some((university) => university.id === item.universityId))).toBe(true);
     expect(olomouc.universities.map((item) => item.id)).toEqual(["upol"]);
     expect(olomouc.faculties).toHaveLength(8);
     expect(olomouc.faculties.every((item) => item.universityId === "upol")).toBe(true);
+  });
+  it("publikuje Prahu jednou idempotentní migrací s ověřeným minimem", () => {
+    expect(prahaMigration).toContain("'praha','praha','Praha'");
+    expect(prahaMigration).toContain("enabled=true,public_status='published'");
+    expect(prahaMigration).toContain('"jobs":false');
+    expect(prahaMigration).toContain("on conflict (university_id,city_id)");
+    expect(prahaMigration).toContain("on conflict (city_id,source_external_id)");
+    expect(prahaMigration).toContain("'cuni','cuni','Univerzita Karlova'");
+    expect(prahaMigration).toContain("'cvut','cvut','České vysoké učení technické v Praze'");
+    expect(prahaMigration).toContain("'vse','vse','Vysoká škola ekonomická v Praze'");
+    expect(prahaMigration).toContain("'czu','czu','Česká zemědělská univerzita v Praze'");
+    expect(prahaMigration).toContain("'vscht','vscht','Vysoká škola chemicko-technologická v Praze'");
+    expect(prahaMigration.match(/'c3000000-0000-4000-8000-0000000000\d\d'/g)?.length).toBe(15);
+    expect(prahaMigration.match(/'b3000000-0000-4000-8000-00000000000\d'/g)?.length).toBe(4);
+    expect(prahaMigration).toContain("'2026/2027'");
+    expect(prahaMigration).toContain("'src-praha-cuni'");
+    expect(prahaMigration).toContain("'src-praha-vscht'");
   });
   it("přidává jen ověřený olomoucký obsah a město nepublikuje", () => {
     expect(olomoucContentMigration).toContain("Univerzita Palackého v Olomouci");

@@ -63,8 +63,19 @@ export const olomoucCity: City = {
   selectionLogo: { light: "/brand/cities/studenthub-olomouc-v1.png", dark: "/brand/cities/studenthub-olomouc-dark-v1.png", symbol: "/brand/cities/studenthub-olomouc-symbol-v1.png", width: 394, height: 397 },
 };
 
+export const prahaCity: City = {
+  id: "praha", slug: "praha", name: "Praha", region: "Hlavní město Praha", countryCode: "CZ",
+  timezone: "Europe/Prague", latitude: 50.0755, longitude: 14.4378,
+  mapBounds: [[49.94, 14.22], [50.18, 14.71]], mapZoom: 12,
+  enabled: true, publicStatus: "published", sortOrder: 20,
+  brandConfig: { editionName: "StudentHub Praha", editionShortName: "Praha" },
+  modules: preparedOlomoucModules,
+  seo: { title: "StudentHub Praha – prakticky pro studenty", description: "Ověřené termíny, místa, komunita a praktické služby pro studenty v Praze." },
+  selectionLogo: { light: "/brand/cities/studenthub-praha-v1.png", dark: "/brand/cities/studenthub-praha-dark-v1.png", symbol: "/brand/cities/studenthub-praha-symbol-v1.png", width: 392, height: 396 },
+};
+
 const plannedCities: City[] = [
-  { ...olomoucCity, id: "praha", slug: "praha", name: "Praha", region: "Hlavní město Praha", latitude: 50.0755, longitude: 14.4378, mapBounds: [[49.94, 14.22], [50.18, 14.71]], enabled: false, publicStatus: "draft", sortOrder: 20, brandConfig: { editionName: "StudentHub Praha", editionShortName: "Praha" }, seo: { title: "StudentHub Praha – připravujeme", description: "Připravovaná městská edice StudentHubu pro studenty v Praze." }, selectionLogo: { light: "/brand/cities/studenthub-praha-v1.png", dark: "/brand/cities/studenthub-praha-dark-v1.png", symbol: "/brand/cities/studenthub-praha-symbol-v1.png", width: 392, height: 396 } },
+  prahaCity,
   { ...olomoucCity, id: "ostrava", slug: "ostrava", name: "Ostrava", region: "Moravskoslezský kraj", latitude: 49.8209, longitude: 18.2625, mapBounds: [[49.72, 18.08], [49.91, 18.38]], enabled: false, publicStatus: "draft", sortOrder: 30, brandConfig: { editionName: "StudentHub Ostrava", editionShortName: "Ostrava" }, seo: { title: "StudentHub Ostrava – připravujeme", description: "Připravovaná městská edice StudentHubu pro studenty v Ostravě." }, selectionLogo: { light: "/brand/cities/studenthub-ostrava-v1.png", dark: "/brand/cities/studenthub-ostrava-dark-v1.png", symbol: "/brand/cities/studenthub-ostrava-symbol-v1.png", width: 393, height: 397 } },
   olomoucCity,
 ];

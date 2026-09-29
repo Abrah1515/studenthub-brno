@@ -13,7 +13,7 @@ function run(command, args, options = {}) {
   const { env: extraEnv, ...spawnOptions } = options;
   return spawn(command, args, {
     cwd: root,
-    env: { ...process.env, CI: process.env.CI ?? "true", DEMO_MODE: "true", ALLOW_LOCAL_FILE_STORE: "true", ALLOW_VERIFIED_FALLBACK: "true", LOCAL_STORE_FILE_NAME: "e2e-test-store.json", NEXT_PUBLIC_SUPABASE_URL: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "", NEXT_PUBLIC_ADS_ENABLED: "false", MULTI_CITY_ENABLED: "true", NEXT_PUBLIC_MULTI_CITY_ENABLED: "true", PUBLISHED_CITY_SLUGS: "brno,olomouc", ...extraEnv },
+    env: { ...process.env, CI: process.env.CI ?? "true", DEMO_MODE: "true", ALLOW_LOCAL_FILE_STORE: "true", ALLOW_VERIFIED_FALLBACK: "true", LOCAL_STORE_FILE_NAME: "e2e-test-store.json", NEXT_PUBLIC_SUPABASE_URL: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "", NEXT_PUBLIC_ADS_ENABLED: "false", MULTI_CITY_ENABLED: "true", NEXT_PUBLIC_MULTI_CITY_ENABLED: "true", PUBLISHED_CITY_SLUGS: "brno,praha,olomouc", ...extraEnv },
     stdio: "inherit",
     ...spawnOptions,
   });

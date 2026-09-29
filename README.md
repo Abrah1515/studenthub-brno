@@ -61,7 +61,7 @@ Tento režim je pouze pro lokální testování. Produkční hodnoty všech tř�
 | `NEXT_PUBLIC_SITE_URL` | klient/server | ano | canonical URL, sitemap a Open Graph |
 | `DEFAULT_CITY_SLUG` / `NEXT_PUBLIC_DEFAULT_CITY_SLUG` | server / klient | ano | výchozí edice; nyní vždy `brno` |
 | `MULTI_CITY_ENABLED` / `NEXT_PUBLIC_MULTI_CITY_ENABLED` | server / klient | ano | globální přepínač veřejných městských edic; v produkci je po spuštění Olomouce `true` |
-| `PUBLISHED_CITY_SLUGS` | pouze server | ano | čárkami oddělená allowlist edic pro časnou HTTP 404; v produkci `brno,olomouc` |
+| `PUBLISHED_CITY_SLUGS` | pouze server | ano | čárkami oddělená allowlist edic pro časnou HTTP 404; v produkci `brno,praha,olomouc` |
 | `NEXT_PUBLIC_SUPABASE_URL` | klient/server | ano | URL Supabase projektu |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | klient/server | ano | veřejný anon klíč, chráněný RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | pouze server | ano | serverové formuláře, synchronizace a administrace; nikdy ne do klienta |
@@ -322,7 +322,7 @@ DEFAULT_CITY_SLUG=brno
 NEXT_PUBLIC_DEFAULT_CITY_SLUG=brno
 MULTI_CITY_ENABLED=true
 NEXT_PUBLIC_MULTI_CITY_ENABLED=true
-PUBLISHED_CITY_SLUGS=brno,olomouc
+PUBLISHED_CITY_SLUGS=brno,praha,olomouc
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=<veřejný VAPID klíč>
 VAPID_PRIVATE_KEY=<serverové tajemství>
 VAPID_SUBJECT=mailto:studenthubbrno@gmail.com

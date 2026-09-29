@@ -3,10 +3,10 @@ import { cityEditions } from "@/lib/city-editions";
 import { canonicalRedirectTarget, internalRouteForBrno, legacyPublicPath } from "@/lib/platform-routing";
 
 describe("platformní routing a městské edice", () => {
-  it("má dvě aktivní městské edice bez falešných odkazů", () => {
+  it("má tři aktivní městské edice bez falešných odkazů", () => {
     expect(cityEditions.map(({ slug, active, href }) => ({ slug, active, href }))).toEqual([
       { slug: "brno", active: true, href: "/brno" },
-      { slug: "praha", active: false, href: undefined },
+      { slug: "praha", active: true, href: "/praha" },
       { slug: "ostrava", active: false, href: undefined },
       { slug: "olomouc", active: true, href: "/olomouc" },
     ]);

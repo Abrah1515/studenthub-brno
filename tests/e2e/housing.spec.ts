@@ -71,8 +71,8 @@ test("vytvoření a správa vyžadují společný potvrzený profil", async ({ p
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 });
 
-test("Bydlení se nezpřístupňuje pro jiná města", async ({ request }, testInfo) => {
+test("Bydlení se nezpřístupňuje pro nepublikovaná města", async ({ request }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
-  const response = await request.get("/praha/bydleni", { maxRedirects: 0 });
+  const response = await request.get("/ostrava/bydleni", { maxRedirects: 0 });
   expect(response.status()).toBe(404);
 });
