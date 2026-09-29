@@ -69,4 +69,22 @@ test.describe("výběr města", () => {
     expect(body).toContain("https://studenthubapp.cz/olomouc");
     expect(body).not.toContain("/olomouc/brigady");
   });
+
+  test("aplikační shell používá logo a název právě otevřeného města", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("studenthub-tutorial-state", JSON.stringify({ tutorialVersion: 3, introConfirmed: true, status: "completed", lastCompletedStep: "complete" }));
+      localStorage.setItem("studenthub-preference-v4", JSON.stringify({ version: 4, cityId: "olomouc", universityId: "upol", facultyId: null, studyYear: null, studyYearCycleStart: null, completed: true }));
+    });
+    await page.goto("/olomouc");
+    const olomoucBrand = page.getByRole("link", { name: "StudentHub Olomouc – přehled" }).first();
+    await expect(olomoucBrand).toBeVisible();
+    await expect(olomoucBrand.locator('img[src*="studenthub-olomouc"]')).not.toHaveCount(0);
+    await expect(page.locator("footer.footer")).toContainText("StudentHub Olomouc");
+
+    await page.goto("/brno");
+    const brnoBrand = page.getByRole("link", { name: "StudentHub Brno – přehled" }).first();
+    await expect(brnoBrand).toBeVisible();
+    await expect(brnoBrand.locator('img[src*="studenthub-brno"]')).not.toHaveCount(0);
+    await expect(page.locator("footer.footer")).toContainText("StudentHub Brno");
+  });
 });

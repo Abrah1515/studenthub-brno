@@ -27,6 +27,7 @@ describe("víceměstský základ", () => {
     expect(cityCatalog.map((city) => city.slug)).toEqual(["brno", "praha", "ostrava", "olomouc"]);
     expect(olomoucCity).toMatchObject({ id: "olomouc", slug: "olomouc", enabled: true, publicStatus: "published", timezone: "Europe/Prague" });
     expect(olomoucCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: false, offers: false });
+    expect(olomoucCity.selectionLogo.symbol).toBe("/brand/cities/studenthub-olomouc-symbol-v1.png");
     expect(isCityModuleEnabled(olomoucCity, "chat")).toBe(true);
     expect(isCityModuleEnabled(olomoucCity, "jobs")).toBe(false);
     expect(cityHref(olomoucCity, "kalendar")).toBe("/olomouc/kalendar");
