@@ -225,6 +225,7 @@ function PlacesMap({
   const markerRefs = useRef(new Map<string, import("leaflet").Marker>());
   const [zoom, setZoom] = useState(city.mapZoom);
   const selectedRef = useRef(selectedId);
+  const focusedSelectionRef = useRef<string | null>(null);
   const selectRef = useRef(onSelect);
   const viewportRef = useRef(onViewport);
   useEffect(() => {
@@ -410,22 +411,46 @@ function PlacesMap({
     };
   }, [userLocation]);
 
+  const selectedPlace = selectedId
+    ? [...mainItems, ...utilityItems].find((item) => item.id === selectedId)
+    : undefined;
+  const selectedCategoryCode = selectedPlace
+    ? placeCategoryCode(selectedPlace)
+    : null;
+
   useEffect(() => {
-    if (!selectedId) return;
+    for (const [id, candidate] of markerRefs.current) {
+      const node = candidate.getElement();
+      const selected = id === selectedId;
+      node?.classList.toggle("selected", selected);
+      candidate.setZIndexOffset(
+        selected ? 500 : node?.classList.contains("utility") ? 10 : 100,
+      );
+    }
+    if (!selectedId) {
+      focusedSelectionRef.current = null;
+      return;
+    }
     const marker = markerRefs.current.get(selectedId);
     const map = mapRef.current;
     if (!marker || !map) return;
-    const place = [...mainItems, ...utilityItems].find(
-      (item) => item.id === selectedId,
-    );
-    const code = place ? placeCategoryCode(place) : null;
     const targetZoom =
-      code && isUtilityCategory(code) ? utilityMinimumIndividualZoom[code] : 15;
-    map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), targetZoom), {
-      duration: 0.35,
-    });
+      selectedCategoryCode && isUtilityCategory(selectedCategoryCode)
+        ? utilityMinimumIndividualZoom[selectedCategoryCode]
+        : 15;
+    if (focusedSelectionRef.current !== selectedId) {
+      focusedSelectionRef.current = selectedId;
+      const target = marker.getLatLng();
+      const nextZoom = Math.max(map.getZoom(), targetZoom);
+      const alreadyFocused =
+        map.distance(map.getCenter(), target) < 2 && map.getZoom() === nextZoom;
+      if (!alreadyFocused) {
+        map.stop();
+        map.flyTo(target, nextZoom, { duration: 0.35 });
+      }
+    }
     if (!marker.isPopupOpen()) marker.openPopup();
-  }, [mainItems, selectedId, utilityItems]);
+  }, [selectedCategoryCode, selectedId]);
 
   useEffect(
     () => () => {

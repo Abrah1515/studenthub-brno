@@ -17,6 +17,31 @@ async function prepare(page: Page) {
 
 test.beforeEach(async ({ page }) => { await prepare(page); });
 
+test("výběr místa se po jednom zaměření ustálí", async ({ page }) => {
+  await page.goto("/brno/mista", { waitUntil: "domcontentloaded" });
+  const marker = page.locator(".place-map-marker.main").first();
+  await expect(marker).toBeVisible();
+  const transitionProperty = await marker.evaluate(
+    (element) => getComputedStyle(element).transitionProperty,
+  );
+  expect(transitionProperty.split(",").map((value) => value.trim())).not.toContain(
+    "transform",
+  );
+
+  await marker.click();
+  const selected = page.locator(".place-map-marker.selected").first();
+  await expect(selected).toBeVisible();
+  await page.waitForTimeout(500);
+  const settledTransform = await selected.evaluate(
+    (element) => getComputedStyle(element).transform,
+  );
+  await page.waitForTimeout(450);
+  await expect(selected).toBeVisible();
+  expect(
+    await selected.evaluate((element) => getComputedStyle(element).transform),
+  ).toBe(settledTransform);
+});
+
 test("utility jsou výchozí skryté a aktivní vrstva se načte jen jednou pro výřez", async ({ page }) => {
   let requests = 0;
   await page.route("**/api/places/map?**", async (route) => {
