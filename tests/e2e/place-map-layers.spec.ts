@@ -31,6 +31,7 @@ test("výběr místa se po jednom zaměření ustálí", async ({ page }) => {
   await marker.click();
   const selected = page.locator(".place-map-marker.selected").first();
   await expect(selected).toBeVisible();
+  await expect(page.locator(".place-card.selected .place-details")).toBeVisible();
   await page.waitForTimeout(500);
   const settledTransform = await selected.evaluate(
     (element) => getComputedStyle(element).transform,
@@ -40,6 +41,33 @@ test("výběr místa se po jednom zaměření ustálí", async ({ page }) => {
   expect(
     await selected.evaluate((element) => getComputedStyle(element).transform),
   ).toBe(settledTransform);
+
+  const map = page.locator(".leaflet-host");
+  const mapBox = await map.boundingBox();
+  const markerBeforePan = await selected.boundingBox();
+  expect(mapBox).not.toBeNull();
+  expect(markerBeforePan).not.toBeNull();
+  if (!mapBox || !markerBeforePan) return;
+
+  await page.mouse.move(mapBox.x + 70, mapBox.y + mapBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(mapBox.x + 190, mapBox.y + mapBox.height / 2 + 40, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+
+  const markerAfterPan = await selected.boundingBox();
+  expect(markerAfterPan).not.toBeNull();
+  if (!markerAfterPan) return;
+  expect(Math.abs(markerAfterPan.x - markerBeforePan.x)).toBeGreaterThan(60);
+
+  await page.waitForTimeout(1200);
+  const markerAfterRefresh = await selected.boundingBox();
+  expect(markerAfterRefresh).not.toBeNull();
+  if (!markerAfterRefresh) return;
+  expect(Math.abs(markerAfterRefresh.x - markerAfterPan.x)).toBeLessThan(3);
+  expect(Math.abs(markerAfterRefresh.y - markerAfterPan.y)).toBeLessThan(3);
 });
 
 test("utility jsou výchozí skryté a aktivní vrstva se načte jen jednou pro výřez", async ({ page }) => {
