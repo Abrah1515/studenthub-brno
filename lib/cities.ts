@@ -29,7 +29,7 @@ const enabledBrnoModules: CityModules = {
 };
 const preparedOlomoucModules: CityModules = {
   calendar: true, places: true, community: true, buddy: true, marketplace: true,
-  housing: true, jobs: false, chat: true, watcher: true, settings: true, offers: false,
+  housing: true, jobs: true, chat: true, watcher: true, settings: true, offers: false,
 };
 
 export const brnoCity: City = {

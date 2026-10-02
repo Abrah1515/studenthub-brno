@@ -27,14 +27,14 @@ describe("víceměstský základ", () => {
   it("vede města z jednoho katalogu a publikuje připravené edice", () => {
     expect(cityCatalog.map((city) => city.slug)).toEqual(["brno", "praha", "ostrava", "olomouc"]);
     expect(prahaCity).toMatchObject({ id: "praha", slug: "praha", enabled: true, publicStatus: "published", timezone: "Europe/Prague" });
-    expect(prahaCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: false, offers: false });
+    expect(prahaCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: true, offers: false });
     expect(prahaCity.selectionLogo.symbol).toBe("/brand/cities/studenthub-praha-symbol-v1.png");
     expect(cityHref(prahaCity, "kalendar")).toBe("/praha/kalendar");
     expect(olomoucCity).toMatchObject({ id: "olomouc", slug: "olomouc", enabled: true, publicStatus: "published", timezone: "Europe/Prague" });
-    expect(olomoucCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: false, offers: false });
+    expect(olomoucCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: true, offers: false });
     expect(olomoucCity.selectionLogo.symbol).toBe("/brand/cities/studenthub-olomouc-symbol-v1.png");
     expect(isCityModuleEnabled(olomoucCity, "chat")).toBe(true);
-    expect(isCityModuleEnabled(olomoucCity, "jobs")).toBe(false);
+    expect(isCityModuleEnabled(olomoucCity, "jobs")).toBe(true);
     expect(cityHref(olomoucCity, "kalendar")).toBe("/olomouc/kalendar");
   });
   it("odděluje univerzity a fakulty podle města", () => {

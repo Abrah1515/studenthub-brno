@@ -1,6 +1,13 @@
 export type FajnFeedMode = "incremental" | "full_snapshot";
 
+export type FajnFeedCity = "brno" | "praha" | "olomouc";
+
 const approvedFeedHost = "media.fajnsprava.cz";
+const feedUrlEnvByCity: Record<FajnFeedCity, string> = {
+  brno: "FAJN_BRIGADY_FEED_URL",
+  praha: "FAJN_BRIGADY_PRAHA_FEED_URL",
+  olomouc: "FAJN_BRIGADY_OLOMOUC_FEED_URL",
+};
 
 function validFeedUrl(value?: string) {
   if (!value) return undefined;
@@ -12,8 +19,10 @@ function validFeedUrl(value?: string) {
   } catch { return undefined; }
 }
 
-export function fajnFeedConfig(env: NodeJS.ProcessEnv = process.env) {
-  const feedUrl = validFeedUrl(env.FAJN_BRIGADY_FEED_URL);
+export function fajnFeedConfig(cityOrEnv: FajnFeedCity | NodeJS.ProcessEnv = "brno", env: NodeJS.ProcessEnv = process.env) {
+  const city: FajnFeedCity = typeof cityOrEnv === "string" ? cityOrEnv : "brno";
+  if (typeof cityOrEnv !== "string") env = cityOrEnv;
+  const feedUrl = validFeedUrl(env[feedUrlEnvByCity[city]]);
   const permissionConfirmed = env.FAJN_BRIGADY_PERMISSION_CONFIRMED === "true";
   const requested = env.FAJN_BRIGADY_FEED_ENABLED === "true";
   const parsedInterval = Number(env.FAJN_BRIGADY_SYNC_INTERVAL_HOURS || 9);
@@ -25,5 +34,5 @@ export function fajnFeedConfig(env: NodeJS.ProcessEnv = process.env) {
     : !requested || !permissionConfirmed
       ? "Ostrý XML feed je uložený, ale import čeká na povolení a potvrzení smluvního oprávnění."
     : "Zapnuto pro smluvní XML feed.";
-  return { enabled, requested, permissionConfirmed, feedUrl, intervalHours, mode, statusReason };
+  return { city, feedUrlEnv: feedUrlEnvByCity[city], enabled, requested, permissionConfirmed, feedUrl, intervalHours, mode, statusReason };
 }

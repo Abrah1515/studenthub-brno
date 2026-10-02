@@ -3,17 +3,17 @@ import type { ContentSource } from "@/lib/sources/types";
 import { createServiceClient } from "@/lib/supabase-server";
 import { fetchRegisteredSource } from "@/lib/sources/fetch-source";
 import { sha256 } from "@/lib/sources/normalize";
-import { fajnFeedConfig } from "@/lib/job-feed/config";
+import { fajnFeedConfig, type FajnFeedCity } from "@/lib/job-feed/config";
 import { parseFajnXml, type ParsedFajnJob } from "@/lib/job-feed/fajn-parser";
 import { effectiveFajnImportMode, planFajnImport, type ExistingFajnJob } from "@/lib/job-feed/reconcile";
 
 type Client = ReturnType<typeof createServiceClient>;
-const providerKey = "fajn-brigady";
+function providerKeyFor(cityId: string) { return cityId === "brno" ? "fajn-brigady" : `fajn-brigady-${cityId}`; }
 
 function nextCheckAt(finishedAt: string, hours: number) { return new Date(new Date(finishedAt).getTime() + hours * 3_600_000).toISOString(); }
 function xmlMime(value: string) { const mime = value.toLowerCase().split(";", 1)[0].trim(); return mime === "text/xml" || mime === "application/xml" || /^application\/[a-z0-9.+-]+\+xml$/.test(mime); }
 function legacyRewardUnit(job: ParsedFajnJob) { return job.salaryUnit === "hour" ? "hour" : job.salaryUnit === "month" ? "month" : "fixed"; }
-function jobRow(job: ParsedFajnJob, checkedAt: string) {
+function jobRow(job: ParsedFajnJob, checkedAt: string, cityId: string, providerKey: string) {
   return {
     provider_key: providerKey, external_id: job.externalId, title: job.title, company_name: job.company || null,
     field: job.field, work_type: job.workType, location: job.location, workplace_address: job.location === "Brno" ? null : job.location,
@@ -25,38 +25,38 @@ function jobRow(job: ParsedFajnJob, checkedAt: string) {
     contact_public: null, apply_url: job.applyUrl, source_url: job.applyUrl, country_external_id: job.countryExternalId || null,
     city_external_id: job.cityExternalId || null, position_external_id: job.positionExternalId || null,
     positions_count: job.positionsCount || null, duration_days: job.durationDays || null, source_hash: job.sourceHash,
-    last_seen_at: checkedAt, last_verified_at: checkedAt, expires_at: null, missing_from_feed_runs: 0, city_id: "brno",
+    last_seen_at: checkedAt, last_verified_at: checkedAt, expires_at: null, missing_from_feed_runs: 0, city_id: cityId,
     work_location_mode: "onsite", status: "approved", verification_status: "verified", is_featured: false, is_demo: false,
   };
 }
 
 export async function releaseDisabledFajnSource(client: Client, source: ContentSource) {
-  const config = fajnFeedConfig(); const checkedAt = new Date().toISOString();
+  const cityId = (source.cityId || "brno") as FajnFeedCity; const config = fajnFeedConfig(cityId); const checkedAt = new Date().toISOString();
   const { error } = await client.from("content_sources").update({ sync_status: "idle", last_checked_at: checkedAt, next_check_at: nextCheckAt(checkedAt, config.intervalHours), next_retry_at: null, last_error_message: config.statusReason }).eq("id", source.id);
   if (error) throw error;
   return { sourceId: source.id, status: "disabled" as const, reason: config.statusReason };
 }
 
 export async function syncFajnJobFeed(client: Client, source: ContentSource, runId: string) {
-  const config = fajnFeedConfig(); if (!config.enabled || !config.feedUrl) throw new Error(config.statusReason);
+  const cityId = (source.cityId || "brno") as FajnFeedCity; const providerKey = providerKeyFor(cityId); const config = fajnFeedConfig(cityId); if (!config.enabled || !config.feedUrl) throw new Error(config.statusReason);
   const { data: storedSource, error: storedError } = await client.from("content_sources").select("etag,last_modified,content_hash,normalized_hash").eq("id", source.id).single(); if (storedError) throw storedError;
   const feedSource: ContentSource = { ...source, sourceUrl: config.feedUrl, officialDomain: "media.fajnsprava.cz", allowedDomains: ["media.fajnsprava.cz"] };
   const fetched = await fetchRegisteredSource(feedSource, { etag: storedSource?.etag, lastModified: storedSource?.last_modified }); const checkedAt = new Date().toISOString();
   if (fetched.status !== 304 && !xmlMime(fetched.contentType)) throw new Error(`XML feed vrátil neočekávaný MIME typ ${fetched.contentType || "bez MIME"}.`);
   if (fetched.status === 304) {
-    const { error: seenError } = await client.from("jobs").update({ last_seen_at: checkedAt, last_verified_at: checkedAt }).eq("provider_key", providerKey).eq("status", "approved"); if (seenError) throw seenError;
+    const { error: seenError } = await client.from("jobs").update({ last_seen_at: checkedAt, last_verified_at: checkedAt }).eq("provider_key", providerKey).eq("city_id", cityId).eq("status", "approved"); if (seenError) throw seenError;
     await client.from("content_sources").update({ last_checked_at: checkedAt, last_success_at: checkedAt, last_http_status: 304, consecutive_failures: 0, sync_status: "not_modified", next_check_at: nextCheckAt(checkedAt, config.intervalHours), next_retry_at: null, last_error_message: null }).eq("id", source.id);
     await client.from("source_sync_runs").update({ status: "not_modified", finished_at: checkedAt, http_status: 304 }).eq("id", runId);
     return { sourceId: source.id, status: "not_modified" as const };
   }
   const contentHash = await sha256(fetched.body);
   if (contentHash === storedSource?.content_hash) {
-    const { error: seenError } = await client.from("jobs").update({ last_seen_at: checkedAt, last_verified_at: checkedAt }).eq("provider_key", providerKey).eq("status", "approved"); if (seenError) throw seenError;
+    const { error: seenError } = await client.from("jobs").update({ last_seen_at: checkedAt, last_verified_at: checkedAt }).eq("provider_key", providerKey).eq("city_id", cityId).eq("status", "approved"); if (seenError) throw seenError;
     await client.from("content_sources").update({ last_checked_at: checkedAt, last_success_at: checkedAt, last_http_status: fetched.status, etag: fetched.etag, last_modified: fetched.lastModified, consecutive_failures: 0, sync_status: "not_modified", next_check_at: nextCheckAt(checkedAt, config.intervalHours), next_retry_at: null, last_error_message: null }).eq("id", source.id);
     await client.from("source_sync_runs").update({ status: "not_modified", finished_at: checkedAt, http_status: fetched.status, content_hash: contentHash }).eq("id", runId);
     return { sourceId: source.id, status: "not_modified" as const };
   }
-  const parsed = await parseFajnXml(fetched.body);
+  const parsed = await parseFajnXml(fetched.body, { city: cityId });
   if (!parsed.jobs.length) {
     await client.from("source_sync_runs").update({
       loaded_count: parsed.total, rejected_count: parsed.rejected, warning_count: parsed.warnings.length,
@@ -69,13 +69,13 @@ export async function syncFajnJobFeed(client: Client, source: ContentSource, run
   // e-maily a telefony, proto se jeho tělo ani testovací data do databáze neukládají.
   const sanitizedSnapshot = Buffer.from(JSON.stringify(parsed.jobs));
   const { error: snapshotError } = await client.from("source_snapshots").upsert({ source_id: source.id, sync_run_id: runId, content_hash: contentHash, normalized_hash: normalizedHash, content_type: "application/json", document_title: "Normalizovaný smluvní XML feed pracovních nabídek", extracted_text: null, content: `\\x${sanitizedSnapshot.toString("hex")}` }, { onConflict: "source_id,content_hash" }); if (snapshotError) throw snapshotError;
-  const { data: existingRows, error: existingError } = await client.from("jobs").select("id,external_id,source_hash,status,missing_from_feed_runs").eq("provider_key", providerKey).not("external_id", "is", null); if (existingError) throw existingError;
+  const { data: existingRows, error: existingError } = await client.from("jobs").select("id,external_id,source_hash,status,missing_from_feed_runs").eq("provider_key", providerKey).eq("city_id", cityId).not("external_id", "is", null); if (existingError) throw existingError;
   const existing = (existingRows || []) as ExistingFajnJob[]; const effectiveMode = effectiveFajnImportMode(existing, parsed.jobs.length, parsed.rejected, config.mode);
   if (config.mode === "full_snapshot" && effectiveMode !== "full_snapshot") parsed.warnings.push("Úplný snapshot byl vyhodnocen jako neúplný; chybějící nabídky nebyly započítány ani archivovány.");
   const plan = planFajnImport(existing, parsed.jobs, effectiveMode);
   const changedJobs = [...plan.inserts, ...plan.updates];
-  if (changedJobs.length) { const { error: upsertError } = await client.from("jobs").upsert(changedJobs.map((job) => jobRow(job, checkedAt)), { onConflict: "provider_key,external_id" }); if (upsertError) throw upsertError; }
-  if (plan.unchanged.length) { const { error: seenError } = await client.from("jobs").update({ last_seen_at: checkedAt, last_verified_at: checkedAt, missing_from_feed_runs: 0 }).eq("provider_key", providerKey).in("external_id", plan.unchanged.map((job) => job.externalId)); if (seenError) throw seenError; }
+  if (changedJobs.length) { const { error: upsertError } = await client.from("jobs").upsert(changedJobs.map((job) => jobRow(job, checkedAt, cityId, providerKey)), { onConflict: "provider_key,external_id" }); if (upsertError) throw upsertError; }
+  if (plan.unchanged.length) { const { error: seenError } = await client.from("jobs").update({ last_seen_at: checkedAt, last_verified_at: checkedAt, missing_from_feed_runs: 0 }).eq("provider_key", providerKey).eq("city_id", cityId).in("external_id", plan.unchanged.map((job) => job.externalId)); if (seenError) throw seenError; }
   for (const missing of plan.missing.filter((job) => job.count < 3)) {
     const { error } = await client.from("jobs").update({ missing_from_feed_runs: missing.count }).eq("id", missing.id); if (error) throw error;
   }

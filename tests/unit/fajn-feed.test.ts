@@ -103,6 +103,14 @@ describe("bezpečný parser Fajn XML", () => {
     const invalid = valid.replace("<id_inzeratu>1", "<id_inzeratu>2").replace("<titulek_cs>Jedna nabídka", "<titulek_cs>x");
     const result = await parseFajnXml(`<inzeraty>${invalid}${valid}</inzeraty>`); expect(result.jobs).toHaveLength(1); expect(result).toMatchObject({ total: 2, rejected: 1 });
   });
+
+  it("umí bezpečně přiřadit pražský a olomoucký feed mimo brněnský parser", async () => {
+    const prague = await parseFajnXml(item(`<adresa_pracoviste_adresa>Praha 1</adresa_pracoviste_adresa>`), { city: "praha" });
+    const olomouc = await parseFajnXml(item(`<adresa_pracoviste_adresa>Olomouc - centrum</adresa_pracoviste_adresa>`), { city: "olomouc" });
+    expect(prague.jobs[0].location).toBe("Praha 1");
+    expect(olomouc.jobs[0].location).toBe("Olomouc - centrum");
+    expect((await parseFajnXml(item(`<adresa_pracoviste_adresa>Praha 1</adresa_pracoviste_adresa>`))).jobs).toEqual([]);
+  });
 });
 
 describe("idempotentní synchronizační plán", () => {
@@ -136,5 +144,7 @@ describe("aktivace konektoru", () => {
     expect(fajnFeedConfig(base)).toMatchObject({ enabled: false, statusReason: "Čeká na ostrý XML feed." });
     expect(fajnFeedConfig({ ...base, FAJN_BRIGADY_FEED_URL: "https://media.fajnsprava.cz/exporty/boxy/VZOR_DETAIL.XML?x=1" }).enabled).toBe(false);
     expect(fajnFeedConfig({ ...base, FAJN_BRIGADY_FEED_URL: "https://media.fajnsprava.cz/exporty/boxy/production-secret.xml" }).enabled).toBe(true);
+    expect(fajnFeedConfig("praha", { ...base, FAJN_BRIGADY_PRAHA_FEED_URL: "https://media.fajnsprava.cz/exporty/boxy/student_hub_praha.xml" })).toMatchObject({ city: "praha", enabled: true, feedUrlEnv: "FAJN_BRIGADY_PRAHA_FEED_URL" });
+    expect(fajnFeedConfig("olomouc", { ...base, FAJN_BRIGADY_OLOMOUC_FEED_URL: "https://media.fajnsprava.cz/exporty/boxy/student_hub_olomouc.xml" })).toMatchObject({ city: "olomouc", enabled: true, feedUrlEnv: "FAJN_BRIGADY_OLOMOUC_FEED_URL" });
   });
 });

@@ -7,7 +7,7 @@ import {
 } from "@/lib/job-feed/catalogs";
 
 type XmlRecord = Record<string, unknown>;
-export type FajnRejectCode = "invalid_id" | "invalid_url" | "missing_title" | "invalid_content" | "wrong_section" | "outside_brno" | "unverified_location" | "duplicate_external_id";
+export type FajnRejectCode = "invalid_id" | "invalid_url" | "missing_title" | "invalid_content" | "wrong_section" | "outside_brno" | "outside_city" | "unverified_location" | "duplicate_external_id";
 export type FajnRejection = { externalId?: string; code: FajnRejectCode; message: string };
 export type ParsedFajnJob = {
   externalId: string; title: string; company?: string; description: string; field: Job["field"]; workType: Job["type"];
@@ -59,18 +59,24 @@ function knownCodes(codes: string[], catalog: Readonly<Record<string, string>>, 
 function rejection(item: XmlRecord, code: FajnRejectCode, message: string): FajnRejection {
   const id = scalar(item.id_inzeratu); return { externalId: id || undefined, code, message };
 }
-function locationFor(item: XmlRecord): { location?: string; rejection?: FajnRejection; warning?: string; cityExternalId?: string } {
+export type FajnParserOptions = { city?: "brno" | "praha" | "olomouc" };
+const cityNames: Record<NonNullable<FajnParserOptions["city"]>, string> = { brno: "Brno", praha: "Praha", olomouc: "Olomouc" };
+
+function locationFor(item: XmlRecord, targetCity: NonNullable<FajnParserOptions["city"]>): { location?: string; rejection?: FajnRejection; warning?: string; cityExternalId?: string } {
   const externalId = scalar(item.id_inzeratu); const country = scalar(item.id_statu);
   const city = scalar(item.adresa_pracoviste_id_mesta || item.id_mesta); const address = publicJobText(item.adresa_pracoviste_adresa, 140);
-  if (nonCzechCountryCodes.has(country)) return { rejection: rejection(item, "outside_brno", "Nabídka je podle číselníku mimo Česko.") };
-  if (knownOutsideBrnoCityCodes[city]) return { rejection: rejection(item, "outside_brno", `Lokalita ${knownOutsideBrnoCityCodes[city]} neleží v Brně ani v okrese Brno.`) };
-  if (brnoCityCodes[city]) return { location: address || brnoCityCodes[city], cityExternalId: city };
-  if (/\bbrno(?:[-\s]|$)/iu.test(address)) return { location: address, cityExternalId: city || undefined, warning: city ? `Inzerát ${externalId}: neznámý kód města ${city}; Brno bylo ověřeno z adresy.` : undefined };
-  if (!city && czechCountryCodes.has(country)) return { location: "Brno", warning: `Inzerát ${externalId}: přesná lokalita v brněnském feedu chybí; zveřejněno jako Brno.` };
-  return { rejection: rejection(item, "unverified_location", "Lokalitu nelze bezpečně přiřadit k Brnu ani jeho okolí.") };
+  const targetName = cityNames[targetCity];
+  if (nonCzechCountryCodes.has(country)) return { rejection: rejection(item, targetCity === "brno" ? "outside_brno" : "outside_city", "Nabídka je podle číselníku mimo Česko.") };
+  if (targetCity === "brno" && knownOutsideBrnoCityCodes[city]) return { rejection: rejection(item, "outside_brno", `Lokalita ${knownOutsideBrnoCityCodes[city]} neleží v Brně ani v okrese Brno.`) };
+  if (targetCity === "brno" && /praha|olomouc/iu.test(address)) return { rejection: rejection(item, "outside_brno", `Lokalita neleží v ${targetName}.`) };
+  if (targetCity === "brno" && brnoCityCodes[city]) return { location: address || brnoCityCodes[city], cityExternalId: city };
+  if (new RegExp(`\\b${targetName}(?:[-\\s]|$)`, "iu").test(address)) return { location: address, cityExternalId: city || undefined, warning: city ? `Inzerát ${externalId}: město ${targetName} bylo ověřeno z adresy.` : undefined };
+  if (!city && czechCountryCodes.has(country)) return { location: targetName, warning: `Inzerát ${externalId}: přesná lokalita ve feedu chybí; feed je veden pro ${targetName}.` };
+  if (targetCity !== "brno" && city && !address) return { location: targetName, cityExternalId: city, warning: `Inzerát ${externalId}: městský kód ${city} je převzat z feedu ${targetName}.` };
+  return { rejection: rejection(item, "unverified_location", `Lokalitu nelze bezpečně přiřadit k ${targetName}.`) };
 }
 
-async function parseCandidate(item: XmlRecord, warnings: string[]): Promise<{ job?: ParsedFajnJob; rejection?: FajnRejection }> {
+async function parseCandidate(item: XmlRecord, warnings: string[], targetCity: NonNullable<FajnParserOptions["city"]>): Promise<{ job?: ParsedFajnJob; rejection?: FajnRejection }> {
   const externalId = scalar(item.id_inzeratu);
   if (!/^\d{1,20}$/.test(externalId)) return { rejection: rejection(item, "invalid_id", "Chybí platné číselné ID inzerátu.") };
   const applyUrl = safeDetailUrl(item.url_detail);
@@ -78,7 +84,7 @@ async function parseCandidate(item: XmlRecord, warnings: string[]): Promise<{ jo
   const title = publicJobText(item.titulek_cs || item.titulek_sk, 180);
   if (title.length < 3) return { rejection: rejection(item, "missing_title", "Chybí použitelný český i slovenský název.") };
   if (scalar(item.id_sekce) !== "1") return { rejection: rejection(item, "wrong_section", "Položka nepatří do sekce brigád (id_sekce=1).") };
-  const locationResult = locationFor(item);
+  const locationResult = locationFor(item, targetCity);
   if (locationResult.rejection) return { rejection: locationResult.rejection };
   if (locationResult.warning) warnings.push(locationResult.warning);
   const descriptions = [item.popis_cs || item.popis_sk, item.pozadujeme_cs || item.pozadujeme_sk, item.nabizime_cs || item.nabizime_sk]
@@ -118,7 +124,8 @@ async function parseCandidate(item: XmlRecord, warnings: string[]): Promise<{ jo
   return { job: { ...canonical, sourceHash: await sha256(JSON.stringify(canonical)) } };
 }
 
-export async function parseFajnXml(input: Uint8Array | string): Promise<FajnParseResult> {
+export async function parseFajnXml(input: Uint8Array | string, options: FajnParserOptions = {}): Promise<FajnParseResult> {
+  const targetCity = options.city || "brno";
   const xml = typeof input === "string" ? input : new TextDecoder("utf-8", { fatal: true }).decode(input);
   if (/<!DOCTYPE|<!ENTITY|\bSYSTEM\b|\bPUBLIC\b/i.test(xml)) throw new Error("XML obsahuje zakázanou deklaraci DTD nebo entity.");
   const validation = XMLValidator.validate(xml, { allowBooleanAttributes: false });
@@ -131,7 +138,7 @@ export async function parseFajnXml(input: Uint8Array | string): Promise<FajnPars
   const acceptedIds = new Set<string>(); const jobs: ParsedFajnJob[] = [];
   for (const item of items) {
     let parsedItem: Awaited<ReturnType<typeof parseCandidate>>;
-    try { parsedItem = await parseCandidate(item, warnings); }
+    try { parsedItem = await parseCandidate(item, warnings, targetCity); }
     catch { parsedItem = { rejection: rejection(item, "invalid_content", "Položku nebylo možné bezpečně normalizovat.") }; }
     if (!parsedItem.job) { rejections.push(parsedItem.rejection!); continue; }
     candidates.push(parsedItem.job);

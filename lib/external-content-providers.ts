@@ -15,11 +15,14 @@ function configuredProvider(id: string, kind: ProviderKind, format: ContentProvi
   } };
 }
 
-/** Žádný provider nepoužívá scraping. Ve výchozím stavu jsou oba smluvní feedy vypnuté. */
+/** Žádný provider nepoužívá scraping. Každé město má vlastní smluvní XML feed. */
 export function externalContentProviders(): ContentProvider[] {
-  const fajn = fajnFeedConfig();
+  const fajn = (["brno", "praha", "olomouc"] as const).map((city) => {
+    const config = fajnFeedConfig(city);
+    return { id: `fajn-brigady-${city}`, kind: "jobs" as const, format: "xml" as const, enabled: config.enabled, permissionConfirmed: config.permissionConfirmed, maxCheckIntervalHours: 9 as const, statusReason: config.statusReason, feedUrl: config.feedUrl, async fetchItems() { return []; } };
+  });
   return [
-    { id: "fajn-brigady", kind: "jobs", format: "xml", enabled: fajn.enabled, permissionConfirmed: fajn.permissionConfirmed, maxCheckIntervalHours: 9, statusReason: fajn.statusReason, async fetchItems() { return []; } },
+    ...fajn,
     configuredProvider("isic", "offers", "json", process.env.ISIC_FEED_ENABLED, process.env.ISIC_FEED_PERMISSION_CONFIRMED, process.env.ISIC_FEED_URL),
   ];
 }

@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(54);
+      expect(files).toHaveLength(55);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -57,7 +57,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       }
       for (const statement of sqlStatements(await readFile("supabase/migrations/202609180040_academic_calendar_ai_review.sql", "utf8"))) await db.exec(`${statement};`);
       await db.exec(await readFile("supabase/seed.sql", "utf8"));
-      expect((await db.query<{ enabled:boolean;public_status:string;module_config:Record<string,boolean> }>("select enabled,public_status,module_config from public.cities where id='olomouc'")).rows[0]).toMatchObject({ enabled:true, public_status:"published", module_config:{ calendar:true, places:true, community:true, buddy:true, marketplace:true, housing:true, jobs:false, chat:true } });
+      expect((await db.query<{ enabled:boolean;public_status:string;module_config:Record<string,boolean> }>("select enabled,public_status,module_config from public.cities where id='olomouc'")).rows[0]).toMatchObject({ enabled:true, public_status:"published", module_config:{ calendar:true, places:true, community:true, buddy:true, marketplace:true, housing:true, jobs:true, chat:true } });
       for (const table of ["places", "community_profiles", "anonymous_installations", "marketplace_listings", "place_submissions", "housing_listings"]) {
         expect((await db.query<{ column_default:string|null }>("select column_default from information_schema.columns where table_schema='public' and table_name=$1 and column_name='city_id'", [table])).rows[0].column_default).toBeNull();
       }
