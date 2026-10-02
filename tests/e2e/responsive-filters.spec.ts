@@ -116,6 +116,16 @@ test("Burza má na desktopu stejný panel filtrů jako Bydlení", async ({ page 
   await page.screenshot({ path: "artifacts/filters-desktop-1440.png", fullPage: false });
 });
 
+test("Moje škola předvyplní dosud nezapojené školní filtry", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440");
+  for (const route of ["/brno/kalendar?view=community", "/brno/komunita", "/brno/burza"]) {
+    await page.goto(route, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("label").filter({ hasText: /^Univerzita/ }).locator("select").first()).toHaveValue("vut");
+    await expect(page.locator("label").filter({ hasText: /^Fakulta/ }).locator("select").first()).toHaveValue("vut-fekt");
+  }
+  await expect(page.locator("label").filter({ hasText: /^Ročník/ }).locator("select").first()).toHaveValue("1");
+});
+
 test("mobilní filtr se vejde na všechny požadované šířky", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-390");
   for (const viewport of [{ width: 360, height: 800 }, { width: 390, height: 844 }, { width: 412, height: 915 }]) {
