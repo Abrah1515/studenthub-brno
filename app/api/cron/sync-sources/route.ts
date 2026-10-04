@@ -25,12 +25,12 @@ async function run(request: Request) {
   const hasSchedulerSecret = Boolean(process.env.CRON_SECRET || process.env.SUPABASE_SCHEDULER_SECRET);
   if (!authorized(request)) return NextResponse.json({ message: hasSchedulerSecret ? "Neplatná autorizace." : "Tajemství plánovače není nastavené." }, { status: hasSchedulerSecret ? 401 : 503 });
   const university = new URL(request.url).searchParams.get("university") || undefined;
-  const citySlug = new URL(request.url).searchParams.get("city") || defaultCitySlug; const city = await getPublishedCity(citySlug);
+  const requestedCity = new URL(request.url).searchParams.get("city"); const citySlug = requestedCity || defaultCitySlug; const city = await getPublishedCity(citySlug);
   if (!city) return NextResponse.json({ message: "Město není aktivní; synchronizace nebyla spuštěna." }, { status: 409 });
-  const [results, expiredBuddyPosts, archivedCommunityEvents, communityEventSources, placeSources] = await Promise.all([syncDueSources({ cityId: city.id, universityId: university, batchSize: 6 }), expireBuddyPosts(), archiveExpiredCommunityEvents(), syncVerifiedCommunityEvents(), syncDuePlaceSources(city.id, 6)]);
+  const [results, expiredBuddyPosts, archivedCommunityEvents, communityEventSources, placeSources] = await Promise.all([syncDueSources({ ...(requestedCity ? { cityId: city.id } : {}), universityId: university, batchSize: 6 }), expireBuddyPosts(), archiveExpiredCommunityEvents(), syncVerifiedCommunityEvents(), syncDuePlaceSources(city.id, 6)]);
   const watcherNotifications = await materializeDueWatcherNotifications();
   const push = await sendPendingPushNotifications();
-  return NextResponse.json({ ok: true, city: city.id, university: university || "all", expiredBuddyPosts, archivedCommunityEvents, communityEventSources, placeSources, watcherNotifications, push, results: results.map((result) => result.status === "fulfilled" ? result.value : { status: "failed", message: result.reason instanceof Error ? result.reason.message : "Neznámá chyba" }) });
+  return NextResponse.json({ ok: true, city: requestedCity ? city.id : "all", university: university || "all", expiredBuddyPosts, archivedCommunityEvents, communityEventSources, placeSources, watcherNotifications, push, results: results.map((result) => result.status === "fulfilled" ? result.value : { status: "failed", message: result.reason instanceof Error ? result.reason.message : "Neznámá chyba" }) });
 }
 
 export const GET = run;

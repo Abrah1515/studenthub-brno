@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("pražská edice", () => {
+test.describe("aktivní městské edice", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem("studenthub-consent", JSON.stringify({ necessary: true, analytics: false, marketing: false }));
@@ -34,11 +34,31 @@ test.describe("pražská edice", () => {
     }
   });
 
-  test("Praha zůstává oddělená od Brna a vypnuté moduly vracejí 404", async ({ request }, testInfo) => {
+  test("Praha a Olomouc zůstávají oddělené od Brna a aktivní Brigády jsou dostupné", async ({ request }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop-1440");
     expect((await request.get("/praha")).status()).toBe(200);
+    expect((await request.get("/olomouc")).status()).toBe(200);
     expect((await request.get("/brno")).status()).toBe(200);
-    expect((await request.get("/praha/brigady")).status()).toBe(404);
+    expect((await request.get("/praha/brigady")).status()).toBe(200);
+    expect((await request.get("/olomouc/brigady")).status()).toBe(200);
     expect((await request.get("/praha/nabidky")).status()).toBe(404);
+  });
+
+  test("přehled a brigády aktivních měst fungují na telefonu i desktopu", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "tablet-768");
+
+    for (const city of [
+      { slug: "brno", name: "Brno" },
+      { slug: "praha", name: "Praha" },
+      { slug: "olomouc", name: "Olomouc" },
+    ]) {
+      await page.goto(`/${city.slug}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByRole("link", { name: `StudentHub ${city.name} – přehled` }).first()).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+
+      await page.goto(`/${city.slug}/brigady`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByRole("heading", { name: new RegExp(`Brigády.*${city.name}`, "i") })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    }
   });
 });

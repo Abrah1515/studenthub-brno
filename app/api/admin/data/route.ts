@@ -43,11 +43,12 @@ export async function GET() {
     return rowCity === user.cityId || (row.id === user.cityId && row.slug === user.cityId) || (user.cityId === "brno" && !rowCity && (row.university_id || row.universityId));
   });
   const storedSources = new Map(values.content_sources.map((source) => [String(source.id), source]));
-  const fajnStatus = externalContentProviders().find((provider) => provider.id === "fajn-brigady");
+  const fajnStatuses = new Map(externalContentProviders().filter((provider) => provider.kind === "jobs").map((provider) => [provider.id, provider]));
   const registrySources = contentSources.map((source) => {
     const merged = { ...source, ...(storedSources.get(source.id) || {}) } as Record<string, unknown>;
     if (source.sourceType !== "job_feed") return merged;
-    return { ...merged, last_final_url: undefined, last_document_url: undefined, connector_enabled: Boolean(fajnStatus?.enabled), connector_status_reason: fajnStatus?.statusReason, active_count: values.jobs.filter((job) => job.provider_key === "fajn-brigady" && job.status === "approved" && !job.is_demo).length };
+    const sourceCity = String(source.cityId || "brno"); const provider = fajnStatuses.get(`fajn-brigady-${sourceCity}`); const providerKey = sourceCity === "brno" ? "fajn-brigady" : `fajn-brigady-${sourceCity}`;
+    return { ...merged, last_final_url: undefined, last_document_url: undefined, connector_enabled: Boolean(provider?.enabled), connector_status_reason: provider?.statusReason, active_count: values.jobs.filter((job) => job.provider_key === providerKey && job.city_id === sourceCity && job.status === "approved" && !job.is_demo).length };
   });
   const registrySourceIds = new Set(registrySources.map((source) => String(source.id)));
   const sources = [...registrySources, ...values.content_sources.filter((source) => !registrySourceIds.has(String(source.id)))];

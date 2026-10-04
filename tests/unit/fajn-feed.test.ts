@@ -111,6 +111,13 @@ describe("bezpečný parser Fajn XML", () => {
     expect(olomouc.jobs[0].location).toBe("Olomouc - centrum");
     expect((await parseFajnXml(item(`<adresa_pracoviste_adresa>Praha 1</adresa_pracoviste_adresa>`))).jobs).toEqual([]);
   });
+
+  it("nemíchá nabídky mezi Prahou a Olomoucí", async () => {
+    const pragueItem = item(`<adresa_pracoviste_adresa>Praha 6</adresa_pracoviste_adresa>`);
+    const olomoucItem = item(`<adresa_pracoviste_adresa>Olomouc</adresa_pracoviste_adresa>`);
+    expect((await parseFajnXml(pragueItem, { city: "olomouc" })).jobs).toEqual([]);
+    expect((await parseFajnXml(olomoucItem, { city: "praha" })).jobs).toEqual([]);
+  });
 });
 
 describe("idempotentní synchronizační plán", () => {
