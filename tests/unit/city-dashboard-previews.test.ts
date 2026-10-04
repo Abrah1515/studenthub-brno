@@ -36,7 +36,11 @@ describe("městský Přehled", () => {
 
   it("výchozí cron vybírá splatné zdroje všech měst a explicitní město zachovává rozsah", () => {
     const source = readFileSync("app/api/cron/sync-sources/route.ts", "utf8");
+    const sync = readFileSync("lib/sources/sync.ts", "utf8");
     expect(source).toContain('requestedCity ? { cityId: city.id } : {}');
     expect(source).toContain('city: requestedCity ? city.id : "all"');
+    expect(sync).toContain('if (filters.cityId || filters.universityId)');
+    expect(sync).toContain('source.cityId === filters.cityId');
+    expect(sync).toContain('syncSource(id, filters.cityId)');
   });
 });

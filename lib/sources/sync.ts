@@ -188,9 +188,29 @@ export async function syncEnabledSources(filters: { cityId?: string; universityI
 export async function syncDueSources(filters: { cityId?: string; universityId?: string; batchSize?: number } = {}) {
   if (!isSupabaseConfigured()) throw new Error("Synchronizace vyžaduje nakonfigurovaný Supabase projekt.");
   const client = createServiceClient();
+  const batchSize = Math.max(1, Math.min(filters.batchSize || 3, 10));
+  if (filters.cityId || filters.universityId) {
+    const allowedUniversities = filters.cityId ? await getUniversityIdsForPublishedCity(filters.cityId) : null;
+    const { data: candidates, error: candidatesError } = await client.from("content_sources")
+      .select("id,next_check_at,next_retry_at,sync_status,last_checked_at")
+      .eq("enabled", true)
+      .order("next_check_at", { ascending: true })
+      .limit(100);
+    if (candidatesError) throw candidatesError;
+    const now = Date.now();
+    const ids = (candidates || []).filter((row) => {
+      const source = sourceById(String(row.id));
+      if (!source || (filters.universityId && source.universityId !== filters.universityId)) return false;
+      const belongsToCity = !allowedUniversities || source.cityId === filters.cityId || (Boolean(source.universityId) && allowedUniversities.includes(source.universityId!));
+      if (!belongsToCity) return false;
+      const dueAt = new Date(String(row.next_retry_at || row.next_check_at || 0)).getTime();
+      const staleRun = row.sync_status !== "running" || new Date(String(row.last_checked_at || 0)).getTime() < now - 30 * 60 * 1000;
+      return Number.isFinite(dueAt) && dueAt <= now && staleRun;
+    }).slice(0, batchSize).map((row) => String(row.id));
+    return Promise.allSettled(ids.map((id) => syncSource(id, filters.cityId)));
+  }
   const { data, error } = await client.rpc("claim_due_content_sources", { batch_size: filters.batchSize || 3 });
   if (error) throw error;
-  const allowedUniversities = filters.cityId ? await getUniversityIdsForPublishedCity(filters.cityId) : null;
-  const ids = ((data || []) as { source_id: string }[]).map((row) => row.source_id).filter((id) => { const source = sourceById(id); return Boolean(source && (!filters.universityId || source.universityId === filters.universityId) && (!allowedUniversities || source.cityId === filters.cityId || (Boolean(source.universityId) && allowedUniversities.includes(source.universityId!)))); });
-  return Promise.allSettled(ids.map((id) => syncSource(id, filters.cityId, { claimed: true })));
+  const ids = ((data || []) as { source_id: string }[]).map((row) => row.source_id).filter((id) => Boolean(sourceById(id)));
+  return Promise.allSettled(ids.map((id) => syncSource(id, undefined, { claimed: true })));
 }
