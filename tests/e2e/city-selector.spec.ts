@@ -9,7 +9,7 @@ test.describe("výběr města", () => {
     });
   });
 
-  test("zobrazí čtyři ostrá loga, tři aktivní edice a žádný overflow", async ({ page }, testInfo) => {
+  test("zobrazí čtyři ostrá loga, čtyři aktivní edice a žádný overflow", async ({ page }, testInfo) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "StudentHub", exact: true })).toBeVisible();
     await expect(page).toHaveTitle("StudentHub | Studentský život ve tvém městě");
@@ -17,7 +17,8 @@ test.describe("výběr města", () => {
     await expect(page.getByText("Vyber si město", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Otevřít StudentHub Brno" })).toHaveAttribute("href", "/brno");
     await expect(page.getByRole("link", { name: "Otevřít StudentHub Praha" })).toHaveAttribute("href", "/praha");
-    await expect(page.getByText("Připravujeme", { exact: true })).toHaveCount(1);
+    await expect(page.getByRole("link", { name: "Otevřít StudentHub Ostrava" })).toHaveAttribute("href", "/ostrava");
+    await expect(page.getByText("Připravujeme", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Otevřít StudentHub Olomouc" })).toHaveAttribute("href", "/olomouc");
     await expect(page.locator(".city-selection-card-inactive a, .city-selection-card-inactive button")).toHaveCount(0);
     await expect(page.locator('[aria-modal="true"]')).toHaveCount(0);
@@ -51,7 +52,7 @@ test.describe("výběr města", () => {
     await expect(page.locator(".city-selection-logo-light:visible")).toHaveCount(0);
   });
 
-  test("Brno, Praha i Olomouc jsou dostupné, ale lokálně vypnuté Brigády zůstávají nedostupné", async ({ request }) => {
+  test("všechna publikovaná města a jejich aktivní Brigády jsou dostupné", async ({ request }) => {
     for (const path of ["/brno", "/brno/kalendar", "/brno/komunita", "/brno/mista"]) {
       const response = await request.get(path);
       expect(response.status(), path).toBe(200);
@@ -61,12 +62,16 @@ test.describe("výběr města", () => {
       const response = await request.get(path);
       expect(response.status(), path).toBe(200);
     }
-    expect((await request.get("/olomouc/brigady")).status()).toBe(404);
+    expect((await request.get("/olomouc/brigady")).status()).toBe(200);
     for (const path of ["/praha", "/praha/kalendar", "/praha/komunita", "/praha/mista"]) {
       const response = await request.get(path);
       expect(response.status(), path).toBe(200);
     }
-    expect((await request.get("/praha/brigady")).status()).toBe(404);
+    expect((await request.get("/praha/brigady")).status()).toBe(200);
+    for (const path of ["/ostrava", "/ostrava/kalendar", "/ostrava/komunita", "/ostrava/mista", "/ostrava/brigady"]) {
+      const response = await request.get(path);
+      expect(response.status(), path).toBe(200);
+    }
     expect((await request.get("/praha/nabidky")).status()).toBe(404);
 
     const sitemap = await request.get("/sitemap.xml");
@@ -75,8 +80,10 @@ test.describe("výběr města", () => {
     expect(body).toContain("https://studenthubapp.cz/brno");
     expect(body).toContain("https://studenthubapp.cz/olomouc");
     expect(body).toContain("https://studenthubapp.cz/praha");
-    expect(body).not.toContain("/olomouc/brigady");
-    expect(body).not.toContain("/praha/brigady");
+    expect(body).toContain("https://studenthubapp.cz/ostrava");
+    expect(body).toContain("https://studenthubapp.cz/ostrava/brigady");
+    expect(body).toContain("/olomouc/brigady");
+    expect(body).toContain("/praha/brigady");
   });
 
   test("aplikační shell používá logo a název právě otevřeného města", async ({ page }) => {
@@ -95,6 +102,12 @@ test.describe("výběr města", () => {
     await expect(prahaBrand).toBeVisible();
     await expect(prahaBrand.locator('img[src*="studenthub-praha"]')).not.toHaveCount(0);
     await expect(page.locator("footer.footer")).toContainText("StudentHub Praha");
+
+    await page.goto("/ostrava");
+    const ostravaBrand = page.getByRole("link", { name: "StudentHub Ostrava – přehled" }).first();
+    await expect(ostravaBrand).toBeVisible();
+    await expect(ostravaBrand.locator('img[src*="studenthub-ostrava"]')).not.toHaveCount(0);
+    await expect(page.locator("footer.footer")).toContainText("StudentHub Ostrava");
 
     await page.goto("/brno");
     const brnoBrand = page.getByRole("link", { name: "StudentHub Brno – přehled" }).first();

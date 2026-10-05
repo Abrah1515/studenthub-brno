@@ -17,7 +17,7 @@ function configuredProvider(id: string, kind: ProviderKind, format: ContentProvi
 
 /** Žádný provider nepoužívá scraping. Každé město má vlastní smluvní XML feed. */
 export function externalContentProviders(): ContentProvider[] {
-  const fajn = (["brno", "praha", "olomouc"] as const).map((city) => {
+  const fajn = (["brno", "praha", "ostrava", "olomouc"] as const).map((city) => {
     const config = fajnFeedConfig(city);
     return { id: `fajn-brigady-${city}`, kind: "jobs" as const, format: "xml" as const, enabled: config.enabled, permissionConfirmed: config.permissionConfirmed, maxCheckIntervalHours: 9 as const, statusReason: config.statusReason, feedUrl: config.feedUrl, async fetchItems() { return []; } };
   });

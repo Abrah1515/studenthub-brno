@@ -74,9 +74,20 @@ export const prahaCity: City = {
   selectionLogo: { light: "/brand/cities/studenthub-praha-v1.png", dark: "/brand/cities/studenthub-praha-dark-v1.png", symbol: "/brand/cities/studenthub-praha-symbol-v1.png", width: 392, height: 396 },
 };
 
+export const ostravaCity: City = {
+  id: "ostrava", slug: "ostrava", name: "Ostrava", region: "Moravskoslezský kraj", countryCode: "CZ",
+  timezone: "Europe/Prague", latitude: 49.8209, longitude: 18.2625,
+  mapBounds: [[49.72, 18.08], [49.91, 18.38]], mapZoom: 12,
+  enabled: true, publicStatus: "published", sortOrder: 30,
+  brandConfig: { editionName: "StudentHub Ostrava", editionShortName: "Ostrava" },
+  modules: preparedOlomoucModules,
+  seo: { title: "StudentHub Ostrava – prakticky pro studenty", description: "Ověřené termíny, místa, komunita a praktické služby pro studenty v Ostravě." },
+  selectionLogo: { light: "/brand/cities/studenthub-ostrava-v1.png", dark: "/brand/cities/studenthub-ostrava-dark-v1.png", symbol: "/brand/cities/studenthub-ostrava-symbol-v1.png", width: 393, height: 397 },
+};
+
 const plannedCities: City[] = [
   prahaCity,
-  { ...olomoucCity, id: "ostrava", slug: "ostrava", name: "Ostrava", region: "Moravskoslezský kraj", latitude: 49.8209, longitude: 18.2625, mapBounds: [[49.72, 18.08], [49.91, 18.38]], enabled: false, publicStatus: "draft", sortOrder: 30, brandConfig: { editionName: "StudentHub Ostrava", editionShortName: "Ostrava" }, seo: { title: "StudentHub Ostrava – připravujeme", description: "Připravovaná městská edice StudentHubu pro studenty v Ostravě." }, selectionLogo: { light: "/brand/cities/studenthub-ostrava-v1.png", dark: "/brand/cities/studenthub-ostrava-dark-v1.png", symbol: "/brand/cities/studenthub-ostrava-symbol-v1.png", width: 393, height: 397 } },
+  ostravaCity,
   olomoucCity,
 ];
 

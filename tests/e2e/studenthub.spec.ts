@@ -278,7 +278,7 @@ test("administrace na všech breakpointech používá jen Supabase přihlášen�
 
 test("veřejný dashboard nemá interní síťové ani konzolové chyby a uloží auditní screenshot", async ({ page }, testInfo) => { const consoleErrors: string[] = []; const failedInternal: string[] = []; page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); }); page.on("requestfailed", (request) => { const reason = request.failure()?.errorText || "neznámá chyba"; if (request.url().startsWith(page.url().split("/brno")[0]) && reason !== "net::ERR_ABORTED") failedInternal.push(`${request.method()} ${request.url()} · ${reason}`); }); await page.goto("/brno"); await page.getByRole("heading", { name: /StudentHub Brno|Přehled pro/ }).waitFor(); expect(consoleErrors).toEqual([]); expect(failedInternal).toEqual([]); await page.screenshot({ path: `artifacts/audit-${testInfo.project.name}.png`, fullPage: true }); });
 
-test("neaktivní nebo neznámé město není veřejné", async ({ page }) => { const response = await page.goto("/ostrava"); expect(response?.status()).toBe(404); await expect(page.getByRole("heading", { name: "Tady nic není" })).toBeVisible(); });
+test("neznámé město není veřejné", async ({ page }) => { const response = await page.goto("/neexistujici-mesto"); expect(response?.status()).toBe(404); await expect(page.getByRole("heading", { name: "Tady nic není" })).toBeVisible(); });
 
 test("PWA manifest, ikony a service worker jsou dostupné a necachují dynamické HTML", async ({ page, request }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");

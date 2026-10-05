@@ -11,7 +11,7 @@ import { fetchSourcePayload } from "@/lib/sources/payload";
 import { inspectConnectorResult, SourceBlockedError } from "@/lib/sources/validation";
 import { foldSearchText } from "@/lib/search";
 import { inferStudyYears } from "@/lib/study-years";
-import { fajnFeedConfig } from "@/lib/job-feed/config";
+import { fajnFeedConfig, type FajnFeedCity } from "@/lib/job-feed/config";
 import { releaseDisabledFajnSource, syncFajnJobFeed } from "@/lib/job-feed/sync";
 
 function semesterFor(event: NormalizedEvent) { const month = new Date(event.startAt).getMonth() + 1; return month >= 8 ? "autumn" : month <= 2 ? "autumn" : "spring"; }
@@ -62,7 +62,7 @@ export async function syncSource(sourceId: string, cityId?: string, options: { c
   if (cityId && source.cityId && source.cityId !== cityId) throw new Error("Zdroj nepatří do vybraného města.");
   const client = createServiceClient();
   if (!options.claimed) { const { data: claimed, error: claimError } = await client.rpc("claim_content_source", { source_key: source.id }); if (claimError) throw claimError; if (!claimed) return { sourceId, status: "busy" as const }; }
-  if (source.sourceType === "job_feed" && !fajnFeedConfig((source.cityId || "brno") as "brno" | "praha" | "olomouc").enabled) return releaseDisabledFajnSource(client, source);
+  if (source.sourceType === "job_feed" && !fajnFeedConfig((source.cityId || "brno") as FajnFeedCity).enabled) return releaseDisabledFajnSource(client, source);
   const startedAt = new Date().toISOString(); const { data: run, error: runError } = await client.from("source_sync_runs").insert({ source_id: source.id, city_id: source.cityId || cityId || null, status: "running", started_at: startedAt }).select("id").single(); if (runError) throw runError;
   try {
     if (source.sourceType === "job_feed") return await syncFajnJobFeed(client, source, run.id);

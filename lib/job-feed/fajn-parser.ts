@@ -59,8 +59,8 @@ function knownCodes(codes: string[], catalog: Readonly<Record<string, string>>, 
 function rejection(item: XmlRecord, code: FajnRejectCode, message: string): FajnRejection {
   const id = scalar(item.id_inzeratu); return { externalId: id || undefined, code, message };
 }
-export type FajnParserOptions = { city?: "brno" | "praha" | "olomouc" };
-const cityNames: Record<NonNullable<FajnParserOptions["city"]>, string> = { brno: "Brno", praha: "Praha", olomouc: "Olomouc" };
+export type FajnParserOptions = { city?: "brno" | "praha" | "ostrava" | "olomouc" };
+const cityNames: Record<NonNullable<FajnParserOptions["city"]>, string> = { brno: "Brno", praha: "Praha", ostrava: "Ostrava", olomouc: "Olomouc" };
 
 function locationFor(item: XmlRecord, targetCity: NonNullable<FajnParserOptions["city"]>): { location?: string; rejection?: FajnRejection; warning?: string; cityExternalId?: string } {
   const externalId = scalar(item.id_inzeratu); const country = scalar(item.id_statu);
@@ -68,7 +68,7 @@ function locationFor(item: XmlRecord, targetCity: NonNullable<FajnParserOptions[
   const targetName = cityNames[targetCity];
   if (nonCzechCountryCodes.has(country)) return { rejection: rejection(item, targetCity === "brno" ? "outside_brno" : "outside_city", "Nabídka je podle číselníku mimo Česko.") };
   if (targetCity === "brno" && knownOutsideBrnoCityCodes[city]) return { rejection: rejection(item, "outside_brno", `Lokalita ${knownOutsideBrnoCityCodes[city]} neleží v Brně ani v okrese Brno.`) };
-  if (targetCity === "brno" && /praha|olomouc/iu.test(address)) return { rejection: rejection(item, "outside_brno", `Lokalita neleží v ${targetName}.`) };
+  if (targetCity === "brno" && /praha|ostrava|olomouc/iu.test(address)) return { rejection: rejection(item, "outside_brno", `Lokalita neleží v ${targetName}.`) };
   if (targetCity === "brno" && brnoCityCodes[city]) return { location: address || brnoCityCodes[city], cityExternalId: city };
   if (new RegExp(`\\b${targetName}(?:[-\\s]|$)`, "iu").test(address)) return { location: address, cityExternalId: city || undefined, warning: city ? `Inzerát ${externalId}: město ${targetName} bylo ověřeno z adresy.` : undefined };
   if (!city && czechCountryCodes.has(country)) return { location: targetName, warning: `Inzerát ${externalId}: přesná lokalita ve feedu chybí; feed je veden pro ${targetName}.` };

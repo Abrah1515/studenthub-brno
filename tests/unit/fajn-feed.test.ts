@@ -104,18 +104,23 @@ describe("bezpečný parser Fajn XML", () => {
     const result = await parseFajnXml(`<inzeraty>${invalid}${valid}</inzeraty>`); expect(result.jobs).toHaveLength(1); expect(result).toMatchObject({ total: 2, rejected: 1 });
   });
 
-  it("umí bezpečně přiřadit pražský a olomoucký feed mimo brněnský parser", async () => {
+  it("umí bezpečně přiřadit pražský, ostravský a olomoucký feed mimo brněnský parser", async () => {
     const prague = await parseFajnXml(item(`<adresa_pracoviste_adresa>Praha 1</adresa_pracoviste_adresa>`), { city: "praha" });
+    const ostrava = await parseFajnXml(item(`<adresa_pracoviste_adresa>Ostrava-Poruba</adresa_pracoviste_adresa>`), { city: "ostrava" });
     const olomouc = await parseFajnXml(item(`<adresa_pracoviste_adresa>Olomouc - centrum</adresa_pracoviste_adresa>`), { city: "olomouc" });
     expect(prague.jobs[0].location).toBe("Praha 1");
+    expect(ostrava.jobs[0].location).toBe("Ostrava-Poruba");
     expect(olomouc.jobs[0].location).toBe("Olomouc - centrum");
     expect((await parseFajnXml(item(`<adresa_pracoviste_adresa>Praha 1</adresa_pracoviste_adresa>`))).jobs).toEqual([]);
   });
 
-  it("nemíchá nabídky mezi Prahou a Olomoucí", async () => {
+  it("nemíchá nabídky mezi Prahou, Ostravou a Olomoucí", async () => {
     const pragueItem = item(`<adresa_pracoviste_adresa>Praha 6</adresa_pracoviste_adresa>`);
+    const ostravaItem = item(`<adresa_pracoviste_adresa>Ostrava</adresa_pracoviste_adresa>`);
     const olomoucItem = item(`<adresa_pracoviste_adresa>Olomouc</adresa_pracoviste_adresa>`);
     expect((await parseFajnXml(pragueItem, { city: "olomouc" })).jobs).toEqual([]);
+    expect((await parseFajnXml(ostravaItem, { city: "praha" })).jobs).toEqual([]);
+    expect((await parseFajnXml(olomoucItem, { city: "ostrava" })).jobs).toEqual([]);
     expect((await parseFajnXml(olomoucItem, { city: "praha" })).jobs).toEqual([]);
   });
 });
@@ -152,6 +157,7 @@ describe("aktivace konektoru", () => {
     expect(fajnFeedConfig({ ...base, FAJN_BRIGADY_FEED_URL: "https://media.fajnsprava.cz/exporty/boxy/VZOR_DETAIL.XML?x=1" }).enabled).toBe(false);
     expect(fajnFeedConfig({ ...base, FAJN_BRIGADY_FEED_URL: "https://media.fajnsprava.cz/exporty/boxy/production-secret.xml" }).enabled).toBe(true);
     expect(fajnFeedConfig("praha", { ...base, FAJN_BRIGADY_PRAHA_FEED_URL: "https://media.fajnsprava.cz/exporty/boxy/student_hub_praha.xml" })).toMatchObject({ city: "praha", enabled: true, feedUrlEnv: "FAJN_BRIGADY_PRAHA_FEED_URL" });
+    expect(fajnFeedConfig("ostrava", { ...base, FAJN_BRIGADY_OSTRAVA_FEED_URL: "https://media.fajnsprava.cz/exporty/boxy/student_hub_ostrava.xml" })).toMatchObject({ city: "ostrava", enabled: true, feedUrlEnv: "FAJN_BRIGADY_OSTRAVA_FEED_URL" });
     expect(fajnFeedConfig("olomouc", { ...base, FAJN_BRIGADY_OLOMOUC_FEED_URL: "https://media.fajnsprava.cz/exporty/boxy/student_hub_olomouc.xml" })).toMatchObject({ city: "olomouc", enabled: true, feedUrlEnv: "FAJN_BRIGADY_OLOMOUC_FEED_URL" });
   });
 });

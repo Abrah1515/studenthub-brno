@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(55);
+      expect(files).toHaveLength(56);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql"))) {
@@ -79,16 +79,20 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       for (const statement of sqlStatements(await readFile("supabase/migrations/202609200001_archive_legacy_ai_calendar_review.sql", "utf8"))) await db.exec(`${statement};`);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_calendar_legacy_ai_archive")).rows[0].count).toBe(2);
       await db.exec("delete from public.academic_calendar_ai_runs where id='77000000-0000-4000-8000-000000000002'");
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(82);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(86);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='olomouc' and status='approved' and is_demo=false")).rows[0].count).toBe(31);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='praha' and status='approved' and is_demo=false")).rows[0].count).toBe(15);
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where status='published' and source_type='external'")).rows[0].count).toBe(37);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='ostrava' and status='approved' and is_demo=false")).rows[0].count).toBe(4);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where status='published' and source_type='external'")).rows[0].count).toBe(38);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where city_id='olomouc' and status='published' and source_type='external'")).rows[0].count).toBe(17);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where city_id='praha' and status='published' and source_type='external'")).rows[0].count).toBe(4);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where city_id='ostrava' and status='published' and source_type='external'")).rows[0].count).toBe(1);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_events where city_id='olomouc' and university_id='upol' and academic_year='2026/2027'")).rows[0].count).toBe(22);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_events where city_id='praha' and academic_year='2026/2027'")).rows[0].count).toBe(26);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_events where city_id='ostrava' and academic_year='2026/2027'")).rows[0].count).toBe(13);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.faculties where university_id='upol' and is_active")).rows[0].count).toBe(8);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.faculties where university_id in ('cuni','cvut','vse','czu','vscht') and is_active")).rows[0].count).toBe(37);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.faculties where university_id in ('vsbtuo','osu') and is_active")).rows[0].count).toBe(13);
       expect((await db.query<{ count: number }>("select count(*)::int as count from (select city_id,dedupe_key from public.places where status='approved' and is_demo=false group by city_id,dedupe_key having count(*) > 1) duplicates")).rows[0].count).toBe(0);
       await db.exec(`
         insert into auth.users(id,email,email_confirmed_at) values
@@ -210,8 +214,8 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       await expect(db.exec("insert into public.community_reports(reporter_id,target_type,target_id,reason,city_id) values ('71111111-1111-4111-8111-111111111114','post','a1111111-1111-4111-8111-111111111199','spam','brno')")).rejects.toThrow(/report city does not match target/);
 
       const modes = await db.query<{ monitoring_mode: string; count: number }>("select monitoring_mode, count(*)::int as count from public.content_sources where source_type='academic_calendar' group by monitoring_mode order by monitoring_mode");
-      expect(modes.rows).toEqual([{ monitoring_mode: "automatic_publish", count: 19 }, { monitoring_mode: "automatic_review", count: 23 }]);
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.content_sources where source_type='academic_calendar' and enabled")).rows[0].count).toBe(42);
+      expect(modes.rows).toEqual([{ monitoring_mode: "automatic_publish", count: 19 }, { monitoring_mode: "automatic_review", count: 26 }]);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.content_sources where source_type='academic_calendar' and enabled")).rows[0].count).toBe(45);
 
       await db.query("select set_config('request.jwt.claim.role','service_role',false)");
       await db.exec("set role service_role");

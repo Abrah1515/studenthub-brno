@@ -1,11 +1,12 @@
 export type FajnFeedMode = "incremental" | "full_snapshot";
 
-export type FajnFeedCity = "brno" | "praha" | "olomouc";
+export type FajnFeedCity = "brno" | "praha" | "ostrava" | "olomouc";
 
 const approvedFeedHost = "media.fajnsprava.cz";
 const feedUrlEnvByCity: Record<FajnFeedCity, string> = {
   brno: "FAJN_BRIGADY_FEED_URL",
   praha: "FAJN_BRIGADY_PRAHA_FEED_URL",
+  ostrava: "FAJN_BRIGADY_OSTRAVA_FEED_URL",
   olomouc: "FAJN_BRIGADY_OLOMOUC_FEED_URL",
 };
 

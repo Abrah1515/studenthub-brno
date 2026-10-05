@@ -78,3 +78,31 @@ describe.runIf(productionLive)("ostrý smluvní XML feed Fajn-brigády", () => {
     }));
   });
 });
+
+const ostravaLive = process.env.FAJN_OSTRAVA_LIVE_TEST === "true";
+
+describe.runIf(ostravaLive)("ostrý ostravský XML feed Fajn-brigády", () => {
+  it("ověří skutečný feed dry-runem bez zápisu a městského míchání", async () => {
+    const feedUrl = process.env.FAJN_BRIGADY_OSTRAVA_FEED_URL;
+    expect(feedUrl, "Chybí serverová URL ostravského feedu.").toBeTruthy();
+    const configured = new URL(feedUrl!);
+    expect(configured).toMatchObject({ protocol: "https:", hostname: "media.fajnsprava.cz" });
+    expect(configured.pathname).toMatch(/^\/exporty\/boxy\/(?!vzor_detail\.xml$)[a-z0-9_-]+\.xml$/i);
+
+    const response = await fetch(configured, { signal: AbortSignal.timeout(30_000), redirect: "follow" });
+    expect(response.status).toBe(200);
+    expect(new URL(response.url).hostname).toBe("media.fajnsprava.cz");
+    expect(response.headers.get("content-type") || "").toMatch(/^text\/xml\b/i);
+    const body = new Uint8Array(await response.arrayBuffer());
+    expect(body.byteLength).toBeLessThanOrEqual(5_000_000);
+
+    const parsed = await parseFajnXml(body, { city: "ostrava" });
+    expect(parsed.total).toBeGreaterThan(0);
+    expect(parsed.jobs.length).toBeGreaterThan(0);
+    expect(parsed.jobs.length + parsed.rejected).toBe(parsed.total);
+    expect(new Set(parsed.jobs.map((job) => job.externalId)).size).toBe(parsed.jobs.length);
+    expect(parsed.jobs.every((job) => new URL(job.applyUrl).hostname === "www.fajn-brigady.cz")).toBe(true);
+    expect(parsed.jobs.every((job) => !/[\w.+-]+@[\w.-]+\.[a-z]{2,}/iu.test(job.description))).toBe(true);
+    expect(parsed.jobs.every((job) => !/(?:\+?\d[\d\s().-]{7,}\d)/u.test(job.description))).toBe(true);
+  });
+});

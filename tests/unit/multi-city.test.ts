@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { brnoCity, cityCatalog, cityHref, isCityModuleEnabled, isCityPublic, olomoucCity, prahaCity, type City } from "@/lib/cities";
+import { brnoCity, cityCatalog, cityHref, isCityModuleEnabled, isCityPublic, olomoucCity, ostravaCity, prahaCity, type City } from "@/lib/cities";
 import { manifestForCity } from "@/lib/pwa-manifest";
 import { academicCatalogForCity } from "@/lib/universities";
 
@@ -11,6 +11,7 @@ const olomoucSafetyMigration = readFileSync("supabase/migrations/202609280002_de
 const olomoucContentMigration = readFileSync("supabase/migrations/202609280003_olomouc_verified_content.sql", "utf8");
 const olomoucLaunchMigration = readFileSync("supabase/migrations/202609280004_publish_olomouc.sql", "utf8");
 const prahaMigration = readFileSync("supabase/migrations/202609290001_publish_praha.sql", "utf8");
+const ostravaMigration = readFileSync("supabase/migrations/202610040001_publish_ostrava.sql", "utf8");
 const privacyMigration = readFileSync("supabase/migrations/202608040009_community_help_and_privacy.sql", "utf8");
 const publicData = readFileSync("lib/public-data.ts", "utf8");
 const map = readFileSync("components/places-explorer.tsx", "utf8");
@@ -30,6 +31,10 @@ describe("víceměstský základ", () => {
     expect(prahaCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: true, offers: false });
     expect(prahaCity.selectionLogo.symbol).toBe("/brand/cities/studenthub-praha-symbol-v1.png");
     expect(cityHref(prahaCity, "kalendar")).toBe("/praha/kalendar");
+    expect(ostravaCity).toMatchObject({ id: "ostrava", slug: "ostrava", enabled: true, publicStatus: "published", timezone: "Europe/Prague" });
+    expect(ostravaCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: true, offers: false });
+    expect(ostravaCity.selectionLogo.symbol).toBe("/brand/cities/studenthub-ostrava-symbol-v1.png");
+    expect(cityHref(ostravaCity, "kalendar")).toBe("/ostrava/kalendar");
     expect(olomoucCity).toMatchObject({ id: "olomouc", slug: "olomouc", enabled: true, publicStatus: "published", timezone: "Europe/Prague" });
     expect(olomoucCity.modules).toMatchObject({ calendar: true, places: true, community: true, buddy: true, marketplace: true, housing: true, chat: true, jobs: true, offers: false });
     expect(olomoucCity.selectionLogo.symbol).toBe("/brand/cities/studenthub-olomouc-symbol-v1.png");
@@ -41,6 +46,7 @@ describe("víceměstský základ", () => {
     const brno = academicCatalogForCity("brno");
     const praha = academicCatalogForCity("praha");
     const olomouc = academicCatalogForCity("olomouc");
+    const ostrava = academicCatalogForCity("ostrava");
     expect(brno.universities.map((item) => item.id)).toEqual(["muni", "vut", "mendelu", "vetuni", "jamu"]);
     expect(brno.faculties).toHaveLength(27);
     expect(praha.universities.map((item) => item.id)).toEqual(["cuni", "cvut", "vse", "czu", "vscht"]);
@@ -49,6 +55,22 @@ describe("víceměstský základ", () => {
     expect(olomouc.universities.map((item) => item.id)).toEqual(["upol"]);
     expect(olomouc.faculties).toHaveLength(8);
     expect(olomouc.faculties.every((item) => item.universityId === "upol")).toBe(true);
+    expect(ostrava.universities.map((item) => item.id)).toEqual(["vsbtuo", "osu"]);
+    expect(ostrava.faculties).toHaveLength(13);
+    expect(ostrava.faculties.every((item) => ostrava.universities.some((university) => university.id === item.universityId))).toBe(true);
+  });
+  it("publikuje Ostravu idempotentně s ověřeným minimem a ostravským feedem", () => {
+    expect(ostravaMigration).toContain("'ostrava','ostrava','Ostrava'");
+    expect(ostravaMigration).toContain("enabled=true,public_status='published'");
+    expect(ostravaMigration).toContain('"jobs":true');
+    expect(ostravaMigration).toContain("'vsbtuo','vsbtuo','Vysoká škola báňská – Technická univerzita Ostrava'");
+    expect(ostravaMigration).toContain("'osu','osu','Ostravská univerzita'");
+    expect(ostravaMigration.match(/\('(?:vsbtuo|osu)-[a-z]+','(?:vsbtuo|osu)'/g)?.length).toBe(13);
+    expect(ostravaMigration).toContain("'src-fajn-brigady-ostrava'");
+    expect(ostravaMigration).toContain("'2026/2027'");
+    expect(ostravaMigration).toContain("'ostrava','Ústřední knihovna VŠB-TUO'");
+    expect(ostravaMigration).toContain("'ostrava','Festival ostravských knihoven'");
+    expect(ostravaMigration).toContain("on conflict (city_id,source_external_id)");
   });
   it("publikuje Prahu jednou idempotentní migrací s ověřeným minimem", () => {
     expect(prahaMigration).toContain("'praha','praha','Praha'");

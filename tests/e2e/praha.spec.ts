@@ -50,6 +50,7 @@ test.describe("aktivní městské edice", () => {
     for (const city of [
       { slug: "brno", name: "Brno" },
       { slug: "praha", name: "Praha" },
+      { slug: "ostrava", name: "Ostrava" },
       { slug: "olomouc", name: "Olomouc" },
     ]) {
       await page.goto(`/${city.slug}`, { waitUntil: "domcontentloaded" });
