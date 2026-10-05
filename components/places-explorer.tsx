@@ -39,7 +39,10 @@ import { PlaceLiveStatus } from "@/components/place-live-status";
 import { PlaceSuggestionDialog } from "@/components/place-suggestion-dialog";
 import { useAcademicCatalog } from "@/components/academic-catalog-provider";
 import type { City } from "@/lib/cities";
-import { useStudentPreference } from "@/lib/client-preferences";
+import {
+  resolvePreferenceForCity,
+  useStudentPreference,
+} from "@/lib/client-preferences";
 import { formatPragueTimestamp } from "@/lib/format";
 import {
   activeUtilityCategories,
@@ -485,6 +488,10 @@ export function PlacesExplorer({
     [catalog, city.id],
   );
   const preference = useStudentPreference();
+  const preferredSelection = useMemo(
+    () => resolvePreferenceForCity(preference, city.id, catalog),
+    [catalog, city.id, preference],
+  );
   const campusQuery = search.get("campus") || "";
   const [query, setQuery] = useState(search.get("q") || campusQuery);
   const [category, setCategory] = useState(
@@ -553,7 +560,7 @@ export function PlacesExplorer({
       ? ""
       : search.has("university")
         ? urlUniversity
-        : (preference.universityId ?? ""));
+        : preferredSelection.universityId);
   const availableFaculties = catalog.faculties.filter(
     (item) => item.active && item.universityId === universityId,
   );
@@ -568,7 +575,9 @@ export function PlacesExplorer({
       ? ""
       : search.has("faculty")
         ? urlFaculty
-        : (preference.facultyId ?? ""));
+        : search.has("university")
+          ? ""
+          : preferredSelection.facultyId);
   const mainItems = useMemo(
     () =>
       deduplicatePlaces(items).filter(
@@ -1004,6 +1013,7 @@ export function PlacesExplorer({
       <label>
         <span>Fakulta</span>
         <select
+          aria-label="Fakulta"
           value={facultyId}
           onChange={(event) => {
             setFacultyFilter(event.target.value);

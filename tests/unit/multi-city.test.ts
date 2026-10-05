@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { brnoCity, cityCatalog, cityHref, isCityModuleEnabled, isCityPublic, olomoucCity, ostravaCity, prahaCity, type City } from "@/lib/cities";
 import { manifestForCity } from "@/lib/pwa-manifest";
+import { resolvePreferenceForCity } from "@/lib/client-preferences";
 import { academicCatalogForCity } from "@/lib/universities";
 
 const migration = readFileSync("supabase/migrations/202608020004_multi_city_foundation.sql", "utf8");
@@ -58,6 +59,12 @@ describe("víceměstský základ", () => {
     expect(ostrava.universities.map((item) => item.id)).toEqual(["vsbtuo", "osu"]);
     expect(ostrava.faculties).toHaveLength(13);
     expect(ostrava.faculties.every((item) => ostrava.universities.some((university) => university.id === item.universityId))).toBe(true);
+  });
+  it("nepřenáší uloženou školu a fakultu mezi městy", () => {
+    const brnoPreference = { cityId: "brno", universityId: "muni", facultyId: "muni-fi" };
+    expect(resolvePreferenceForCity(brnoPreference, "ostrava")).toEqual({ universityId: "", facultyId: "" });
+    expect(resolvePreferenceForCity(brnoPreference, "brno")).toEqual({ universityId: "muni", facultyId: "muni-fi" });
+    expect(resolvePreferenceForCity({ cityId: "ostrava", universityId: "vsbtuo", facultyId: "muni-fi" }, "ostrava")).toEqual({ universityId: "vsbtuo", facultyId: "" });
   });
   it("publikuje Ostravu idempotentně s ověřeným minimem a ostravským feedem", () => {
     expect(ostravaMigration).toContain("'ostrava','ostrava','Ostrava'");

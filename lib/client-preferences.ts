@@ -15,6 +15,19 @@ export const legacyPreferenceKey = "studenthub-preference-v1";
 export const calendarPreferenceRequestedEvent = "studenthub-calendar-preference-requested";
 export const defaultPreference: StudentPreference = { version: 4, cityId: defaultCitySlug, universityId: null, facultyId: null, studyYear: null, studyYearCycleStart: null, completed: false };
 
+export function resolvePreferenceForCity(
+  preference: Pick<StudentPreference, "cityId" | "universityId" | "facultyId">,
+  cityId: string,
+  catalog: AcademicCatalog = fallbackAcademicCatalog,
+) {
+  if (preference.cityId !== cityId) return { universityId: "", facultyId: "" };
+  return resolveStudySelection(
+    preference.universityId,
+    preference.facultyId,
+    academicCatalogForCity(cityId, catalog),
+  );
+}
+
 export function normalizePreference(value: Partial<StudentPreference> & Record<string, unknown>, catalog: AcademicCatalog = fallbackAcademicCatalog, now = new Date()): StudentPreference {
   const cityId = typeof value.cityId === "string" && value.cityId ? value.cityId : defaultCitySlug;
   const selected = resolveStudySelection(value.universityId, value.facultyId, academicCatalogForCity(cityId, catalog));

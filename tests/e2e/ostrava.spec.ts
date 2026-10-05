@@ -31,6 +31,28 @@ test.describe("produkční připravenost Ostravy", () => {
     await page.screenshot({ path: `artifacts/ostrava-${testInfo.project.name}.png`, fullPage: true });
   });
 
+  test("uložená fakulta z jiného města neskryje ostravská místa", async ({ page }) => {
+    await page.goto("/ostrava/mista", { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => {
+      const preference = {
+        version: 4,
+        cityId: "brno",
+        universityId: "muni",
+        facultyId: "muni-fi",
+        studyYear: 1,
+        studyYearCycleStart: 2026,
+        completed: true,
+      };
+      localStorage.setItem("studenthub-preference-v4", JSON.stringify(preference));
+      window.dispatchEvent(new CustomEvent("studenthub-preference-changed", { detail: preference }));
+    });
+
+    await expect(page.getByLabel("Univerzita", { exact: true })).toHaveValue("");
+    const faculty = page.getByLabel("Fakulta", { exact: true });
+    await expect(faculty).toBeDisabled();
+    await expect(faculty).toHaveValue("");
+  });
+
   test("hluboké odkazy a aktivní moduly Ostravy odpovídají společné architektuře", async ({ request }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop-1440");
     for (const path of [
