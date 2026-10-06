@@ -17,18 +17,22 @@ describe("pravidelné porovnání akademického kalendáře", () => {
     expect(source).not.toContain("OPENAI_API_KEY");
     expect(source).not.toContain('from("academic_events").update');
     expect(source).not.toContain('cityId !== "brno"');
-    expect(source).toContain("intervalHours: 12");
+    expect(source).toContain("intervalHours: 24");
     expect(source).toContain("getPublishedCities()");
     expect(route).toContain('.eq("ai_reason", CALENDAR_REVIEW_VERSION)');
   });
 
-  it("cron zůstává chráněný a plánuje kontrolu všech měst dvakrát denně", async () => {
+  it("cron zůstává chráněný a plánuje jednu denní kontrolu všech měst přes Vercel", async () => {
     const route = await readFile("app/api/cron/ai-calendar-check/route.ts", "utf8");
-    const migration = await readFile("supabase/migrations/202610060001_academic_calendar_review_multicity_scheduler.sql", "utf8");
+    const vercel = await readFile("vercel.json", "utf8");
+    const migration = await readFile("supabase/migrations/202610060002_daily_vercel_calendar_review.sql", "utf8");
     expect(route).toContain("CRON_SECRET");
     expect(route).toContain("SUPABASE_SCHEDULER_SECRET");
-    expect(migration).toContain("41 3,15 * * *");
-    for (const city of ["brno", "praha", "olomouc", "ostrava"]) expect(migration).toContain(`('${city}',`);
+    expect(route).toContain('url.searchParams.get("scope") === "all"');
+    expect(route).toContain("getPublishedCities()");
+    expect(vercel).toContain('/api/cron/ai-calendar-check?scope=all');
+    expect(vercel).toContain('"schedule": "0 11 * * *"');
+    expect(migration).toContain("studenthub-academic-calendar-review-%");
   });
 
   it("nálezy jsou neveřejné a správce rozhoduje jen ve svém městě", async () => {
@@ -49,7 +53,7 @@ describe("pravidelné porovnání akademického kalendáře", () => {
     expect(route).toContain('result.status === "failed" ? 500 : 503');
     expect(panel).toContain('if (!response.ok) setError');
     expect(panel).toContain("stats.openFindings ?? 0");
-    expect(panel).toContain("Dvakrát denně");
+    expect(panel).toContain("Jednou denně kolem 13:00");
     expect(panel).toContain("availableCities");
   });
 });

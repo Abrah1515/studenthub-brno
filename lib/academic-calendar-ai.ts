@@ -307,5 +307,5 @@ export async function runAcademicCalendarAiCheck({ trigger, cityId: requestedCit
 }
 
 export function calendarAiConfiguration() {
-  return { enabled: true, configured: true, mode: "porovnání oficiálních zdrojů", intervalHours: 12 };
+  return { enabled: true, configured: true, mode: "porovnání oficiálních zdrojů", intervalHours: 24 };
 }
