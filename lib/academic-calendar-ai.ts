@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getUniversityIdsForPublishedCity } from "@/lib/city-data";
+import { getPublishedCities, getUniversityIdsForPublishedCity } from "@/lib/city-data";
 import { calendarConflictRecommendation, calendarDuplicateGroups, calendarEventDifferences, findCalendarEventMatch } from "@/lib/academic-calendar-ai-logic";
 import { type ModificationBasis } from "@/lib/sources/conflict-resolution";
 import { runConnector } from "@/lib/sources/connectors";
@@ -55,11 +55,13 @@ function emptyResult(status: "blocked", reason: string) {
   return { status, reason, sourceCount: 0, checkedSourceCount: 0, checkedEventCount: 0, findingCount: 0, unavailableSourceCount: 0, conflictCount: 0 };
 }
 
-export async function runAcademicCalendarAiCheck({ trigger, cityId = "brno", actorId = null, targetSourceId = null }: {
+export async function runAcademicCalendarAiCheck({ trigger, cityId: requestedCityId = "brno", actorId = null, targetSourceId = null }: {
   trigger: RunTrigger; cityId?: string; actorId?: string | null; targetSourceId?: string | null;
 }) {
-  if (cityId !== "brno") return emptyResult("blocked", "Kontrola akademického kalendáře je dostupná pouze pro Brno.");
   if (!isSupabaseConfigured()) return emptyResult("blocked", "Supabase není nakonfigurovaný.");
+  const city = (await getPublishedCities()).find((item) => item.id === requestedCityId || item.slug === requestedCityId);
+  if (!city) return emptyResult("blocked", "Zvolené město není zveřejněné nebo neexistuje.");
+  const cityId = city.id;
   const client = createServiceClient();
   await client.from("academic_calendar_ai_runs").update({
     status: "failed", finished_at: new Date().toISOString(),
@@ -73,7 +75,7 @@ export async function runAcademicCalendarAiCheck({ trigger, cityId = "brno", act
     (row.city_id === cityId || (!row.city_id && universityIds.includes(String(row.university_id)))) &&
     (!targetSourceId || row.id === targetSourceId),
   ) as Row[];
-  if (targetSourceId && !sources.length) return emptyResult("blocked", "Zvolený aktivní brněnský zdroj nebyl nalezen.");
+  if (targetSourceId && !sources.length) return emptyResult("blocked", "Zvolený aktivní zdroj pro toto město nebyl nalezen.");
   const sourceIds = sources.map((row) => String(row.id));
   const insert = await client.from("academic_calendar_ai_runs").insert({
     city_id: cityId, trigger_type: trigger, status: "running", started_at: new Date().toISOString(),
@@ -91,7 +93,7 @@ export async function runAcademicCalendarAiCheck({ trigger, cityId = "brno", act
     return { status, ...values, sourceCount: sourceIds.length, reason: reason || null };
   };
   const zero = { checked_source_count: 0, checked_event_count: 0, finding_count: 0, unavailable_source_count: 0, conflict_count: 0 };
-  if (!sources.length) return finish("blocked", zero, "Nejsou nakonfigurované žádné aktivní akademické zdroje Brna.");
+  if (!sources.length) return finish("blocked", zero, `Pro město ${city.name} nejsou nakonfigurované žádné aktivní akademické zdroje.`);
 
   try {
     // Supabase REST defaults to 1,000 rows. Read every current-year record before
@@ -305,5 +307,5 @@ export async function runAcademicCalendarAiCheck({ trigger, cityId = "brno", act
 }
 
 export function calendarAiConfiguration() {
-  return { enabled: true, configured: true, mode: "porovnání oficiálních zdrojů", intervalHours: 24 };
+  return { enabled: true, configured: true, mode: "porovnání oficiálních zdrojů", intervalHours: 12 };
 }

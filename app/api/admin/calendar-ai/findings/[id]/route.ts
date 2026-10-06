@@ -7,14 +7,14 @@ const bodySchema = z.object({ status: z.enum(["new", "needs_review", "confirmed_
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getAdminUser();
-  if (!user || !["super_admin", "admin"].includes(user.role) || (user.role !== "super_admin" && user.cityId !== "brno")) return NextResponse.json({ message: "Nemáte oprávnění." }, { status: 403 });
+  if (!user || !["super_admin", "admin"].includes(user.role)) return NextResponse.json({ message: "Nemáte oprávnění." }, { status: 403 });
   const { id } = await context.params;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ message: "Neplatný stav nálezu." }, { status: 400 });
   const client = createServiceClient();
   const { data: finding } = await client.from("academic_calendar_ai_findings").select("id,city_id,faculty_id,academic_event_id,discovered_value,status").eq("id", id).single();
   if (!finding) return NextResponse.json({ message: "Nález nebyl nalezen." }, { status: 404 });
-  const allowed = finding.city_id === "brno" && (user.role === "super_admin" || finding.city_id === user.cityId);
+  const allowed = user.role === "super_admin" || finding.city_id === user.cityId;
   if (!allowed) return NextResponse.json({ message: "Nález není v rozsahu vašeho oprávnění." }, { status: 403 });
   if (parsed.data.status === "approved_fix") {
     if (!finding.academic_event_id) return NextResponse.json({ message: "Nový termín je nutné nejprve ručně vložit v administraci." }, { status: 409 });

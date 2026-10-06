@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("denní porovnání akademického kalendáře", () => {
+describe("pravidelné porovnání akademického kalendáře", () => {
   it("nepotřebuje AI klíč, nepíše do veřejného kalendáře a izoluje staré nálezy", async () => {
     const source = await readFile("lib/academic-calendar-ai.ts", "utf8");
     const route = await readFile("app/api/admin/calendar-ai/route.ts", "utf8");
@@ -16,25 +16,31 @@ describe("denní porovnání akademického kalendáře", () => {
     expect(source).toContain('sourceIssue(row, "mass-difference"');
     expect(source).not.toContain("OPENAI_API_KEY");
     expect(source).not.toContain('from("academic_events").update');
+    expect(source).not.toContain('cityId !== "brno"');
+    expect(source).toContain("intervalHours: 12");
+    expect(source).toContain("getPublishedCities()");
     expect(route).toContain('.eq("ai_reason", CALENDAR_REVIEW_VERSION)');
   });
 
-  it("cron zůstává chráněný a plánuje kontrolu jednou denně", async () => {
+  it("cron zůstává chráněný a plánuje kontrolu všech měst dvakrát denně", async () => {
     const route = await readFile("app/api/cron/ai-calendar-check/route.ts", "utf8");
-    const migration = await readFile("supabase/migrations/202609180041_academic_calendar_ai_review_scheduler.sql", "utf8");
+    const migration = await readFile("supabase/migrations/202610060001_academic_calendar_review_multicity_scheduler.sql", "utf8");
     expect(route).toContain("CRON_SECRET");
     expect(route).toContain("SUPABASE_SCHEDULER_SECRET");
-    expect(migration).toContain("41 3 * * *");
+    expect(migration).toContain("41 3,15 * * *");
+    for (const city of ["brno", "praha", "olomouc", "ostrava"]) expect(migration).toContain(`('${city}',`);
   });
 
-  it("nálezy jsou neveřejné a ručně rozhoduje pouze administrátor Brna", async () => {
-    const migration = await readFile("supabase/migrations/202609180040_academic_calendar_ai_review.sql", "utf8");
+  it("nálezy jsou neveřejné a správce rozhoduje jen ve svém městě", async () => {
+    const migration = await readFile("supabase/migrations/202610060001_academic_calendar_review_multicity_scheduler.sql", "utf8");
     const route = await readFile("app/api/admin/calendar-ai/findings/[id]/route.ts", "utf8");
-    expect(migration).toContain("unique (fingerprint)");
-    expect(migration).toContain("academic_calendar_ai_finding_audit");
+    const originalMigration = await readFile("supabase/migrations/202609180040_academic_calendar_ai_review.sql", "utf8");
+    expect(originalMigration).toContain("unique (fingerprint)");
+    expect(originalMigration).toContain("academic_calendar_ai_finding_audit");
     expect(migration).not.toContain('create policy "calendar ai staff update findings"');
+    expect(migration).toContain("public.can_manage_sensitive_city(city_id)");
     expect(route).toContain('["super_admin", "admin"].includes(user.role)');
-    expect(route).toContain('user.cityId !== "brno"');
+    expect(route).toContain('user.role === "super_admin" || finding.city_id === user.cityId');
   });
 
   it("blokovaný nebo selhaný ruční běh nehlásí jako úspěch", async () => {
@@ -43,5 +49,7 @@ describe("denní porovnání akademického kalendáře", () => {
     expect(route).toContain('result.status === "failed" ? 500 : 503');
     expect(panel).toContain('if (!response.ok) setError');
     expect(panel).toContain("stats.openFindings ?? 0");
+    expect(panel).toContain("Dvakrát denně");
+    expect(panel).toContain("availableCities");
   });
 });
