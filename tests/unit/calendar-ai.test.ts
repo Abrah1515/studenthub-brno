@@ -30,8 +30,11 @@ describe("pravidelné porovnání akademického kalendáře", () => {
     expect(route).toContain("SUPABASE_SCHEDULER_SECRET");
     expect(route).toContain('url.searchParams.get("scope") === "all"');
     expect(route).toContain("getPublishedCities()");
-    expect(vercel).toContain('/api/cron/ai-calendar-check?scope=all');
-    expect(vercel).toContain('"schedule": "0 11 * * *"');
+    expect(route).toContain('timeZone: "Europe/Prague"');
+    expect(vercel).toContain('/api/cron/ai-calendar-check?scope=all&localHour=13&season=summer');
+    expect(vercel).toContain('/api/cron/ai-calendar-check?scope=all&localHour=13&season=winter');
+    expect(vercel).toContain('"schedule": "0 11 * 3-10 *"');
+    expect(vercel).toContain('"schedule": "0 12 * 1-3,10-12 *"');
     expect(migration).toContain("studenthub-academic-calendar-review-%");
   });
 

@@ -25,6 +25,17 @@ async function run(request: Request) {
   const city = url.searchParams.get("city") || "brno";
   try {
     if (url.searchParams.get("scope") === "all") {
+      const requestedLocalHour = Number(url.searchParams.get("localHour"));
+      if (Number.isInteger(requestedLocalHour)) {
+        const currentLocalHour = Number(new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Europe/Prague",
+          hour: "2-digit",
+          hour12: false,
+        }).format(new Date()));
+        if (currentLocalHour !== requestedLocalHour) {
+          return NextResponse.json({ ok: true, skipped: true, reason: "Mimo plánovanou místní hodinu." });
+        }
+      }
       const cities = await getPublishedCities();
       const results = await Promise.all(cities.map(async (publishedCity) => ({
           city: publishedCity.id,
