@@ -10,7 +10,7 @@ export type ContentSource = {
   cityId?: string;
   universityId: string;
   facultyId: string;
-  sourceType: "academic_calendar" | "job_feed";
+  sourceType: "academic_calendar" | "place_directory" | "job_feed";
   sourceUrl: string;
   officialDomain: string;
   allowedDomains?: string[];

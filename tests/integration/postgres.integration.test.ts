@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(61);
+      expect(files).toHaveLength(62);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql") && !file.includes("daily_vercel_calendar_review.sql"))) {
@@ -79,10 +79,11 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       for (const statement of sqlStatements(await readFile("supabase/migrations/202609200001_archive_legacy_ai_calendar_review.sql", "utf8"))) await db.exec(`${statement};`);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_calendar_legacy_ai_archive")).rows[0].count).toBe(2);
       await db.exec("delete from public.academic_calendar_ai_runs where id='77000000-0000-4000-8000-000000000002'");
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(86);
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='olomouc' and status='approved' and is_demo=false")).rows[0].count).toBe(31);
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='praha' and status='approved' and is_demo=false")).rows[0].count).toBe(15);
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='ostrava' and status='approved' and is_demo=false")).rows[0].count).toBe(4);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where status='approved' and is_demo=false")).rows[0].count).toBe(122);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='brno' and status='approved' and is_demo=false")).rows[0].count).toBe(46);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='olomouc' and status='approved' and is_demo=false")).rows[0].count).toBe(37);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='praha' and status='approved' and is_demo=false")).rows[0].count).toBe(25);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.places where city_id='ostrava' and status='approved' and is_demo=false")).rows[0].count).toBe(14);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where status='published' and source_type='external'")).rows[0].count).toBe(39);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where city_id='olomouc' and status='published' and source_type='external'")).rows[0].count).toBe(17);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where city_id='praha' and status='published' and source_type='external'")).rows[0].count).toBe(4);

@@ -961,7 +961,7 @@ html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1
   .community-toolbar > .mobile-filter-toolbar .mobile-filter-button { width: 100%; }
   .places-layout { display: flex; flex-direction: column; }
   .places-list, .map-shell { width: 100%; }
-  .map-shell { order: 2; }
+  .map-shell { order: -1; }
   .map-utility-status { bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 58px); }
   .nearby-utility-actions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
   .nearby-utility-actions button { min-height: 44px; justify-content: center; }

@@ -19,7 +19,16 @@ test.beforeEach(async ({ page }) => { await prepare(page); });
 
 test("výběr místa se po jednom zaměření ustálí", async ({ page }) => {
   await page.goto("/brno/mista", { waitUntil: "domcontentloaded" });
-  const marker = page.locator(".place-map-marker.main").first();
+  await page.locator(".leaflet-host").scrollIntoViewIfNeeded();
+  const markers = page.locator(".place-map-marker.main");
+  const hittableIndex = await markers.evaluateAll((elements) => elements.findIndex((element) => {
+    const box = element.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) return false;
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return hit === element || Boolean(hit && element.contains(hit));
+  }));
+  expect(hittableIndex).toBeGreaterThanOrEqual(0);
+  const marker = markers.nth(hittableIndex);
   await expect(marker).toBeVisible();
   const transitionProperty = await marker.evaluate(
     (element) => getComputedStyle(element).transitionProperty,
@@ -29,6 +38,7 @@ test("výběr místa se po jednom zaměření ustálí", async ({ page }) => {
   );
 
   await marker.click();
+  if ((page.viewportSize()?.width || 0) <= 720) await marker.click();
   const selected = page.locator(".place-map-marker.selected").first();
   await expect(selected).toBeVisible();
   await expect(page.locator(".place-card.selected .place-details")).toBeVisible();
@@ -43,6 +53,7 @@ test("výběr místa se po jednom zaměření ustálí", async ({ page }) => {
   ).toBe(settledTransform);
 
   const map = page.locator(".leaflet-host");
+  await map.scrollIntoViewIfNeeded();
   const mapBox = await map.boundingBox();
   const markerBeforePan = await selected.boundingBox();
   expect(mapBox).not.toBeNull();

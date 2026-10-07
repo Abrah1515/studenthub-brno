@@ -103,6 +103,14 @@ const utilityLabels: Record<UtilityCategoryCode, string> = {
   drinking_fountain: "Pítka",
   bench: "Lavičky",
 };
+const subcategoryLabels: Record<string, string> = {
+  faculty_library: "Fakultní knihovna",
+  university_library: "Univerzitní knihovna",
+  public_library: "Veřejná knihovna",
+  faculty_study_room: "Fakultní studovna",
+  computer_study_room: "Počítačová studovna",
+  accessible_study_support: "Podpora při studiu",
+};
 
 function categoryCode(place: Place): PlaceCategoryCode {
   return (
@@ -497,6 +505,7 @@ export function PlacesExplorer({
   const [category, setCategory] = useState(
     search.get("category") || allCategories,
   );
+  const [subcategoryFilter, setSubcategoryFilter] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [mapPreview, setMapPreview] = useState<string | null>(null);
   const [schoolFilter, setSchoolFilter] = useState<string | null>(null);
@@ -520,6 +529,9 @@ export function PlacesExplorer({
   const [publicOnly, setPublicOnly] = useState(false);
   const [studentOnly, setStudentOnly] = useState(false);
   const [accessibleOnly, setAccessibleOnly] = useState(false);
+  const [eveningOnly, setEveningOnly] = useState(false);
+  const [nonstopOnly, setNonstopOnly] = useState(false);
+  const [studyModeFilter, setStudyModeFilter] = useState<"" | "quiet" | "group">("");
   const [suggestionOpen, setSuggestionOpen] = useState(
     search.get("navrh") === "1",
   );
@@ -595,6 +607,10 @@ export function PlacesExplorer({
       ...placeCategoryCodes.map((code) => placeCategoryLabels[code]),
     ],
     [],
+  );
+  const subcategories = useMemo(
+    () => [...new Set(mainItems.map((place) => place.subcategory).filter((value): value is string => Boolean(value)))].sort((a, b) => (subcategoryLabels[a] || a).localeCompare(subcategoryLabels[b] || b, "cs-CZ")),
+    [mainItems],
   );
 
   useEffect(() => {
@@ -696,6 +712,7 @@ export function PlacesExplorer({
               : isUtilityCategory(code)
                 ? layers[code]
                 : layers.main) &&
+            (!subcategoryFilter || place.subcategory === subcategoryFilter) &&
             (!universityId ||
               !place.universityIds?.length ||
               place.universityIds.includes(universityId)) &&
@@ -711,6 +728,9 @@ export function PlacesExplorer({
             (!publicOnly || place.publicAccess === true) &&
             (!studentOnly || place.studentOnly === true) &&
             (!accessibleOnly || place.accessibility === "accessible") &&
+            (!eveningOnly || place.eveningAccess === true || place.nonstopAccess === true) &&
+            (!nonstopOnly || place.nonstopAccess === true) &&
+            (!studyModeFilter || place.studyMode === studyModeFilter || place.studyMode === "mixed") &&
             (originFilter === "all" ||
               (place.origin || "official") === originFilter) &&
             (includesFolded(haystack, query) ||
@@ -732,6 +752,7 @@ export function PlacesExplorer({
       availableOnly,
       campusQuery,
       category,
+      subcategoryFilter,
       facultyId,
       layers,
       liveSummaries,
@@ -748,12 +769,16 @@ export function PlacesExplorer({
       userLocation,
       wifiOnly,
       accessibleOnly,
+      eveningOnly,
+      nonstopOnly,
+      studyModeFilter,
     ],
   );
 
   const activeFilterCount = [
     query.trim(),
     category !== allCategories,
+    subcategoryFilter,
     universityId,
     facultyId,
     availableOnly,
@@ -765,6 +790,9 @@ export function PlacesExplorer({
     publicOnly,
     studentOnly,
     accessibleOnly,
+    eveningOnly,
+    nonstopOnly,
+    studyModeFilter,
     originFilter !== "all",
     sortMode !== "default",
     ...activeUtilities,
@@ -842,6 +870,7 @@ export function PlacesExplorer({
   function resetFilters() {
     setQuery("");
     setCategory(allCategories);
+    setSubcategoryFilter("");
     setSchoolFilter("");
     setFacultyFilter("");
     setAvailableOnly(false);
@@ -853,6 +882,9 @@ export function PlacesExplorer({
     setPublicOnly(false);
     setStudentOnly(false);
     setAccessibleOnly(false);
+    setEveningOnly(false);
+    setNonstopOnly(false);
+    setStudyModeFilter("");
     setOriginFilter("all");
     setSortMode("default");
     directUtility.current = null;
@@ -1011,6 +1043,13 @@ export function PlacesExplorer({
         </select>
       </label>
       <label>
+        <span>Typ místa</span>
+        <select value={subcategoryFilter} onChange={(event) => setSubcategoryFilter(event.target.value)}>
+          <option value="">Všechny typy</option>
+          {subcategories.map((item) => <option key={item} value={item}>{subcategoryLabels[item] || item.replaceAll("_", " ")}</option>)}
+        </select>
+      </label>
+      <label>
         <span>Fakulta</span>
         <select
           aria-label="Fakulta"
@@ -1057,6 +1096,14 @@ export function PlacesExplorer({
           <option value="all">Všechny zdroje</option>
           <option value="official">Ověřený veřejný zdroj</option>
           <option value="community">Licencovaný komunitní zdroj / návrh</option>
+        </select>
+      </label>
+      <label>
+        <span>Režim studia</span>
+        <select value={studyModeFilter} onChange={(event) => setStudyModeFilter(event.target.value as "" | "quiet" | "group")}>
+          <option value="">Všechny režimy</option>
+          <option value="quiet">Tiché studium</option>
+          <option value="group">Týmové studium</option>
         </select>
       </label>
       <label>
@@ -1113,6 +1160,22 @@ export function PlacesExplorer({
             onChange={(event) => setAccessibleOnly(event.target.checked)}
           />
           Bezbariérové
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={eveningOnly}
+            onChange={(event) => setEveningOnly(event.target.checked)}
+          />
+          Večerní provoz
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={nonstopOnly}
+            onChange={(event) => setNonstopOnly(event.target.checked)}
+          />
+          Nonstop provoz
         </label>
         <label>
           <input
@@ -1404,6 +1467,10 @@ export function PlacesExplorer({
                         {place.studySuitable && <i>Studium</i>}
                         {place.wifiAvailable && <i>Wi‑Fi</i>}
                         {place.outletsAvailable && <i>Zásuvky</i>}
+                        {place.eduroamAvailable && <i>eduroam</i>}
+                        {place.computersAvailable && <i>Počítače</i>}
+                        {place.nonstopAccess && <i>Nonstop</i>}
+                        {!place.nonstopAccess && place.eveningAccess && <i>Večerní provoz</i>}
                         {place.accessibility === "accessible" && (
                           <i>Bezbariérové</i>
                         )}
@@ -1421,6 +1488,12 @@ export function PlacesExplorer({
                             <dd>
                               {place.accessConditions || place.studentDiscount}
                             </dd>
+                          </div>
+                        )}
+                        {place.openingExceptions && (
+                          <div>
+                            <dt>Omezení provozu</dt>
+                            <dd>{place.openingExceptions}</dd>
                           </div>
                         )}
                         <div>

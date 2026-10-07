@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { extractStructuredPlace } from "@/lib/place-source-sync";
+import { readFileSync } from "node:fs";
 
 describe("monitor veřejných zdrojů míst", () => {
   it("přečte pouze strukturovaný údaj odpovídající očekávanému místu", () => {
@@ -11,4 +12,12 @@ describe("monitor veřejných zdrojů míst", () => {
     expect(extractStructuredPlace(html, "Ústřední knihovna VUT")).toBeNull();
   });
   it("poškozený JSON-LD nepublikuje jako ověřenou změnu", () => expect(extractStructuredPlace('<script type="application/ld+json">{broken}</script>', "Knihovna JAMU")).toBeNull());
+  it("kontroluje místa nejvýše týdně a používá podmíněné HTTP požadavky", () => {
+    const source = readFileSync("lib/place-source-sync.ts", "utf8");
+    expect(source).toContain('sourceType: "place_directory"');
+    expect(source).toContain("refreshIntervalHours: 168");
+    expect(source).toContain("7 * 24 * 60 * 60 * 1000");
+    expect(source).toContain("source_etag");
+    expect(source).toContain("fetched.status === 304");
+  });
 });

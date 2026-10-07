@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { listRecords, updateRecord } from "@/lib/data-store";
 import { fetchRegisteredSource } from "@/lib/sources/fetch-source";
 import type { ContentSource } from "@/lib/sources/types";
@@ -49,17 +50,22 @@ export function extractStructuredPlace(html: string, expectedName: string): Stru
 
 function sourceFor(row: Record<string, unknown>, sourceUrl: string): ContentSource {
   const url = new URL(sourceUrl);
-  return { id: `place-${String(row.id)}`, cityId: String(row.city_id || "brno"), universityId: String(row.university_id || "city"), facultyId: String(row.faculty_id || "city"), sourceType: "academic_calendar", sourceUrl: url.href, officialDomain: url.hostname, format: "html", parserKey: "place-structured-data", enabled: true, refreshIntervalHours: 9, monitoringMode: "automatic_review", termsNote: "Pouze veřejná oficiální stránka provozovatele; změny se před publikací kontrolují.", academicYear: null, confidence: .9, requiresReview: true, notes: "Monitor dostupnosti a strukturovaných veřejných údajů." };
+  return { id: `place-${String(row.id)}`, cityId: String(row.city_id || "brno"), universityId: String(row.university_id || "city"), facultyId: String(row.faculty_id || "city"), sourceType: "place_directory", sourceUrl: url.href, officialDomain: url.hostname, format: "html", parserKey: "place-structured-data", enabled: true, refreshIntervalHours: 168, monitoringMode: "automatic_review", termsNote: "Pouze veřejná oficiální stránka provozovatele; změny se před publikací kontrolují.", academicYear: null, confidence: .9, requiresReview: true, notes: "Týdenní monitor dostupnosti a strukturovaných veřejných údajů." };
 }
 
 export async function syncDuePlaceSources(cityId: string, batchSize = 6) {
-  const dueBefore = Date.now() - 9 * 60 * 60 * 1000;
+  const dueBefore = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const rows = (await listRecords("places")).filter((row) => row.city_id === cityId && row.status === "approved" && !row.is_demo && row.source_url && (!row.source_checked_at || new Date(String(row.source_checked_at)).getTime() <= dueBefore)).sort((a, b) => String(a.source_checked_at || "").localeCompare(String(b.source_checked_at || ""))).slice(0, batchSize);
   const results = [];
   for (const row of rows) {
     const checkedAt = new Date().toISOString();
     try {
-      const fetched = await fetchRegisteredSource(sourceFor(row, String(row.source_url)));
+      const fetched = await fetchRegisteredSource(sourceFor(row, String(row.source_url)), { etag: row.source_etag ? String(row.source_etag) : null, lastModified: row.source_last_modified ? String(row.source_last_modified) : null });
+      if (fetched.status === 304) {
+        await updateRecord("places", String(row.id), { source_checked_at: checkedAt, source_miss_count: 0, source_sync_status: row.source_sync_status === "needs_review" && row.proposed_source_data ? "needs_review" : "verified" });
+        results.push({ id: row.id, status: "not_modified", finalUrl: fetched.finalUrl });
+        continue;
+      }
       const contentType = fetched.contentType.toLowerCase();
       let proposed: StructuredPlace | null = null;
       if (contentType.includes("text/html")) {
@@ -69,7 +75,7 @@ export async function syncDuePlaceSources(cityId: string, batchSize = 6) {
       }
       const openingChanged = Boolean(proposed?.openingHours && foldSearchText(proposed.openingHours) !== foldSearchText(String(row.opening_hours || "")));
       const addressChanged = Boolean(proposed?.address && foldSearchText(proposed.address) !== foldSearchText(String(row.address || "")));
-      await updateRecord("places", String(row.id), { source_checked_at: checkedAt, source_final_url: fetched.finalUrl, source_content_type: fetched.contentType, source_miss_count: 0, source_sync_status: openingChanged || addressChanged ? "needs_review" : row.source_sync_status === "needs_review" && row.proposed_source_data ? "needs_review" : "verified", proposed_source_data: openingChanged || addressChanged ? proposed : row.proposed_source_data || null });
+      await updateRecord("places", String(row.id), { source_checked_at: checkedAt, source_final_url: fetched.finalUrl, source_content_type: fetched.contentType, source_etag: fetched.etag, source_last_modified: fetched.lastModified, source_content_hash: createHash("sha256").update(fetched.body).digest("hex"), source_miss_count: 0, source_sync_status: openingChanged || addressChanged ? "needs_review" : row.source_sync_status === "needs_review" && row.proposed_source_data ? "needs_review" : "verified", proposed_source_data: openingChanged || addressChanged ? proposed : row.proposed_source_data || null });
       results.push({ id: row.id, status: openingChanged || addressChanged ? "needs_review" : "verified", finalUrl: fetched.finalUrl, contentType: fetched.contentType });
     } catch (error) {
       const misses = Number(row.source_miss_count || 0) + 1;
