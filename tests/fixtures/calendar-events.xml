@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Univerzitní kalendář</title>
+  <entry>
+    <id>urn:studenthub:test:registration</id>
+    <title>Registrace předmětů</title>
+    <summary>Registrace předmětů pro zimní semestr.</summary>
+    <published>2026-09-14T08:00:00+02:00</published>
+    <updated>2026-07-01T10:00:00+02:00</updated>
+    <link href="https://www.example.edu/calendar/registration" />
+  </entry>
+</feed>

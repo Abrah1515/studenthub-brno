@@ -8,6 +8,8 @@ import { robotsAllowsPath } from "@/lib/sources/robots";
 const maxBytes = 5 * 1024 * 1024;
 const timeoutMs = 15_000;
 const userAgent = process.env.SYNC_USER_AGENT || "StudentHub-Brno/1.0 (+https://studenthubapp.cz/kontakt)";
+const robotsCache = new Map<string, { value: string | null; expiresAt: number }>();
+const robotsCacheMs = 30 * 60 * 1000;
 
 function privateAddress(address: string) {
   if (address === "::1" || address === "0:0:0:0:0:0:0:1" || address.startsWith("fe80:") || address.startsWith("fc") || address.startsWith("fd")) return true;
@@ -26,14 +28,21 @@ export async function validateSourceUrl(value: string, source: ContentSource) {
 }
 
 async function assertRobotsAllowed(url: URL, source: ContentSource) {
-  const robotsUrl = new URL("/robots.txt", url.origin); const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 12_000);
+  const robotsUrl = new URL("/robots.txt", url.origin);
+  const cached = process.env.NODE_ENV === "test" ? undefined : robotsCache.get(robotsUrl.href);
+  if (cached && cached.expiresAt > Date.now()) {
+    if (cached.value === null || robotsAllowsPath(`${url.pathname}${url.search}`, cached.value)) return;
+    throw new SourceBlockedError({ code: "robots_disallowed", status: "blocked", message: "Stahování této oficiální cesty zakazuje robots.txt; pravidlo respektujeme a zdroj zůstává v ručním režimu." }, { finalUrl: url.href, contentType: "text/plain" });
+  }
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 12_000);
   try {
     await validateSourceUrl(robotsUrl.href, source); let response = await fetch(robotsUrl, { headers: { "user-agent": userAgent, accept: "text/plain", connection: "close" }, signal: controller.signal, cache: "no-store" });
-    if ([404, 410].includes(response.status)) return;
+    if ([404, 410].includes(response.status)) { if (process.env.NODE_ENV !== "test") robotsCache.set(robotsUrl.href, { value: null, expiresAt: Date.now() + robotsCacheMs }); return; }
     if (!response.ok) throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: `Pravidla robots.txt nejsou dočasně dostupná (HTTP ${response.status}); zdroj jsme preventivně nestáhli.` }, { finalUrl: robotsUrl.href, contentType: response.headers.get("content-type") || undefined });
     let text = await response.text();
     if (/meta\s+http-equiv=["']?refresh/i.test(text) && response.headers.get("set-cookie")) { const cookie = response.headers.get("set-cookie")!.split(";", 1)[0]; await new Promise((resolve) => setTimeout(resolve, 100)); response = await fetch(robotsUrl, { headers: { "user-agent": userAgent, accept: "text/plain", connection: "close", cookie }, signal: controller.signal, cache: "no-store" }); if (!response.ok) throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: `Pravidla robots.txt po session výzvě odpověděla HTTP ${response.status}.` }, { finalUrl: robotsUrl.href, contentType: response.headers.get("content-type") || undefined }); text = await response.text(); }
     if (!String(response.headers.get("content-type") || "").toLowerCase().startsWith("text/plain")) throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: "Pravidla robots.txt mají neočekávaný MIME typ; zdroj jsme preventivně nestáhli." }, { finalUrl: robotsUrl.href, contentType: response.headers.get("content-type") || undefined });
+    if (process.env.NODE_ENV !== "test") robotsCache.set(robotsUrl.href, { value: text, expiresAt: Date.now() + robotsCacheMs });
     if (!robotsAllowsPath(`${url.pathname}${url.search}`, text)) throw new SourceBlockedError({ code: "robots_disallowed", status: "blocked", message: "Stahování této oficiální cesty zakazuje robots.txt; pravidlo respektujeme a zdroj zůstává v ručním režimu." }, { finalUrl: url.href, contentType: "text/plain" });
   } catch (error) {
     if (error instanceof SourceBlockedError) throw error;

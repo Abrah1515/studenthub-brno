@@ -1,9 +1,102 @@
-import type { ContentSource } from "./types.ts";
+import type { ContentSource, SourceCoverageStatus, SourceFormat, SourceMonitoringMode } from "./types.ts";
 import { fajnFeedConfig } from "../job-feed/config.ts";
 
 const muniSource = "https://is.muni.cz/predmety/obdobi";
 
 type RegisteredSource = Omit<ContentSource, "academicYear" | "confidence" | "requiresReview" | "notes" | "sourceDocumentTitle">;
+
+type AcademicSourceInput = {
+  cityId: string;
+  universityId: string;
+  facultyId: string;
+  url: string;
+  format?: SourceFormat;
+  parserKey?: string;
+  monitoringMode?: SourceMonitoringMode;
+  coverageStatus?: SourceCoverageStatus;
+  coverageEvidence?: string;
+  refreshIntervalHours?: number;
+};
+
+function academicSource(input: AcademicSourceInput): RegisteredSource {
+  const host = new URL(input.url).hostname.toLowerCase();
+  const coverageStatus = input.coverageStatus || "needs_review";
+  const monitoringMode = input.monitoringMode || (coverageStatus === "unavailable" ? "not_found_monitored" : "automatic_review");
+  return {
+    id: `src-${input.facultyId}`,
+    cityId: input.cityId,
+    universityId: input.universityId,
+    facultyId: input.facultyId,
+    sourceType: "academic_calendar",
+    sourceUrl: input.url,
+    officialDomain: host,
+    format: input.format || (input.url.toLowerCase().includes(".pdf") ? "pdf" : "html"),
+    parserKey: input.parserKey || (input.url.toLowerCase().includes(".pdf") ? "pdfjs-academic-calendar" : "generic-academic-html"),
+    enabled: true,
+    refreshIntervalHours: input.refreshIntervalHours || (input.url.toLowerCase().includes(".pdf") ? 168 : 48),
+    monitoringMode,
+    termsNote: input.coverageEvidence || "Oficiální veřejný zdroj akademického harmonogramu; změny čekají na bezpečnou kontrolu.",
+    coverageStatus,
+    coverageEvidence: input.coverageEvidence,
+    priority: coverageStatus === "complete" ? 100 : coverageStatus === "covered_by_central" ? 80 : 50,
+    deepDiscoveryIntervalHours: 168,
+    discoveryPageLimit: 4,
+    discoveryDepth: 2,
+  };
+}
+
+const pragueAcademicSources: RegisteredSource[] = [
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-ktf", url: "https://www.ktf.cuni.cz/KTF-2332.html", coverageStatus: "complete", coverageEvidence: "Aktuální fakultní harmonogram KTF UK." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-etf", url: "https://web.etf.cuni.cz/ETFN-830.html", coverageStatus: "complete", coverageEvidence: "Aktuální fakultní harmonogram ETF UK." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-htf", url: "https://htf.cuni.cz/HTF-125.html", coverageStatus: "complete", coverageEvidence: "Aktuální fakultní harmonogram HTF UK." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-prf", url: "https://www.prf.cuni.cz/studium/harmonogram-akademickeho-roku", coverageStatus: "complete", coverageEvidence: "Aktuální fakultní harmonogram PrF UK." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-lf1", url: "https://www.lf1.cuni.cz/harmonogram-ak-roku", coverageStatus: "complete", coverageEvidence: "Aktuální harmonogram 1. LF UK 2026/2027." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-lf2", url: "https://www.lf2.cuni.cz/opatreni-dekana-c-52026", coverageStatus: "complete", coverageEvidence: "Opatření děkana 2. LF UK pro rok 2026/2027." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-lf3", url: "https://www.lf3.cuni.cz/3LF-2787.html", coverageStatus: "complete", coverageEvidence: "Aktuální harmonogram 3. LF UK 2026/2027." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-ff", url: "https://www.ff.cuni.cz/fakulta/predpisy-a-dokumenty/opatreni-dekana/harmonogram/", coverageStatus: "complete", coverageEvidence: "Fakultní opatření a harmonogram FF UK." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-prirod", url: "https://natur.cuni.cz/fakulta/organizacni-struktura/organy-fakulty/dekan-a-kolegium/opatreni-dekana/opatreni-dekana-c-12-2026", coverageStatus: "complete", coverageEvidence: "Opatření děkana PřF UK č. 12/2026." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-mff", url: "https://www.mff.cuni.cz/cs/studenti/harmonogram-ak-roku/predbezny-harmonogram-akademickeho-roku-2026-2027.pdf", coverageStatus: "complete", coverageEvidence: "Oficiální PDF harmonogram MFF UK 2026/2027." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-pedf", url: "https://pedf.cuni.cz/PEDF-71.html", coverageStatus: "covered_by_central", coverageEvidence: "Fakulta odkazuje na veřejný harmonogram UK a fakultní termíny." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-fsv", url: "https://fsv.cuni.cz/studium/prava-povinnosti-studenta/harmonogram-akademickeho-roku", coverageStatus: "complete", coverageEvidence: "Aktuální fakultní harmonogram FSV UK." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-fhs", url: "https://fhs.cuni.cz/FHS-3919.html", coverageStatus: "complete", coverageEvidence: "Aktuální fakultní harmonogram FHS UK." }),
+  academicSource({ cityId: "praha", universityId: "cuni", facultyId: "cuni-ftvs", url: "https://www.ftvs.cuni.cz/cs/studenti/informace-pro-studenty/harmonogram-akademickeho-roku", coverageStatus: "complete", coverageEvidence: "Aktuální fakultní harmonogram FTVS UK 2026/2027." }),
+
+  academicSource({ cityId: "praha", universityId: "cvut", facultyId: "cvut-fsv", url: "https://portal.fsv.cvut.cz/hlavni/akrok.php", coverageStatus: "complete", coverageEvidence: "Veřejný časový plán FSv ČVUT." }),
+  academicSource({ cityId: "praha", universityId: "cvut", facultyId: "cvut-fs", url: "https://fs.cvut.cz/studium/bakalarske-a-magisterske/casovy-plan-ak-roku/", coverageStatus: "complete", coverageEvidence: "Aktuální časový plán FS ČVUT 2026/2027." }),
+  academicSource({ cityId: "praha", universityId: "cvut", facultyId: "cvut-fel", url: "https://intranet.fel.cvut.cz/cz/education/harmonogram2627", coverageStatus: "complete", coverageEvidence: "Veřejně dostupný harmonogram FEL ČVUT 2026/2027." }),
+  academicSource({ cityId: "praha", universityId: "cvut", facultyId: "cvut-fjfi", url: "https://fjfi.cvut.cz/cz/studium/harmonogram-roku-rozvrh/casovy-plan-akademickeho-roku", coverageStatus: "complete", coverageEvidence: "Aktuální časový plán FJFI ČVUT 2026/2027." }),
+  academicSource({ cityId: "praha", universityId: "cvut", facultyId: "cvut-fa", url: "https://www.fa.cvut.cz/cs/studium/obecne/harmonogram", coverageStatus: "complete", coverageEvidence: "Aktuální harmonogram FA ČVUT." }),
+  academicSource({ cityId: "praha", universityId: "cvut", facultyId: "cvut-fd", url: "https://www.fd.cvut.cz/studium/harmonogram-akademickeho-roku", coverageStatus: "complete", coverageEvidence: "Aktuální harmonogram FD ČVUT." }),
+  academicSource({ cityId: "praha", universityId: "cvut", facultyId: "cvut-fbmi", url: "https://www.fbmi.cvut.cz/cs/student/casovy-plan", coverageStatus: "complete", coverageEvidence: "Aktuální časový plán FBMI ČVUT." }),
+  academicSource({ cityId: "praha", universityId: "cvut", facultyId: "cvut-fit", url: "https://fit.cvut.cz/cs/studium/informacni-servis/harmonogram", coverageStatus: "complete", coverageEvidence: "Aktuální harmonogram FIT ČVUT." }),
+
+  ...["vse-ffu", "vse-fmv", "vse-fph", "vse-fis", "vse-nf"].map((facultyId) => academicSource({ cityId: "praha", universityId: "vse", facultyId, url: "https://www.vse.cz/studenti/studium/harmonogramy/", coverageStatus: "covered_by_central", coverageEvidence: "Centrální harmonogram VŠE 2026/2027 pro všechny pražské fakulty." })),
+  ...["czu-fappz", "czu-tf", "czu-fld", "czu-fzp"].map((facultyId) => academicSource({ cityId: "praha", universityId: "czu", facultyId, url: "https://www.czu.cz/dl/154159?lang=cs", format: "pdf", coverageStatus: "covered_by_central", coverageEvidence: "Centrální oficiální harmonogram ČZU 2026/2027." })),
+  academicSource({ cityId: "praha", universityId: "czu", facultyId: "czu-pef", url: "https://www.pef.czu.cz/cs/r-7008-studium/r-10112-studijni-aktuality/harmonogram-zimniho-semestru.html", coverageStatus: "complete", coverageEvidence: "Fakultní harmonogram PEF ČZU." }),
+  academicSource({ cityId: "praha", universityId: "czu", facultyId: "czu-ftz", url: "https://www.ftz.czu.cz/cs/r-8683-aktuality-home/harmonogram-akademickeho-roku-2026-2027.html", coverageStatus: "complete", coverageEvidence: "Fakultní harmonogram FTZ ČZU 2026/2027." }),
+  ...["vscht-fcht", "vscht-ftop", "vscht-fpbt", "vscht-fchi"].map((facultyId) => academicSource({ cityId: "praha", universityId: "vscht", facultyId, url: "https://studium.vscht.cz/organizace-roku-vyuky?jazyk=cs&lang=cs", coverageStatus: "covered_by_central", coverageEvidence: "Centrální organizace akademického roku VŠCHT pro všechny fakulty." })),
+];
+
+// Tyto stabilní identifikátory už vlastní produkční termíny. Zůstávají v
+// registru jako další oficiální důkaz, aby je dispatcher mohl dál ověřovat;
+// nové fakultní zdroje je nenahrazují ani nemažou.
+const pragueEstablishedSources: RegisteredSource[] = [
+  { id: "src-praha-cuni", cityId: "praha", universityId: "cuni", facultyId: "cuni-ktf", sourceType: "academic_calendar", sourceUrl: "https://cuni.cz/UK-3952.html", officialDomain: "cuni.cz", format: "html", parserKey: "generic-academic-html", enabled: true, refreshIntervalHours: 48, monitoringMode: "automatic_review", coverageStatus: "partial", coverageEvidence: "Centrální harmonogram UK je doplňkový k fakultním zdrojům.", priority: 60, deepDiscoveryIntervalHours: 168, termsNote: "Centrální harmonogram UK 2026/2027; změny kontroluje editor." },
+  { id: "src-praha-cvut", cityId: "praha", universityId: "cvut", facultyId: "cvut-fs", sourceType: "academic_calendar", sourceUrl: "https://www.cvut.cz/sites/default/files/content/d1dc93cd-5894-4521-b799-c7e715d3c59e/cs/20251009-harmonogram-akademickeho-roku-20262027.pdf", officialDomain: "cvut.cz", format: "pdf", parserKey: "pdfjs-academic-calendar", enabled: true, refreshIntervalHours: 168, monitoringMode: "automatic_review", coverageStatus: "covered_by_central", coverageEvidence: "Oficiální centrální harmonogram ČVUT 2026/2027.", priority: 80, deepDiscoveryIntervalHours: 168, termsNote: "Centrální harmonogram ČVUT; PDF změny kontroluje editor." },
+  { id: "src-praha-cvut-fjfi", cityId: "praha", universityId: "cvut", facultyId: "cvut-fjfi", sourceType: "academic_calendar", sourceUrl: "https://edu.fjfi.cvut.cz/edu/Harmonogramy/Harmonogram_2026_2027.pdf", officialDomain: "fjfi.cvut.cz", format: "pdf", parserKey: "pdfjs-academic-calendar", enabled: true, refreshIntervalHours: 168, monitoringMode: "automatic_review", coverageStatus: "complete", coverageEvidence: "Oficiální časový plán FJFI ČVUT 2026/2027.", priority: 100, deepDiscoveryIntervalHours: 168, termsNote: "Fakultní PDF FJFI; změny kontroluje editor." },
+  { id: "src-praha-vse", cityId: "praha", universityId: "vse", facultyId: "vse-ffu", sourceType: "academic_calendar", sourceUrl: "https://www.vse.cz/studenti/studium/harmonogramy/", officialDomain: "vse.cz", format: "html", parserKey: "generic-academic-html", enabled: true, refreshIntervalHours: 48, monitoringMode: "automatic_review", coverageStatus: "covered_by_central", coverageEvidence: "Centrální harmonogram VŠE 2026/2027.", priority: 80, deepDiscoveryIntervalHours: 168, termsNote: "Centrální harmonogram VŠE; změny kontroluje editor." },
+  { id: "src-praha-czu", cityId: "praha", universityId: "czu", facultyId: "czu-fappz", sourceType: "academic_calendar", sourceUrl: "https://www.czu.cz/dl/154159?lang=cs", officialDomain: "czu.cz", format: "pdf", parserKey: "pdfjs-academic-calendar", enabled: true, refreshIntervalHours: 168, monitoringMode: "automatic_review", coverageStatus: "covered_by_central", coverageEvidence: "Centrální rozhodnutí rektora ČZU pro rok 2026/2027.", priority: 80, deepDiscoveryIntervalHours: 168, termsNote: "Centrální harmonogram ČZU; PDF změny kontroluje editor." },
+  { id: "src-praha-vscht", cityId: "praha", universityId: "vscht", facultyId: "vscht-fcht", sourceType: "academic_calendar", sourceUrl: "https://studium.vscht.cz/organizace-roku-vyuky?jazyk=cs&lang=cs", officialDomain: "studium.vscht.cz", format: "html", parserKey: "generic-academic-html", enabled: true, refreshIntervalHours: 48, monitoringMode: "automatic_review", coverageStatus: "covered_by_central", coverageEvidence: "Centrální organizace akademického roku VŠCHT.", priority: 80, deepDiscoveryIntervalHours: 168, termsNote: "Centrální harmonogram VŠCHT; změny kontroluje editor." },
+];
+
+const ostravaAcademicSources: RegisteredSource[] = [
+  ...["vsbtuo-fmt", "vsbtuo-fs", "vsbtuo-ekf"].map((facultyId) => academicSource({ cityId: "ostrava", universityId: "vsbtuo", facultyId, url: "https://www.vsb.cz/cs/student/harmonogram/?academicYear=2026", coverageStatus: "covered_by_central", coverageEvidence: "Centrální harmonogram VŠB-TUO 2026/2027 pro všechny fakulty." })),
+  academicSource({ cityId: "ostrava", universityId: "vsbtuo", facultyId: "vsbtuo-fei", url: "https://www.fei.vsb.cz/410/cs/studium/Harmonogramy-a-rozvrhy/", coverageStatus: "complete", coverageEvidence: "Fakultní harmonogram FEI VŠB-TUO." }),
+  academicSource({ cityId: "ostrava", universityId: "vsbtuo", facultyId: "vsbtuo-fast", url: "https://www.fast.vsb.cz/cs/student/harmonogram?academicYear=2026", coverageStatus: "complete", coverageEvidence: "Fakultní harmonogram FAST VŠB-TUO 2026/2027." }),
+  academicSource({ cityId: "ostrava", universityId: "vsbtuo", facultyId: "vsbtuo-fbi", url: "https://www.fbi.vsb.cz/cs/Student/harmonogram-akademickeho-roku/", coverageStatus: "complete", coverageEvidence: "Fakultní harmonogram FBI VŠB-TUO." }),
+  ...["osu-ff", "osu-pdf", "osu-fu"].map((facultyId) => academicSource({ cityId: "ostrava", universityId: "osu", facultyId, url: `https://${facultyId.replace("osu-", "")}.osu.cz/uredni-deska/`, coverageStatus: "unavailable", coverageEvidence: "Aktuální veřejný harmonogram 2026/2027 nebyl na fakultní úřední desce potvrzen; stránka zůstává monitorovaná." })),
+  academicSource({ cityId: "ostrava", universityId: "osu", facultyId: "osu-lf", url: "https://lf.osu.cz/uredni-deska/", coverageStatus: "unavailable", coverageEvidence: "Aktuální veřejný harmonogram LF OU 2026/2027 nebyl potvrzen; úřední deska zůstává monitorovaná." }),
+];
 const registeredSources: RegisteredSource[] = [
   ...["muni-prav", "muni-lf", "muni-prf", "muni-ff", "muni-pedf", "muni-faf", "muni-esf", "muni-fi", "muni-fss", "muni-fsps"].map((facultyId) => ({
     id: `src-${facultyId}`, universityId: "muni", facultyId, sourceType: "academic_calendar" as const,
@@ -40,6 +133,9 @@ const registeredSources: RegisteredSource[] = [
   { id: "src-ostrava-vsbtuo", cityId: "ostrava", universityId: "vsbtuo", facultyId: "vsbtuo-hgf", sourceType: "academic_calendar", sourceUrl: "https://www.vsb.cz/cs/student/harmonogram/?academicYear=2026", officialDomain: "vsb.cz", format: "html", parserKey: "generic-academic-html", enabled: true, refreshIntervalHours: 9, monitoringMode: "automatic_review", termsNote: "Centrální oficiální harmonogram VŠB-TUO 2026/2027; změny před zveřejněním kontroluje editor." },
   { id: "src-ostrava-osu-prf", cityId: "ostrava", universityId: "osu", facultyId: "osu-prf", sourceType: "academic_calendar", sourceUrl: "https://dokumenty.osu.cz/prf/urednideska/prf-harmonogram-2026-2027.pdf", officialDomain: "dokumenty.osu.cz", format: "pdf", parserKey: "pdfjs-academic-calendar", enabled: true, refreshIntervalHours: 9, monitoringMode: "automatic_review", termsNote: "Oficiální harmonogram PřF OU 2026/2027; PDF změny musí projít ruční kontrolou." },
   { id: "src-ostrava-osu-fss", cityId: "ostrava", universityId: "osu", facultyId: "osu-fss", sourceType: "academic_calendar", sourceUrl: "https://dokumenty.osu.cz/fss/urednideska/harmonogram-akademickeho-roku-fss-2026-2027.pdf", officialDomain: "dokumenty.osu.cz", format: "pdf", parserKey: "pdfjs-academic-calendar", enabled: true, refreshIntervalHours: 9, monitoringMode: "automatic_review", termsNote: "Oficiální harmonogram FSS OU 2026/2027; PDF změny musí projít ruční kontrolou." },
+  ...pragueEstablishedSources,
+  ...pragueAcademicSources,
+  ...ostravaAcademicSources,
   { id: "src-fajn-brigady", cityId: "brno", universityId: "", facultyId: "", sourceType: "job_feed", sourceUrl: "https://www.fajn-brigady.cz/vysledek.html?s_sekce=1&id_lokality=okres-3702", officialDomain: "media.fajnsprava.cz", allowedDomains: ["media.fajnsprava.cz", "fajn-brigady.cz"], format: "xml", parserKey: "fajn-v2-xml", enabled: true, refreshIntervalHours: fajnFeedConfig().intervalHours, monitoringMode: "automatic_publish", termsNote: "Smluvní XML feed Fajn brigády. Skutečná adresa feedu je pouze v serverovém prostředí a testovací inzeráty se nepublikují." },
   { id: "src-fajn-brigady-praha", cityId: "praha", universityId: "", facultyId: "", sourceType: "job_feed", sourceUrl: "https://www.fajn-brigady.cz/brigady/praha/", officialDomain: "media.fajnsprava.cz", allowedDomains: ["media.fajnsprava.cz", "fajn-brigady.cz"], format: "xml", parserKey: "fajn-v2-xml", enabled: true, refreshIntervalHours: fajnFeedConfig("praha").intervalHours, monitoringMode: "automatic_publish", termsNote: "Smluvní XML feed Fajn brigády pro Prahu. Adresa feedu zůstává v serverovém prostředí." },
   { id: "src-fajn-brigady-ostrava", cityId: "ostrava", universityId: "", facultyId: "", sourceType: "job_feed", sourceUrl: "https://www.fajn-brigady.cz/brigady/ostrava/", officialDomain: "media.fajnsprava.cz", allowedDomains: ["media.fajnsprava.cz", "fajn-brigady.cz"], format: "xml", parserKey: "fajn-v2-xml", enabled: true, refreshIntervalHours: fajnFeedConfig("ostrava").intervalHours, monitoringMode: "automatic_publish", termsNote: "Smluvní XML feed Fajn brigády pro Ostravu. Adresa feedu zůstává v serverovém prostředí." },
@@ -48,8 +144,7 @@ const registeredSources: RegisteredSource[] = [
 
 export const contentSources: ContentSource[] = registeredSources.map((source) => ({
   ...source,
-  refreshIntervalHours: Math.min(source.refreshIntervalHours, 9),
-  allowedDomains: source.allowedDomains || (source.universityId === "muni" ? ["muni.cz"] : source.universityId === "vut" ? ["vut.cz", "vutbr.cz"] : source.universityId === "mendelu" ? ["mendelu.cz"] : source.universityId === "vetuni" ? ["vetuni.cz"] : source.universityId === "upol" ? ["upol.cz"] : source.universityId === "vsbtuo" ? ["vsb.cz"] : source.universityId === "osu" ? ["osu.cz"] : ["jamu.cz"]),
+  allowedDomains: source.allowedDomains || (source.universityId === "muni" ? ["muni.cz"] : source.universityId === "vut" ? ["vut.cz", "vutbr.cz"] : source.universityId === "mendelu" ? ["mendelu.cz"] : source.universityId === "vetuni" ? ["vetuni.cz"] : source.universityId === "upol" ? ["upol.cz"] : source.universityId === "vsbtuo" ? ["vsb.cz"] : source.universityId === "osu" ? ["osu.cz"] : source.universityId === "cuni" ? ["cuni.cz"] : source.universityId === "cvut" ? ["cvut.cz"] : source.universityId === "vse" ? ["vse.cz"] : source.universityId === "czu" ? ["czu.cz"] : source.universityId === "vscht" ? ["vscht.cz"] : ["jamu.cz"]),
   academicYear: source.sourceUrl.match(/20\d{2}[-_/](?:20)?\d{2}/)?.[0]?.replace(/[-_]/g, "/").replace(/\/(\d{2})$/, (_match, year: string) => `/${String(Number(year.slice(0, 2)) + 2000)}`) || null,
   confidence: source.monitoringMode === "automatic_publish" ? 0.96 : source.monitoringMode === "not_found_monitored" ? 0 : 0.6,
   requiresReview: source.monitoringMode !== "automatic_publish",

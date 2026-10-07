@@ -3,6 +3,7 @@ import type { StudyYear } from "@/lib/types";
 
 export type SourceFormat = "api" | "json" | "ics" | "xml" | "html" | "pdf";
 export type SourceMonitoringMode = "automatic_publish" | "automatic_review" | "not_found_monitored";
+export type SourceCoverageStatus = "complete" | "covered_by_central" | "partial" | "needs_review" | "blocked" | "unavailable" | "stale";
 
 export type ContentSource = {
   id: string;
@@ -26,6 +27,11 @@ export type ContentSource = {
   sourceDocumentTitle?: string;
   discoveryPageLimit?: number;
   discoveryDepth?: number;
+  organizationUnit?: string;
+  priority?: number;
+  coverageStatus?: SourceCoverageStatus;
+  coverageEvidence?: string;
+  deepDiscoveryIntervalHours?: number;
 };
 
 export type NormalizedEvent = {

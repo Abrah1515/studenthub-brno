@@ -4,9 +4,11 @@ vi.mock("server-only", () => ({}));
 vi.mock("node:dns/promises", () => ({ lookup: vi.fn(async () => [{ address: "203.0.113.10", family: 4 }]) }));
 import { parseHtml } from "@/lib/sources/connectors/html";
 import { parseIcs } from "@/lib/sources/connectors/ics";
+import { parseRssAtom } from "@/lib/sources/connectors/rss";
 import { deduplicatePdfEvents, parsePdf, parsePdfExtractedText } from "@/lib/sources/connectors/pdf";
 import { runConnector } from "@/lib/sources/connectors";
 import { contentSources } from "@/lib/sources/registry";
+import { faculties } from "@/lib/universities";
 import { parseCzechDateRange, semanticEventHash, sha256, zonedDateTimeToIso } from "@/lib/sources/normalize";
 import { reconcileEvents } from "@/lib/sources/reconcile";
 import { discoverAcademicDocument, discoverPaginationUrls } from "@/lib/sources/discovery";
@@ -24,6 +26,12 @@ const context = (body: Uint8Array): ConnectorContext => ({ source, body, content
 const pdfContext = (body: Uint8Array): ConnectorContext => ({ source: { ...source, format: "pdf", requiresReview: true }, body, contentType: "application/pdf", checkedAt: "2026-08-01T10:00:00Z" });
 
 describe("konektory veřejných zdrojů", () => {
+  it("normalizuje RSS i Atom deterministicky", async () => {
+    const body = await readFile("tests/fixtures/calendar-events.xml");
+    const result = await parseRssAtom({ ...context(body), source: { ...source, format: "xml", parserKey: "rss-atom", requiresReview: false } });
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toMatchObject({ externalId: "urn:studenthub:test:registration", title: "Registrace předmětů", category: "Registrace předmětů", academicYear: "2026/2027", status: "approved" });
+  });
   it("normalizuje ICS včetně exkluzivního celodenního konce", async () => { const body = await readFile("tests/fixtures/calendar.ics"); const result = await parseIcs(context(body)); expect(result.events).toHaveLength(1); expect(result.events[0]).toMatchObject({ externalId: "fit-teaching-2026", allDay: true, category: "Výuka", status: "approved" }); expect(result.events[0].startAt).toBe("2026-09-13T22:00:00.000Z"); expect(result.events[0].endAt).toBe("2026-12-11T22:59:00.000Z"); });
   it("z konzervativního HTML přijme jen známé akademické kategorie", async () => { const body = await readFile("tests/fixtures/calendar.html"); const result = await parseHtml(context(body)); expect(result.events.map((item) => item.category)).toEqual(["Výuka", "Zkouškové období"]); expect(result.events.every((item) => item.confidence >= .9)).toBe(true); });
   it("aktuální textové PDF z automatického zdroje publikuje bez zásahu editora", async () => { const text = await readFile("tests/fixtures/calendar-pdf.txt", "utf8"); const result = await parsePdfExtractedText(text, context(new Uint8Array())); expect(result.events).toHaveLength(2); expect(result.events.every((item) => item.status === "approved" && item.confidence >= .95 && item.academicYear === "2026/2027")).toBe(true); expect(result.warnings).toHaveLength(0); });
@@ -174,9 +182,22 @@ describe("idempotentní reconciliace", () => {
   });
 });
 
-it("registr pokrývá zavedené fakulty a ověřené ostravské harmonogramy", () => { const academic = contentSources.filter((item) => item.sourceType === "academic_calendar"); const ostrava = academic.filter((item) => item.cityId === "ostrava"); expect(academic).toHaveLength(39); expect(new Set(academic.map((item) => item.facultyId)).size).toBe(38); expect(contentSources.every((item) => item.enabled)).toBe(true); expect(academic.filter((item) => item.cityId === "olomouc")).toHaveLength(8); expect(ostrava).toHaveLength(3); expect(academic.filter((item) => item.cityId === "olomouc").every((item) => item.monitoringMode === "automatic_review" && item.academicYear === null)).toBe(true); expect(ostrava.every((item) => item.monitoringMode === "automatic_review")).toBe(true); expect(ostrava.filter((item) => item.format === "pdf").every((item) => item.academicYear === "2026/2027")).toBe(true); });
-it("odděluje bezpečně automatické a kontrolované akademické zdroje", () => { const academic = contentSources.filter((item) => item.sourceType === "academic_calendar"); expect(academic.filter((item) => item.monitoringMode === "automatic_publish")).toHaveLength(19); expect(academic.filter((item) => item.monitoringMode === "automatic_review")).toHaveLength(20); expect(academic.filter((item) => item.monitoringMode === "not_found_monitored")).toHaveLength(0); });
-it("každá fakulta má dohledaný aktivní oficiální zdroj", () => { expect(contentSources.every((item) => item.enabled && item.parserKey !== "not-found-monitor" && item.sourceUrl.startsWith("https://"))).toBe(true); });
+it("registr dává každé aktivní fakultě jednoznačný stav pokrytí", () => {
+  const academic = contentSources.filter((item) => item.sourceType === "academic_calendar");
+  const covered = new Set(academic.map((item) => item.facultyId));
+  expect(faculties.filter((item) => item.active).filter((item) => !covered.has(item.id))).toEqual([]);
+  expect(covered.size).toBe(faculties.filter((item) => item.active).length);
+  expect(new Set(academic.filter((item) => item.cityId === "praha").map((item) => item.facultyId)).size).toBe(37);
+  expect(new Set(academic.filter((item) => item.cityId === "ostrava").map((item) => item.facultyId)).size).toBe(13);
+  expect(new Set(academic.filter((item) => item.cityId === "olomouc").map((item) => item.facultyId)).size).toBe(8);
+});
+it("odděluje automatické, kontrolované a monitorované zdroje", () => {
+  const academic = contentSources.filter((item) => item.sourceType === "academic_calendar");
+  expect(academic.some((item) => item.monitoringMode === "automatic_publish")).toBe(true);
+  expect(academic.some((item) => item.monitoringMode === "automatic_review")).toBe(true);
+  expect(academic.filter((item) => item.monitoringMode === "not_found_monitored").map((item) => item.facultyId).sort()).toEqual(["osu-ff", "osu-fu", "osu-lf", "osu-pdf"]);
+});
+it("každá fakulta má aktivní oficiální HTTPS zdroj nebo monitorovaný oficiální rozcestník", () => { expect(contentSources.every((item) => item.enabled && item.sourceUrl.startsWith("https://"))).toBe(true); });
 it("FIT odvodí URL z aktuálního akademického roku bez hardcodování", () => { const fit = fitCalendarSourceForYear(source, new Date("2026-08-02T00:00:00Z")); expect(fit.sourceUrl).toBe("https://www.fit.vut.cz/study/calendar/2026/.cs"); expect(fit.academicYear).toBe("2026/2027"); expect(fitCalendarSourceForYear(source, new Date("2027-02-02T00:00:00Z")).sourceUrl).toContain("/2026/.cs"); });
 it("FSI předá aktuální akademický rok explicitně a nebere starý výchozí plán", () => { const fsi = contentSources.find((item) => item.id === "src-vut-fsi")!; expect(fsiCalendarSourceForYear(fsi, new Date("2026-08-02T00:00:00Z"))).toMatchObject({ sourceUrl: "https://www.fme.vutbr.cz/studenti/plan?degree=0&mode=0&year=2026", academicYear: "2026/2027" }); });
 it("rozpozná VETUNI Turnstile a HTML vydávané za PDF", () => { const vetuni = contentSources.find((item) => item.id === "src-vetuni-fvl")!; expect(inspectSourcePayload(vetuni, { finalUrl: "https://www.vetuni.cz/turnstile.php?from=x", contentType: "text/html", body: new TextEncoder().encode('<div class="cf-turnstile">Verify you are human</div>') })).toMatchObject({ code: "challenge", status: "blocked" }); const pdf = { ...vetuni, format: "pdf" as const }; expect(inspectSourcePayload(pdf, { finalUrl: "https://www.vetuni.cz/file.pdf", contentType: "text/html", body: new TextEncoder().encode("<html>not pdf</html>") })).toMatchObject({ code: "unexpected_mime" }); });

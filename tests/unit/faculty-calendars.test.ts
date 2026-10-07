@@ -11,7 +11,14 @@ const event = (scope: AcademicEvent["scope"], universityId?: string, facultyId?:
 
 describe("stabilní katalog fakult", () => {
   it("obsahuje aktivní a oficiálně odkazované fakulty všech publikovaných měst", () => { expect(universities).toHaveLength(13); expect(faculties).toHaveLength(85); expect(faculties.every((faculty) => faculty.active && faculty.slug === faculty.id && faculty.officialUrl.startsWith("https://"))).toBe(true); });
-  it("zachovává fakultní zdroje Brna a Olomouce; Praha a Ostrava používají ověřené centrální nebo fakultní harmonogramy", () => { const academicSources = contentSources.filter((source) => source.sourceType === "academic_calendar"); const sourceFaculties = new Set(academicSources.map((source) => source.facultyId)); const establishedFaculties = faculties.filter((faculty) => !["cuni", "cvut", "vse", "czu", "vscht", "vsbtuo", "osu"].includes(faculty.universityId)); expect(establishedFaculties.every((faculty) => sourceFaculties.has(faculty.id))).toBe(true); expect(academicSources.filter((source) => source.cityId === "ostrava").map((source) => source.id)).toEqual(["src-ostrava-vsbtuo", "src-ostrava-osu-prf", "src-ostrava-osu-fss"]); expect(contentSources.every((source) => source.notes && source.officialDomain)).toBe(true); });
+  it("registruje jednoznačný akademický zdroj nebo monitorovaný stav pro každou aktivní fakultu", () => {
+    const academicSources = contentSources.filter((source) => source.sourceType === "academic_calendar");
+    const sourceFaculties = new Set(academicSources.map((source) => source.facultyId));
+    expect(faculties.every((faculty) => sourceFaculties.has(faculty.id))).toBe(true);
+    expect(new Set(academicSources.filter((source) => source.cityId === "ostrava").map((source) => source.facultyId)).size).toBe(13);
+    expect(academicSources.filter((source) => source.cityId === "ostrava" && source.monitoringMode === "not_found_monitored").map((source) => source.facultyId).sort()).toEqual(["osu-ff", "osu-fu", "osu-lf", "osu-pdf"]);
+    expect(contentSources.every((source) => source.notes && source.officialDomain)).toBe(true);
+  });
 });
 
 describe("validace výběru", () => {

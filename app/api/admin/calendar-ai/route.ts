@@ -5,6 +5,7 @@ import { adminSectionAllowed } from "@/lib/admin-sections";
 import { CALENDAR_REVIEW_VERSION, calendarAiConfiguration, runAcademicCalendarAiCheck } from "@/lib/academic-calendar-ai";
 import { getPublishedCities, getUniversityIdsForPublishedCity } from "@/lib/city-data";
 import { createServiceClient } from "@/lib/supabase-server";
+import { academicCatalogForCity, facultyById, universityById } from "@/lib/universities";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +24,26 @@ export async function GET(request: Request) {
   if (!city) return NextResponse.json({ message: "Město není dostupné nebo není ve vašem rozsahu." }, { status: 403 });
   const cityId = city.id;
   const client = createServiceClient();
-  const { data: sources, error: sourcesError } = await client.from("content_sources").select("id,faculty_id,university_id,city_id").eq("source_type", "academic_calendar").eq("enabled", true);
+  const { data: sources, error: sourcesError } = await client.from("content_sources").select("id,faculty_id,university_id,city_id,source_url,format,parser_key,coverage_status,coverage_evidence,last_checked_at,last_success_at,last_changed_at,last_http_status,last_event_count,next_check_at,next_deep_discovery_at,sync_status,last_error_message,discovery_status,source_priority").eq("source_type", "academic_calendar").eq("enabled", true);
   if (sourcesError) return NextResponse.json({ message: "Zdroje se nepodařilo načíst." }, { status: 500 });
   const universities = await getUniversityIdsForPublishedCity(cityId);
   const sourceIds = (sources || []).filter((row) => row.city_id === cityId || (!row.city_id && universities.includes(String(row.university_id)))).map((row) => String(row.id));
+  const citySources = (sources || []).filter((row) => sourceIds.includes(String(row.id)));
+  const catalog = academicCatalogForCity(cityId);
+  const coverage = catalog.faculties.map((faculty) => {
+    const matches = citySources.filter((row) => String(row.faculty_id) === faculty.id).sort((a, b) => Number(b.source_priority || 0) - Number(a.source_priority || 0));
+    const primary = matches[0] || null;
+    return {
+      cityId,
+      universityId: faculty.universityId,
+      universityName: universityById(faculty.universityId)?.shortName || faculty.universityId,
+      facultyId: faculty.id,
+      facultyName: facultyById(faculty.id)?.shortName || faculty.id,
+      status: primary?.coverage_status || "unavailable",
+      evidence: primary?.coverage_evidence || "Aktivní zdroj není registrován.",
+      sources: matches,
+    };
+  });
   const runsQuery = client.from("academic_calendar_ai_runs").select("*").eq("city_id", cityId).eq("ai_provider", CALENDAR_REVIEW_VERSION).order("started_at", { ascending: false }).limit(25);
   const { data: runs, error: runsError } = await runsQuery;
   if (runsError) return NextResponse.json({ message: "Stav kontroly se nepodařilo načíst." }, { status: 500 });
@@ -36,7 +53,7 @@ export async function GET(request: Request) {
   const { data: findings, error: findingsError } = await findingsQuery;
   if (findingsError) return NextResponse.json({ message: "Nálezy se nepodařilo načíst." }, { status: 500 });
   const latest = runs?.[0] || null;
-  return NextResponse.json({ city: { id: city.id, name: city.name }, availableCities: cities.map((item) => ({ id: item.id, name: item.name })), configuration: calendarAiConfiguration(), latest, lastSuccessful: successfulRuns?.[0] || null, runs: runs || [], findings: findings || [], stats: { sources: sourceIds.length, openFindings: (findings || []).filter((row) => ["new", "needs_review", "cannot_verify"].includes(String(row.status))).length, unavailable: Number(latest?.unavailable_source_count || 0), conflicts: Number(latest?.conflict_count || 0) } });
+  return NextResponse.json({ city: { id: city.id, name: city.name }, availableCities: cities.map((item) => ({ id: item.id, name: item.name })), configuration: calendarAiConfiguration(), latest, lastSuccessful: successfulRuns?.[0] || null, runs: runs || [], findings: findings || [], coverage, stats: { sources: sourceIds.length, faculties: coverage.length, complete: coverage.filter((row) => ["complete", "covered_by_central"].includes(String(row.status))).length, partial: coverage.filter((row) => ["partial", "needs_review", "stale"].includes(String(row.status))).length, blocked: coverage.filter((row) => ["blocked", "unavailable"].includes(String(row.status))).length, openFindings: (findings || []).filter((row) => ["new", "needs_review", "cannot_verify"].includes(String(row.status))).length, unavailable: Number(latest?.unavailable_source_count || 0), conflicts: Number(latest?.conflict_count || 0) } });
 }
 
 export async function POST(request: Request) {
