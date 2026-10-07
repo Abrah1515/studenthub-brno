@@ -2,15 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { BookOpenText, Calculator, Filter, Heart, Plus, RotateCcw, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeading } from "@/components/page-heading";
 import { ProfileIdentity } from "@/components/profile-identity";
 import { useAcademicCatalog } from "@/components/academic-catalog-provider";
 import { MobileFilterButton, MobileFilterDialog } from "@/components/mobile-filter-toolbar";
 import { OwnerScopeTabs } from "@/components/owner-scope-tabs";
 import type { City } from "@/lib/cities";
-import { useStudentPreference } from "@/lib/client-preferences";
+import { resolveSchoolFiltersForCity, useStudentPreference } from "@/lib/client-preferences";
 import { filterMarketplaceListings } from "@/lib/marketplace-public";
 import { marketplaceCategories, marketplaceConditions, marketplaceFormats, marketplaceLabels, marketplaceListingTypes, marketplacePriceLabel, marketplaceStatuses, type MarketplaceListing } from "@/lib/marketplace-types";
 import { universitiesForCity } from "@/lib/universities";
@@ -21,11 +22,24 @@ const emptyFilters = { q: "", listingType: "", category: "", university: "", fac
 export function MarketplaceExplorer({ city, initialItems, emailReady }: { city: City; initialItems: MarketplaceListing[]; emailReady: boolean }) {
   const catalog = useAcademicCatalog();
   const preference = useStudentPreference(catalog);
+  const search = useSearchParams();
+  const preferenceApplied = useRef(false);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [filters, setFilters] = useState(emptyFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mine, setMine] = useState(false); const [sourceItems, setSourceItems] = useState(initialItems); const [scopeError, setScopeError] = useState(""); const [scopeLoading, setScopeLoading] = useState(false);
   useEffect(() => { try { setFavorites(JSON.parse(localStorage.getItem(favoritesKey) || "[]")); } catch { setFavorites([]); } }, []);
+  useEffect(() => {
+    if (preferenceApplied.current || (!preference.completed && !search.has("university") && !search.has("faculty") && !search.has("year") && search.get("filters") !== "all")) return;
+    preferenceApplied.current = true;
+    const resolved = resolveSchoolFiltersForCity(preference, city.id, { university: search.get("university"), faculty: search.get("faculty"), studyYear: search.get("year"), explicitUniversity: search.has("university"), explicitFaculty: search.has("faculty"), explicitStudyYear: search.has("year"), reset: search.get("filters") === "all" }, catalog);
+    setFilters((current) => ({
+      ...current,
+      university: resolved.universityId,
+      faculty: resolved.facultyId,
+      year: resolved.studyYear ? String(resolved.studyYear) : "",
+    }));
+  }, [catalog, city.id, preference, search]);
 
   const university = filters.university;
   const facultyOptions = catalog.faculties.filter((item) => item.universityId === university && item.active);

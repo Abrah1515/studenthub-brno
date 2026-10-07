@@ -3,15 +3,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { BriefcaseBusiness, CheckCircle2, ChevronDown, Edit3, MapPin, Search, Send, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import type { Job, JobRewardUnit } from "@/lib/types";
 import { jobSubmissionSchema, type JobSubmissionInput } from "@/lib/schemas";
-import { useStudentPreference } from "@/lib/client-preferences";
+import { resolveSchoolFiltersForCity, useStudentPreference } from "@/lib/client-preferences";
 import { useModalDialog } from "@/lib/use-modal-dialog";
 import { formatJobReward } from "@/lib/job-rewards";
 import { MobileFilterDialog, MobileFilterToolbar } from "@/components/mobile-filter-toolbar";
 import { LegalNotice } from "@/components/legal-links";
+import type { City } from "@/lib/cities";
 
 const all = "Všechny";
 const dateFormatter = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "numeric", year: "numeric", timeZone: "Europe/Prague" });
@@ -31,7 +33,7 @@ function JobProposal({ onClose, item }: { onClose: () => void; item?:OwnedJobPro
 
 function comparableHourlyReward(job: Job) { return job.rewardUnit === "hour" ? job.rewardMin ?? job.reward : undefined; }
 
-export function JobExplorer({ items }: { items: Job[] }) {
+export function JobExplorer({ items, city }: { items: Job[]; city: City }) {
   const [query, setQuery] = useState(""); const [field, setField] = useState(all); const [workType, setWorkType] = useState(all); const [workload, setWorkload] = useState(all); const [locality, setLocality] = useState(""); const [rewardUnit, setRewardUnit] = useState<"all" | "unspecified" | JobRewardUnit>("all");
   const [minReward, setMinReward] = useState(0); const [includeUnspecified, setIncludeUnspecified] = useState(true);
   const [sort, setSort] = useState<"verified" | "reward">("verified"); const [filtersOpen, setFiltersOpen] = useState(false); const [showProposal, setShowProposal] = useState(false);const[myOpen,setMyOpen]=useState(false);const[myItems,setMyItems]=useState<OwnedJobProposal[]>([]);const[editing,setEditing]=useState<OwnedJobProposal|null>(null);const[myMessage,setMyMessage]=useState("");
@@ -39,23 +41,25 @@ export function JobExplorer({ items }: { items: Job[] }) {
   async function removeProposal(id:string){if(!confirm("Odstranit vlastní návrh brigády?"))return;const response=await fetch(`/api/jobs/${id}`,{method:"DELETE"});if(response.ok)setMyItems((current)=>current.filter((item)=>item.id!==id))}
   async function withdrawProposal(id:string){const response=await fetch(`/api/jobs/${id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action:"withdraw"})});if(response.ok)setMyItems((current)=>current.map((item)=>item.id===id?{...item,status:"archived"}:item))}
   const preference = useStudentPreference();
+  const search = useSearchParams();
+  const schoolSelection = resolveSchoolFiltersForCity(preference, city.id, { university: search.get("university"), faculty: search.get("faculty"), explicitUniversity: search.has("university"), explicitFaculty: search.has("faculty"), reset: search.get("filters") === "all" });
   const workTypeOptions = useMemo(() => [...new Set(items.map((job) => job.type))], [items]);
   const workloadOptions = useMemo(() => [...new Set(items.map((job) => job.workload).filter((value): value is string => Boolean(value)))], [items]);
   const rewardUnitOptions = useMemo(() => [...new Set(items.map((job) => job.rewardUnit).filter((value): value is JobRewardUnit => Boolean(value)))], [items]);
   const activeCount = [query.trim(), field !== all, workType !== all, workload !== all, locality.trim(), rewardUnit !== "all", minReward > 0, !includeUnspecified, sort !== "verified"].filter(Boolean).length;
   const filtered = useMemo(() => items.filter((job) => {
-    if (job.status !== "approved" || (preference.universityId && job.universityIds?.length && !job.universityIds.includes(preference.universityId)) || (preference.facultyId && job.facultyIds?.length && !job.facultyIds.includes(preference.facultyId))) return false;
+    if (job.status !== "approved" || (schoolSelection.universityId && job.universityIds?.length && !job.universityIds.includes(schoolSelection.universityId)) || (schoolSelection.facultyId && job.facultyIds?.length && !job.facultyIds.includes(schoolSelection.facultyId))) return false;
     if (field !== all && job.field !== field) return false; if (workType !== all && job.type !== workType) return false; if (workload !== all && job.workload !== workload) return false;
     if (locality.trim() && !job.location.toLocaleLowerCase("cs-CZ").includes(locality.trim().toLocaleLowerCase("cs-CZ"))) return false;
     if (rewardUnit === "unspecified" ? job.rewardUnit : rewardUnit !== "all" && job.rewardUnit !== rewardUnit) return false;
     const hourly = comparableHourlyReward(job); if (minReward > 0 && (hourly == null ? !includeUnspecified : hourly < minReward)) return false;
     return `${job.title} ${job.company || ""} ${job.location} ${job.positionLabel || ""}`.toLocaleLowerCase("cs-CZ").includes(query.trim().toLocaleLowerCase("cs-CZ"));
-  }).sort((a, b) => sort === "reward" ? (comparableHourlyReward(b) ?? -1) - (comparableHourlyReward(a) ?? -1) : new Date(b.lastVerifiedAt).getTime() - new Date(a.lastVerifiedAt).getTime()), [items, field, workType, workload, locality, rewardUnit, minReward, includeUnspecified, query, sort, preference]);
+  }).sort((a, b) => sort === "reward" ? (comparableHourlyReward(b) ?? -1) - (comparableHourlyReward(a) ?? -1) : new Date(b.lastVerifiedAt).getTime() - new Date(a.lastVerifiedAt).getTime()), [items, field, workType, workload, locality, rewardUnit, minReward, includeUnspecified, query, sort, schoolSelection.facultyId, schoolSelection.universityId]);
   function resetFilters() { setQuery(""); setField(all); setWorkType(all); setWorkload(all); setLocality(""); setRewardUnit("all"); setMinReward(0); setIncludeUnspecified(true); setSort("verified"); }
   function trackOutbound(job: Job) {
     if (!job.applyUrl) return;
     try {
-      void fetch("/api/clicks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetType: "job", targetId: job.id, destinationHost: new URL(job.applyUrl).hostname, universityId: preference.universityId, facultyId: preference.facultyId, referralCode: sessionStorage.getItem("studenthub-referral") }) }).catch(() => undefined);
+      void fetch("/api/clicks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetType: "job", targetId: job.id, destinationHost: new URL(job.applyUrl).hostname, universityId: schoolSelection.universityId || null, facultyId: schoolSelection.facultyId || null, referralCode: sessionStorage.getItem("studenthub-referral") }) }).catch(() => undefined);
     } catch { /* Odchod na původní inzerát nesmí být blokován měřením. */ }
   }
   const filterControls = <>
@@ -75,8 +79,8 @@ export function JobExplorer({ items }: { items: Job[] }) {
     <MobileFilterDialog open={filtersOpen} activeCount={activeCount} onClose={() => setFiltersOpen(false)} onReset={resetFilters} controlsId="job-mobile-filters" bodyClassName="job-filters" applyLabel={`Zobrazit ${filtered.length} brigád`}>{filterControls}</MobileFilterDialog>
     <div className="result-toolbar"><div className="result-count"><strong>{filtered.length}</strong> {filtered.length === 1 ? "schválená brigáda" : "schválených brigád"}</div><div className="card-actions"><button className="button button-secondary" onClick={()=>setMyOpen((value)=>!value)}>Moje návrhy</button><button className="button button-secondary" onClick={() => setShowProposal(true)}>Navrhnout brigádu</button></div></div>
     {myOpen&&<section className="settings-card"><h2>Moje návrhy brigád</h2>{myMessage&&<p className="field-error">{myMessage}</p>}{myItems.length===0?<p>Zatím nemáte žádný ruční návrh.</p>:myItems.map((item)=><div className="result-toolbar" key={item.id}><span><strong>{String(item.content.title||"Návrh brigády")}</strong><small> · {item.status==="pending"?"čeká na schválení":item.status==="rejected"?"vráceno k opravě":item.status==="approved"?"schváleno":item.status==="archived"?"staženo":item.status}</small>{item.moderationNote&&<small> · {item.moderationNote}</small>}</span><span className="card-actions">{["pending","rejected","approved"].includes(item.status)&&<button className="button button-quiet" onClick={()=>setEditing(item)}><Edit3 size={15}/>Upravit</button>}{["pending","rejected"].includes(item.status)&&<button className="button button-quiet" onClick={()=>void withdrawProposal(item.id)}>Stáhnout</button>}<button className="button button-quiet" onClick={()=>void removeProposal(item.id)}><Trash2 size={15}/>Odstranit</button></span></div>)}</section>}
-    <section className="job-list" aria-live="polite">{filtered.length === 0 ? <div className="empty-state"><BriefcaseBusiness size={28} /><h2>{items.length ? "Filtrům neodpovídá žádná brigáda" : "Zatím nemáme ověřené brigády"}</h2><p>{items.length ? "Zkuste změnit nebo resetovat filtry." : <>Firma může poslat nabídku ke schválení. Další inzeráty najdete také na <a href="https://www.fajn-brigady.cz/vysledek.html?s_sekce=1&amp;id_lokality=okres-3702" target="_blank" rel="noopener noreferrer">Fajn-brigády.cz</a>.</>}</p></div> : filtered.map((job) => {
-      const providerJob = job.providerKey === "fajn-brigady"; const hasLongDescription = job.description.length > 360;
+    <section className="job-list" aria-live="polite">{filtered.length === 0 ? <div className="empty-state"><BriefcaseBusiness size={28} /><h2>{items.length ? "Filtrům neodpovídá žádná brigáda" : "Zatím nemáme ověřené brigády"}</h2><p>{items.length ? "Zkuste změnit nebo resetovat filtry." : <>Firma může poslat nabídku ke schválení. Další inzeráty najdete také na <a href={`https://www.fajn-brigady.cz/brigady/${city.slug}/`} target="_blank" rel="noopener noreferrer">Fajn-brigády.cz</a>.</>}</p></div> : filtered.map((job) => {
+      const providerJob = job.providerKey?.startsWith("fajn-brigady"); const hasLongDescription = job.description.length > 360;
       const metadata = [
         { label: "Odměna", value: formatJobReward(job) }, job.workload ? { label: "Rozsah", value: job.workload } : null,
         { label: "Typ", value: job.type }, { label: "Lokalita", value: job.location, location: true },

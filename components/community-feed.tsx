@@ -24,6 +24,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -48,6 +49,7 @@ import {
 import { communityPostSchema } from "@/lib/schemas";
 import { useModalDialog } from "@/lib/use-modal-dialog";
 import { useCurrentCity } from "@/components/city-context";
+import { resolveSchoolFiltersForCity, useStudentPreference } from "@/lib/client-preferences";
 
 type PlaceOption = { id: string; name: string; address: string };
 type Viewer = { loggedIn: boolean; nickname: string; profileComplete: boolean };
@@ -126,6 +128,9 @@ function uploadCommunityPost(
 export function CommunityFeed({ places }: { places: PlaceOption[] }) {
   const city = useCurrentCity();
   const catalog = useAcademicCatalog();
+  const preference = useStudentPreference(catalog);
+  const search = useSearchParams();
+  const preferenceApplied = useRef(false);
   const [items, setItems] = useState<CommunityPost[]>([]);
   const [viewer, setViewer] = useState<Viewer>({
     loggedIn: false,
@@ -151,6 +156,13 @@ export function CommunityFeed({ places }: { places: PlaceOption[] }) {
     [catalog.faculties, university],
   );
   const cityUniversities = useMemo(() => universitiesForCity(city.id, catalog), [catalog, city.id]);
+  useEffect(() => {
+    if (preferenceApplied.current || (!preference.completed && !search.has("university") && !search.has("faculty") && search.get("filters") !== "all")) return;
+    preferenceApplied.current = true;
+    const resolved = resolveSchoolFiltersForCity(preference, city.id, { university: search.get("university"), faculty: search.get("faculty"), explicitUniversity: search.has("university"), explicitFaculty: search.has("faculty"), reset: search.get("filters") === "all" }, catalog);
+    setUniversity(resolved.universityId);
+    setFaculty(resolved.facultyId);
+  }, [catalog, city.id, preference, search]);
   const load = useCallback(
     async (page = 1, append = false) => {
       setLoading(true);

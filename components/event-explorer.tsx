@@ -8,7 +8,7 @@ import type { AcademicEvent, StudyYear } from "@/lib/types";
 import { formatDate, formatDayNumber, formatPragueTimestamp, formatShortMonth } from "@/lib/format";
 import { useAcademicCatalog } from "@/components/academic-catalog-provider";
 import { MobileFilterDialog, MobileFilterToolbar } from "@/components/mobile-filter-toolbar";
-import { calendarPreferenceRequestedEvent, useStudentPreference } from "@/lib/client-preferences";
+import { calendarPreferenceRequestedEvent, resolveSchoolFiltersForCity, useStudentPreference } from "@/lib/client-preferences";
 import { googleCalendarUrl } from "@/lib/calendar-export";
 import { includesFolded } from "@/lib/search";
 import { eventFreshness } from "@/lib/event-freshness";
@@ -38,7 +38,8 @@ export function EventExplorer({ events, initialUniversityId = "", initialFaculty
   const initialized = useRef(false);
   const availableUniversities = useMemo(() => universitiesForCity(cityId, catalog), [catalog, cityId]);
   const availableFaculties = useMemo(() => catalog.faculties.filter((item) => item.active && item.universityId === universityId), [catalog, universityId]);
-  const hasPreferredScope = preference.cityId === cityId && Boolean(preference.universityId || preference.studyYear);
+  const preferredScope = useMemo(() => resolveSchoolFiltersForCity(preference, cityId, {}, catalog), [catalog, cityId, preference]);
+  const hasPreferredScope = Boolean(preferredScope.universityId || preferredScope.studyYear);
   const activeFilterCount = [query.trim(), category !== allCategories, universityId, facultyId, studyYear, showEnded].filter(Boolean).length;
 
   function replaceQuery(changes: Record<string, string | undefined>) {
@@ -61,20 +62,21 @@ export function EventExplorer({ events, initialUniversityId = "", initialFaculty
   }, [catalog]);
   useEffect(() => {
     if (initialized.current) return;
-    initialized.current = true;
     const hasSelection = searchParams.has("university") || searchParams.has("faculty") || searchParams.has("year");
-    if (!hasSelection && (preference.universityId || preference.studyYear)) changeScope(preference.universityId || "", preference.facultyId || "", preference.studyYear || undefined);
+    if (!hasSelection && !preference.completed) return;
+    initialized.current = true;
+    if (!hasSelection && (preferredScope.universityId || preferredScope.studyYear)) changeScope(preferredScope.universityId, preferredScope.facultyId, preferredScope.studyYear || undefined);
     else if ((searchParams.get("university") || "") !== initialUniversityId || (searchParams.get("faculty") || "") !== initialFacultyId || (searchParams.has("year") && String(initialStudyYear || "") !== searchParams.get("year"))) changeScope(initialUniversityId, initialFacultyId, initialStudyYear);
     // Preference is intentionally applied only once. Explicit URL parameters always win.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preference.universityId, preference.studyYear]);
+  }, [preference.completed, preferredScope.facultyId, preferredScope.studyYear, preferredScope.universityId]);
 
   function changeScope(nextUniversity: string, nextFaculty: string, nextStudyYear = studyYear) {
     const validFaculty = catalog.faculties.some((item) => item.active && item.id === nextFaculty && item.universityId === nextUniversity) ? nextFaculty : "";
     setUniversityId(nextUniversity); setFacultyId(validFaculty); setStudyYear(nextStudyYear);
     replaceQuery({ university: nextUniversity || undefined, faculty: validFaculty || undefined, year: nextStudyYear ? String(nextStudyYear) : undefined });
   }
-  function applyPreferredScope() { changeScope(preference.universityId || "", preference.facultyId || "", preference.studyYear || undefined); }
+  function applyPreferredScope() { changeScope(preferredScope.universityId, preferredScope.facultyId, preferredScope.studyYear || undefined); }
   function resetFilters() {
     setQuery(""); setCategory(allCategories); setShowEnded(false); setUniversityId(""); setFacultyId(""); setStudyYear(undefined);
     replaceQuery({ q: undefined, category: undefined, ended: undefined, university: undefined, faculty: undefined, year: undefined });

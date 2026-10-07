@@ -8,10 +8,12 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("komunitní feed má bezpečný prázdný stav, filtry a nepřetéká", async ({ page }) => {
+test("komunitní feed použije Moji školu, má bezpečný prázdný stav a nepřetéká", async ({ page }) => {
   await page.goto("/komunita");
   await expect(page.getByRole("heading", { name: "Studentská komunita", exact: true })).toBeVisible();
-  await expect(page.getByText("Komunita zatím čeká na první příspěvek")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Žádné příspěvky neodpovídají filtrům" })).toBeVisible();
+  await expect(page.getByLabel("Univerzita", { exact: true }).first()).toHaveValue("vut");
+  await expect(page.getByLabel("Fakulta", { exact: true }).first()).toHaveValue("vut-fekt");
   await expect(page.getByRole("button", { name: "Nejnovější" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Oblíbené" })).toBeVisible();
   const filterButton = page.locator("#hlavni-obsah").getByRole("button", { name: /^Filtry/ }).first();

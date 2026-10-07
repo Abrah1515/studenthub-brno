@@ -48,10 +48,26 @@ aws --endpoint-url "$R2_ENDPOINT" s3 cp "$archive" "s3://$R2_BUCKET/$daily_key" 
 aws --endpoint-url "$R2_ENDPOINT" s3 cp "s3://$R2_BUCKET/$daily_key" "$work_dir/roundtrip.age" --no-progress --only-show-errors
 cmp --silent "$archive" "$work_dir/roundtrip.age"
 
+# Proveď obnovovací zkoušku pouze v izolovaném dočasném adresáři runneru.
+# Privátní age klíč se zapisuje se striktními právy a po skončení jej odstraní
+# společný trap spolu se všemi dešifrovanými soubory. Produkce se nemění.
+restore_dir="$work_dir/restore-check"
+identity_file="$work_dir/age-identity.txt"
+mkdir -p "$restore_dir"
+umask 077
+printf '%s\n' "$SUPABASE_BACKUP_SECRET_KEY" > "$identity_file"
+age --decrypt --identity "$identity_file" "$work_dir/roundtrip.age" | gzip -dc | tar -xf - -C "$restore_dir"
+node scripts/backup/manifest.mjs verify "$restore_dir"
+test -s "$restore_dir/database/roles.sql"
+test -s "$restore_dir/database/schema.sql"
+test -s "$restore_dir/database/data.sql"
+test -s "$restore_dir/storage/objects.json"
+rm -f -- "$identity_file"
+
 if [[ "$(date -u +%u)" == "7" ]]; then
   weekly_key="studenthub/weekly/studenthub-weekly-$timestamp.tar.gz.age"
   aws --endpoint-url "$R2_ENDPOINT" s3 cp "$archive" "s3://$R2_BUCKET/$weekly_key" --no-progress --only-show-errors
 fi
 
 node scripts/backup/prune-r2.mjs
-echo "Encrypted StudentHub backup uploaded and verified in R2."
+echo "Encrypted StudentHub backup uploaded, downloaded, decrypted, and verified in isolated storage."

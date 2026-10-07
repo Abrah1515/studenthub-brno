@@ -28,6 +28,60 @@ export function resolvePreferenceForCity(
   );
 }
 
+export type SchoolFilterQuery = {
+  university?: string | null;
+  faculty?: string | null;
+  studyYear?: string | number | null;
+  explicitUniversity?: boolean;
+  explicitFaculty?: boolean;
+  explicitStudyYear?: boolean;
+  reset?: boolean;
+};
+
+/**
+ * Resolves the initial school filters without mutating the saved preference.
+ * Explicit URL values intentionally win, including an explicit empty/invalid
+ * value, so a shared or reset URL can never be overwritten after hydration.
+ */
+export function resolveSchoolFiltersForCity(
+  preference: StudentPreference,
+  cityId: string,
+  query: SchoolFilterQuery = {},
+  catalog: AcademicCatalog = fallbackAcademicCatalog,
+) {
+  const preferred = preference.completed
+    ? resolvePreferenceForCity(preference, cityId, catalog)
+    : { universityId: "", facultyId: "" };
+  if (query.reset) return { universityId: "", facultyId: "", studyYear: null };
+
+  const cityCatalog = academicCatalogForCity(cityId, catalog);
+  const requestedUniversity = query.explicitUniversity
+    ? query.university || ""
+    : preferred.universityId;
+  const universityId = cityCatalog.universities.some(
+    (item) => item.active && item.id === requestedUniversity,
+  )
+    ? requestedUniversity
+    : "";
+  const requestedFaculty = query.explicitFaculty
+    ? query.faculty || ""
+    : query.explicitUniversity
+      ? ""
+      : preferred.facultyId;
+  const facultyId = cityCatalog.faculties.some(
+    (item) => item.active && item.id === requestedFaculty && item.universityId === universityId,
+  )
+    ? requestedFaculty
+    : "";
+  const requestedYear = query.explicitStudyYear
+    ? Number(query.studyYear)
+    : preference.cityId === cityId
+      ? preference.studyYear
+      : null;
+  const studyYear = isStudyYear(requestedYear) ? requestedYear : null;
+  return { universityId, facultyId, studyYear };
+}
+
 export function normalizePreference(value: Partial<StudentPreference> & Record<string, unknown>, catalog: AcademicCatalog = fallbackAcademicCatalog, now = new Date()): StudentPreference {
   const cityId = typeof value.cityId === "string" && value.cityId ? value.cityId : defaultCitySlug;
   const selected = resolveStudySelection(value.universityId, value.facultyId, academicCatalogForCity(cityId, catalog));

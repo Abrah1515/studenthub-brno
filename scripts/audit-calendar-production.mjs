@@ -47,6 +47,9 @@ for (const [city, universityIds] of Object.entries(cityUniversities)) {
   const futureCommunity = community.filter((row) => row.city_id === city && row.status === "published" && new Date(row.starts_at) >= from && new Date(row.starts_at) <= to);
   summary[city] = {
     sources: citySources.length,
+    dueSources: citySources.filter((row) => !row.next_check_at || new Date(row.next_check_at).getTime() <= from.getTime()).length,
+    nextScheduledCheck: citySources.map((row) => row.next_check_at).filter(Boolean).sort().at(0) || null,
+    latestSuccessfulCheck: citySources.map((row) => row.last_success_at).filter(Boolean).sort().at(-1) || null,
     sourcesByUniversity: Object.fromEntries(universityIds.map((id) => [id, citySources.filter((row) => row.university_id === id).length])),
     coverage: Object.fromEntries(["complete", "covered_by_central", "partial", "needs_review", "blocked", "unavailable", "stale"].map((status) => [status, citySources.filter((row) => row.coverage_status === status).length])),
     academicEvents: cityEvents.length,

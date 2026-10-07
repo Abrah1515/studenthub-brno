@@ -70,3 +70,12 @@ test("database and Storage must target the same Supabase project", () => {
   assert.throws(() => validateSupabaseTarget(project, "postgresql://postgres.other:secret@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"), /different Supabase projects/);
   assert.throws(() => validateSupabaseTarget(project, "postgresql://postgres.project123:secret@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"), /wrong pooler mode/);
 });
+
+test("production backup performs an isolated decrypt and manifest restore check", async () => {
+  const script = await readFile(new URL("./run.sh", import.meta.url), "utf8");
+  assert.match(script, /age --decrypt --identity/);
+  assert.match(script, /manifest\.mjs verify "\$restore_dir"/);
+  assert.match(script, /restore_dir\/database\/schema\.sql/);
+  assert.match(script, /restore_dir\/storage\/objects\.json/);
+  assert.doesNotMatch(script, /SUPABASE_DB_URL[^\n]*psql/);
+});

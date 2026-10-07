@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { defaultPreference, legacyPreferenceKey, preferenceKey, readPreference, resetPreference, savePreference } from "@/lib/client-preferences";
+import { defaultPreference, legacyPreferenceKey, preferenceKey, readPreference, resetPreference, resolveSchoolFiltersForCity, savePreference } from "@/lib/client-preferences";
 
 describe("preference města", () => {
   beforeEach(() => { const values = new Map<string, string>(); const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, String(value)), removeItem: (key: string) => values.delete(key), clear: () => values.clear(), key: (index: number) => [...values.keys()][index] ?? null, get length() { return values.size; } }; Object.defineProperty(globalThis, "localStorage", { value: storage, configurable: true }); Object.defineProperty(window, "localStorage", { value: storage, configurable: true }); });
@@ -9,4 +9,19 @@ describe("preference města", () => {
   it("reset vrací výchozí město a všechny školy", () => { savePreference({ cityId: "brno", universityId: "muni", completed: true }); resetPreference(); expect(readPreference()).toEqual(defaultPreference); });
   it("při změně školy odstraní fakultu patřící jiné škole", () => { savePreference({ universityId: "muni", facultyId: "muni-fi", completed: true }); const next = savePreference({ universityId: "vut" }); expect(next).toMatchObject({ universityId: "vut", facultyId: null }); expect(readPreference().facultyId).toBeNull(); });
   it("po obnovení zachová stabilní ID platné fakulty", () => { savePreference({ universityId: "mendelu", facultyId: "mendelu-pef", completed: true }); expect(readPreference()).toMatchObject({ universityId: "mendelu", facultyId: "mendelu-pef" }); });
+  it("použije preference pouze ve městě vybrané školy", () => {
+    const preference = { ...defaultPreference, cityId: "brno", universityId: "muni", facultyId: "muni-fi", studyYear: 2 as const, completed: true };
+    expect(resolveSchoolFiltersForCity(preference, "brno")).toEqual({ universityId: "muni", facultyId: "muni-fi", studyYear: 2 });
+    expect(resolveSchoolFiltersForCity(preference, "praha")).toEqual({ universityId: "", facultyId: "", studyYear: null });
+  });
+  it("dá explicitní URL přednost před uloženou školou a validuje fakultu", () => {
+    const preference = { ...defaultPreference, cityId: "brno", universityId: "muni", facultyId: "muni-fi", studyYear: 2 as const, completed: true };
+    expect(resolveSchoolFiltersForCity(preference, "brno", { university: "vut", faculty: "vut-fekt", studyYear: "3", explicitUniversity: true, explicitFaculty: true, explicitStudyYear: true })).toEqual({ universityId: "vut", facultyId: "vut-fekt", studyYear: 3 });
+    expect(resolveSchoolFiltersForCity(preference, "brno", { university: "vut", faculty: "muni-fi", explicitUniversity: true, explicitFaculty: true })).toEqual({ universityId: "vut", facultyId: "", studyYear: 2 });
+  });
+  it("explicitní reset nepřepisuje uloženou preferenci", () => {
+    const preference = { ...defaultPreference, cityId: "brno", universityId: "muni", facultyId: "muni-fi", studyYear: 1 as const, completed: true };
+    expect(resolveSchoolFiltersForCity(preference, "brno", { reset: true })).toEqual({ universityId: "", facultyId: "", studyYear: null });
+    expect(preference).toMatchObject({ universityId: "muni", facultyId: "muni-fi", studyYear: 1 });
+  });
 });
