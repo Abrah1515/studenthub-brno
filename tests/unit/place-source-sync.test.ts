@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { extractStructuredPlace } from "@/lib/place-source-sync";
+import { extractStructuredPlace, sourceMentionsPlace } from "@/lib/place-source-sync";
 import { readFileSync } from "node:fs";
 
 describe("monitor veřejných zdrojů míst", () => {
@@ -12,6 +12,14 @@ describe("monitor veřejných zdrojů míst", () => {
     expect(extractStructuredPlace(html, "Ústřední knihovna VUT")).toBeNull();
   });
   it("poškozený JSON-LD nepublikuje jako ověřenou změnu", () => expect(extractStructuredPlace('<script type="application/ld+json">{broken}</script>', "Knihovna JAMU")).toBeNull());
+  it("pozná oficiální zkrácený název bez institucionálního prefixu", () => {
+    expect(sourceMentionsPlace("<h2>Medlánky</h2><p>Kytnerova 1a</p>", "KJM Medlánky")).toBe(true);
+    expect(sourceMentionsPlace("<h1>Knihovna FIT</h1>", "Knihovna FIT VUT")).toBe(true);
+    expect(sourceMentionsPlace("<h1>Jiná pobočka</h1>", "KJM Medlánky")).toBe(false);
+  });
+  it("nebere text skrytý ve skriptu za důkaz existence místa", () => {
+    expect(sourceMentionsPlace('<script>window.payload="KJM Medlánky"</script><h1>Adresář</h1>', "KJM Medlánky")).toBe(false);
+  });
   it("kontroluje místa nejvýše týdně a používá podmíněné HTTP požadavky", () => {
     const source = readFileSync("lib/place-source-sync.ts", "utf8");
     expect(source).toContain('sourceType: "place_directory"');

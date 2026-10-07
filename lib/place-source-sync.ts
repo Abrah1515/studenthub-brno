@@ -7,6 +7,22 @@ import { foldSearchText } from "@/lib/search";
 
 type StructuredPlace = { name?: string; openingHours?: string; address?: string };
 
+const GENERIC_PLACE_WORDS = new Set([
+  "arealova", "fakulta", "fakulty", "fakultni", "knihovna", "knihovny",
+  "kjm", "menza", "mestska", "muni", "univerzitni", "univerzity", "vut",
+  "mendelu", "vetuni", "jamu", "studijni", "studovna", "ustredni",
+]);
+
+export function sourceMentionsPlace(html: string, expectedName: string) {
+  const visible = foldSearchText(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ").replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " "));
+  const expected = foldSearchText(expectedName);
+  if (visible.includes(expected)) return true;
+  const distinctive = expected.split(/\s+/).filter((word) => word.length >= 3 && !GENERIC_PLACE_WORDS.has(word));
+  if (!distinctive.length) return false;
+  const matches = distinctive.filter((word) => visible.includes(word)).length;
+  return matches >= Math.min(2, distinctive.length);
+}
+
 function flattenJsonLd(value: unknown): Record<string, unknown>[] {
   if (Array.isArray(value)) return value.flatMap(flattenJsonLd);
   if (!value || typeof value !== "object") return [];
@@ -69,8 +85,21 @@ export async function syncDuePlaceSources(cityId: string, batchSize = 6) {
       const contentType = fetched.contentType.toLowerCase();
       let proposed: StructuredPlace | null = null;
       if (contentType.includes("text/html")) {
-        const html = new TextDecoder().decode(fetched.body); const visible = foldSearchText(html.replace(/<[^>]+>/g, " "));
-        if (!visible.includes(foldSearchText(String(row.name)))) throw new Error("Oficiální stránka už neobsahuje očekávaný název místa.");
+        const html = new TextDecoder().decode(fetched.body);
+        if (!sourceMentionsPlace(html, String(row.name))) {
+          await updateRecord("places", String(row.id), {
+            source_checked_at: checkedAt,
+            source_final_url: fetched.finalUrl,
+            source_content_type: fetched.contentType,
+            source_etag: fetched.etag,
+            source_last_modified: fetched.lastModified,
+            source_content_hash: createHash("sha256").update(fetched.body).digest("hex"),
+            source_miss_count: 0,
+            source_sync_status: "needs_review",
+          });
+          results.push({ id: row.id, status: "needs_review", message: "Zdroj je dostupný, ale název místa nelze bezpečně potvrdit.", finalUrl: fetched.finalUrl, contentType: fetched.contentType });
+          continue;
+        }
         proposed = extractStructuredPlace(html, String(row.name));
       }
       const openingChanged = Boolean(proposed?.openingHours && foldSearchText(proposed.openingHours) !== foldSearchText(String(row.opening_hours || "")));
