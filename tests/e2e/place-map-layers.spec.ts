@@ -21,14 +21,33 @@ test("výběr místa se po jednom zaměření ustálí", async ({ page }) => {
   await page.goto("/brno/mista", { waitUntil: "domcontentloaded" });
   await page.locator(".leaflet-host").scrollIntoViewIfNeeded();
   const markers = page.locator(".place-map-marker.main");
-  const hittableIndex = await markers.evaluateAll((elements) => elements.findIndex((element) => {
-    const box = element.getBoundingClientRect();
-    if (box.width <= 0 || box.height <= 0) return false;
-    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-    return hit === element || Boolean(hit && element.contains(hit));
-  }));
-  expect(hittableIndex).toBeGreaterThanOrEqual(0);
-  const marker = markers.nth(hittableIndex);
+  const hitTarget = await markers.evaluateAll((elements) => {
+    for (const element of elements) {
+      const box = element.getBoundingClientRect();
+      if (
+        box.width <= 0
+        || box.height <= 0
+        || box.right <= 0
+        || box.bottom <= 0
+        || box.left >= window.innerWidth
+        || box.top >= window.innerHeight
+      ) continue;
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      const topMarker = hit?.closest(".place-map-marker.main");
+      if (topMarker) {
+        const topBox = topMarker.getBoundingClientRect();
+        return {
+          label: topMarker.getAttribute("aria-label") || "",
+          x: topBox.left + topBox.width / 2,
+          y: topBox.top + topBox.height / 2,
+        };
+      }
+    }
+    return null;
+  });
+  expect(hitTarget).not.toBeNull();
+  if (!hitTarget) return;
+  const marker = page.getByRole("button", { name: hitTarget.label, exact: true });
   await expect(marker).toBeVisible();
   const transitionProperty = await marker.evaluate(
     (element) => getComputedStyle(element).transitionProperty,
@@ -37,8 +56,18 @@ test("výběr místa se po jednom zaměření ustálí", async ({ page }) => {
     "transform",
   );
 
-  await marker.click();
-  if ((page.viewportSize()?.width || 0) <= 720) await marker.click();
+  await page.mouse.click(hitTarget.x, hitTarget.y);
+  if ((page.viewportSize()?.width || 0) <= 720) {
+    const prepared = page.locator(".place-map-marker.selected").first();
+    await expect(prepared).toBeVisible();
+    const preparedBox = await prepared.boundingBox();
+    expect(preparedBox).not.toBeNull();
+    if (!preparedBox) return;
+    await page.mouse.click(
+      preparedBox.x + preparedBox.width / 2,
+      preparedBox.y + preparedBox.height / 2,
+    );
+  }
   const selected = page.locator(".place-map-marker.selected").first();
   await expect(selected).toBeVisible();
   await expect(page.locator(".place-card.selected .place-details")).toBeVisible();
