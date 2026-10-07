@@ -71,7 +71,7 @@ function sourceFor(row: Record<string, unknown>, sourceUrl: string): ContentSour
 
 export async function syncDuePlaceSources(cityId: string, batchSize = 6) {
   const dueBefore = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const rows = (await listRecords("places")).filter((row) => row.city_id === cityId && row.status === "approved" && !row.is_demo && row.source_url && (!row.source_checked_at || new Date(String(row.source_checked_at)).getTime() <= dueBefore)).sort((a, b) => String(a.source_checked_at || "").localeCompare(String(b.source_checked_at || ""))).slice(0, batchSize);
+  const rows = (await listRecords("places")).filter((row) => row.city_id === cityId && row.status === "approved" && !row.is_demo && row.origin === "official" && row.source_url && (!row.source_checked_at || new Date(String(row.source_checked_at)).getTime() <= dueBefore)).sort((a, b) => String(a.source_checked_at || "").localeCompare(String(b.source_checked_at || ""))).slice(0, batchSize);
   const results = [];
   for (const row of rows) {
     const checkedAt = new Date().toISOString();

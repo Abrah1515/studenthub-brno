@@ -25,6 +25,7 @@ describe("monitor veřejných zdrojů míst", () => {
     expect(source).toContain('sourceType: "place_directory"');
     expect(source).toContain("refreshIntervalHours: 168");
     expect(source).toContain("7 * 24 * 60 * 60 * 1000");
+    expect(source).toContain('row.origin === "official"');
     expect(source).toContain("source_etag");
     expect(source).toContain("fetched.status === 304");
   });
