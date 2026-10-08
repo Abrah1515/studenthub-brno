@@ -73,6 +73,8 @@ test("database and Storage must target the same Supabase project", () => {
 
 test("production backup performs an isolated decrypt and manifest restore check", async () => {
   const script = await readFile(new URL("./run.sh", import.meta.url), "utf8");
+  assert.match(script, /BACKUP_AGE_IDENTITY/);
+  assert.match(script, /AGE-SECRET-KEY-1/);
   assert.match(script, /age --decrypt --identity/);
   assert.match(script, /manifest\.mjs verify "\$restore_dir"/);
   assert.match(script, /restore_dir\/database\/schema\.sql/);

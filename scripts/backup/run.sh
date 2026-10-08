@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for name in SUPABASE_DB_URL SUPABASE_URL SUPABASE_BACKUP_SECRET_KEY BACKUP_AGE_RECIPIENT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET R2_ENDPOINT; do
+for name in SUPABASE_DB_URL SUPABASE_URL SUPABASE_BACKUP_SECRET_KEY BACKUP_AGE_IDENTITY BACKUP_AGE_RECIPIENT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET R2_ENDPOINT; do
   if [[ -z "${!name:-}" ]]; then
     echo "Missing backup configuration: $name" >&2
     exit 1
@@ -14,6 +14,10 @@ if [[ ! "$R2_ENDPOINT" =~ ^https://[a-f0-9]{32}\.eu\.r2\.cloudflarestorage\.com/
 fi
 if [[ ! "$BACKUP_AGE_RECIPIENT" =~ ^age1[a-z0-9]+$ ]]; then
   echo "BACKUP_AGE_RECIPIENT must be an age public recipient." >&2
+  exit 1
+fi
+if [[ ! "$BACKUP_AGE_IDENTITY" =~ ^AGE-SECRET-KEY-1[A-Z0-9]+$ ]]; then
+  echo "BACKUP_AGE_IDENTITY must contain the private identity matching BACKUP_AGE_RECIPIENT." >&2
   exit 1
 fi
 if [[ "$R2_BUCKET" != "studenthub-backups" ]]; then
@@ -55,7 +59,7 @@ restore_dir="$work_dir/restore-check"
 identity_file="$work_dir/age-identity.txt"
 mkdir -p "$restore_dir"
 umask 077
-printf '%s\n' "$SUPABASE_BACKUP_SECRET_KEY" > "$identity_file"
+printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$identity_file"
 age --decrypt --identity "$identity_file" "$work_dir/roundtrip.age" | gzip -dc | tar -xf - -C "$restore_dir"
 node scripts/backup/manifest.mjs verify "$restore_dir"
 test -s "$restore_dir/database/roles.sql"

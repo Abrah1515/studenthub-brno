@@ -14,6 +14,7 @@ In repository Settings > Secrets and variables > Actions, configure:
 | Secret | `R2_SECRET_ACCESS_KEY` | Matching R2 Secret Access Key |
 | Secret | `SUPABASE_DB_URL` | Supabase Connect > Session pooler URI, including database password |
 | Secret | `SUPABASE_BACKUP_SECRET_KEY` | Dedicated Supabase secret API key for this backup job (`sb_secret_...`) |
+| Secret | `BACKUP_AGE_IDENTITY` | Private `AGE-SECRET-KEY-1...` identity matching `BACKUP_AGE_RECIPIENT`; used only for the isolated round-trip restore check |
 | Variable | `R2_BUCKET` | `studenthub-backups` |
 | Variable | `R2_ENDPOINT` | `https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com` |
 | Variable | `SUPABASE_URL` | `https://<PROJECT_REF>.supabase.co` |
@@ -29,7 +30,7 @@ age-keygen -o "$env:USERPROFILE\studenthub-backup-identity.txt"
 age-keygen -y "$env:USERPROFILE\studenthub-backup-identity.txt"
 ```
 
-The second command prints the public recipient for `BACKUP_AGE_RECIPIENT`. Store the identity file securely in at least two controlled locations, such as an encrypted password manager and an offline copy. **Do not put the private identity into GitHub.** Without it, the encrypted backups cannot be restored.
+The second command prints the public recipient for `BACKUP_AGE_RECIPIENT`. Store the identity file securely in at least two controlled locations, such as an encrypted password manager and an offline copy. To enable the automated isolated restore check, store its single `AGE-SECRET-KEY-1...` line in the encrypted GitHub Actions secret `BACKUP_AGE_IDENTITY`; never use a Supabase key in its place and never commit the identity. Without the matching private identity, the encrypted backups cannot be restored.
 
 ## First run and activation
 
