@@ -13,6 +13,7 @@ const reservedTopLevelRoutes = new Set([
   "brigady",
   "chat",
   "cookies",
+  "coloring",
   "hlidac",
   "kalendar",
   "kontakt",

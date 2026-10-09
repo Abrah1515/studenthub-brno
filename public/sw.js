@@ -1,4 +1,4 @@
-const STATIC_CACHE = "studenthub-static-v8";
+const STATIC_CACHE = "studenthub-static-v9";
 const OFFLINE_PAGE = "/offline.html";
 const PRECACHE = [
   OFFLINE_PAGE,
@@ -26,6 +26,7 @@ function isPrivatePath(pathname) {
 }
 
 function isVersionedStaticAsset(request, url) {
+  if (/^\/coloring\/v1\/[a-z]+\/(lines\.png|mask\.png|preview\.webp|regions\.json)$/.test(url.pathname)) return true;
   if (url.pathname.startsWith("/_next/static/")) return true;
   if (url.pathname.startsWith("/brand/") && request.destination === "image") return true;
   return ["style", "script", "font"].includes(request.destination);

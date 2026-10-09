@@ -1,0 +1,16 @@
+import { beforeEach,expect,it,vi } from "vitest";
+vi.mock('server-only',()=>({}));
+const mock=vi.hoisted(()=>({account:vi.fn(),limit:vi.fn(),rpc:vi.fn(),regions:vi.fn()}));
+vi.mock('@/lib/user-auth',()=>({getCurrentAccount:mock.account}));
+vi.mock('@/lib/auth-rate-limit',()=>({allowAuthRequest:mock.limit}));
+vi.mock('@/lib/coloring-server',()=>({coloringRegions:mock.regions,coloringClient:async()=>({rpc:mock.rpc})}));
+import { PUT } from '@/app/api/coloring/[id]/route';
+const send=(data:unknown,origin='https://studenthubapp.cz')=>PUT(new Request('https://studenthubapp.cz/api/coloring/desk',{method:'PUT',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify(data)}),{params:Promise.resolve({id:'desk'})});
+const payload={revision:0,drawing:{assetVersion:1,colors:{1:'#abcdef'},strokes:[],completed:false}};
+beforeEach(()=>{vi.clearAllMocks();mock.account.mockResolvedValue({id:'11111111-1111-4111-8111-111111111111',accountStatus:'active'});mock.limit.mockResolvedValue(true);mock.regions.mockResolvedValue([{id:1,area:100,x:1,y:1}]);mock.rpc.mockResolvedValue({data:{...payload,revision:1},error:null});});
+it('zápis vyžaduje účet',async()=>{mock.account.mockResolvedValue(null);expect((await send(payload)).status).toBe(401);expect(mock.rpc).not.toHaveBeenCalled();});
+it('odmítne pozastavený účet a jiný původ',async()=>{mock.account.mockResolvedValue({accountStatus:'suspended'});expect((await send(payload)).status).toBe(403);mock.account.mockResolvedValue({accountStatus:'active'});expect((await send(payload,'https://evil.test')).status).toBe(403);});
+it('validuje oblast, velikost a nemůže přijmout cizího vlastníka',async()=>{expect((await send({...payload,user_id:'foreign'})).status).toBe(422);expect((await send({...payload,drawing:{...payload.drawing,colors:{9999:'#abcdef'}}})).status).toBe(422);expect((await send({huge:'x'.repeat(600001)})).status).toBe(413);});
+it('ukládá přes transakční RPC a omezený rate limit',async()=>{expect((await send(payload)).status).toBe(200);expect(mock.rpc).toHaveBeenCalledWith('save_coloring_progress',expect.objectContaining({p_revision:0,p_coloring_id:'desk',p_percentage:99}));expect(`auth-${mock.limit.mock.calls[0][1]}`.length).toBeLessThanOrEqual(40);});
+it('rate limit a chyba databáze nejsou falešný úspěch',async()=>{mock.limit.mockResolvedValue(false);expect((await send(payload)).status).toBe(429);mock.limit.mockResolvedValue(true);mock.rpc.mockResolvedValue({error:{code:'other'}});expect((await send(payload)).status).toBe(503);});
+it('databázový limit platí i napříč zařízeními',async()=>{mock.rpc.mockResolvedValue({error:{code:'54000'}});expect((await send(payload)).status).toBe(429);});

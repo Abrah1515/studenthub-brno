@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { UserLoginForm } from "@/components/user-login-form";
 import { AccountContentSummary } from "@/components/account-content-summary";
 import { AccountPasswordChange } from "@/components/account-password-change";
+import { MyColorings } from "@/components/my-colorings";
 import { LegalLinks } from "@/components/legal-links";
 import { useCurrentCity } from "@/components/city-context";
 import { readPreference, savePreference } from "@/lib/client-preferences";
@@ -512,6 +513,7 @@ export function AccountProfilePanel({ catalog }: { catalog: AcademicCatalog }) {
         )}
       </details>
       <AccountPasswordChange />
+      <MyColorings />
       <details className="danger-zone">
         <summary>Odstranit účet</summary>
         <form onSubmit={removeAccount}>

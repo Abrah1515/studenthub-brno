@@ -36,6 +36,7 @@ const noIndexHeaders = [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
 const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
   serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist"],
+  outputFileTracingIncludes: { "/api/coloring/*": ["./public/coloring/v1/*/regions.json"] },
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {

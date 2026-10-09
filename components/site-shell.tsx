@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, BookOpen, BriefcaseBusiness, Building2, CalendarDays, Home, Info, Mail, MapPinned, Menu, MessageCircle, Monitor, Moon, Settings, ShieldCheck, ShoppingBag, Sun, Users, X } from "lucide-react";
+import { Bell, BookOpen, BriefcaseBusiness, Building2, CalendarDays, Home, Info, Mail, MapPinned, Menu, MessageCircle, Monitor, Moon, Palette, Settings, ShieldCheck, ShoppingBag, Sun, Users, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { brand } from "@/lib/brand";
@@ -40,6 +40,7 @@ function navigationFor(city: City) {
     ...(featureFlags.offersEnabled ? [item("offers", `${cityBase}/nabidky`, "Nabídky a slevy", "Slevy", CalendarDays, "offers-navigation")] : []),
     item("marketplace", `${cityBase}/burza`, "Studentská burza", "Burza", ShoppingBag, "marketplace-navigation"),
     item("housing", `${cityBase}/bydleni`, "Bydlení", "Bydlení", Building2, "housing-navigation"),
+    item(null, `${cityBase}/odpocinek`, "Odpočinek", "Odpočinek", Palette, "rest-navigation"),
     item("settings", `${cityBase}/nastaveni`, "Moje škola a profil", "Profil", Settings, "settings-navigation"),
   ].filter((entry) => entry.module === null || isCityModuleEnabled(city, entry.module));
 }
@@ -80,7 +81,7 @@ function ThemeSettings() {
 function isActive(pathname: string, href: string) {
   const cityPrefix = href.match(/^\/[a-z0-9-]+/)?.[0] || "";
   const effectivePathname = cityPrefix && !pathname.startsWith(`${cityPrefix}/`) && pathname !== cityPrefix ? `${cityPrefix}${pathname}` : pathname;
-  return effectivePathname === href || (["/komunita", "/chat", "/profil"].some((suffix) => href.endsWith(suffix)) && effectivePathname.startsWith(`${href}/`));
+  return effectivePathname === href || (["/komunita", "/chat", "/profil", "/odpocinek"].some((suffix) => href.endsWith(suffix)) && effectivePathname.startsWith(`${href}/`));
 }
 function CitySwitcher({ cities, pathname }: { cities: City[]; pathname: string }) { const current = cities.find((city) => pathname === `/${city.slug}` || pathname.startsWith(`/${city.slug}/`)) || cities[0]; return <label className="city-switcher"><span>Město</span><select aria-label="Změnit město" value={current?.slug || ""} onChange={(event) => { const suffix = current && pathname.startsWith(`/${current.slug}`) ? pathname.slice(current.slug.length + 1) : ""; window.location.assign(`/${event.target.value}${suffix}`); }}>{cities.map((city) => <option key={city.id} value={city.slug}>{city.name}</option>)}</select></label>; }
 
@@ -127,7 +128,7 @@ function PreferenceAwareNavLink({ item, pathname, cityRoot, close, compact = fal
 
 function MobileMenu({ open, close, navigation, pathname, cityRoot, editionName, returnFocus, tourMode }: { open: boolean; close: () => void; navigation: ReturnType<typeof navigationFor>; pathname: string; cityRoot: string; editionName: string; returnFocus: () => HTMLElement | null; tourMode: boolean }) {
   const ref = useModalDialog<HTMLElement>(open && !tourMode, close);
-  const phoneExtraPaths = new Set([`${cityRoot}/chat`, `${cityRoot}/bydleni`, `${cityRoot}/hlidac`, `${cityRoot}/nastaveni`]);
+  const phoneExtraPaths = new Set([`${cityRoot}/chat`, `${cityRoot}/bydleni`, `${cityRoot}/hlidac`, `${cityRoot}/odpocinek`, `${cityRoot}/nastaveni`]);
   if (!open || typeof document === "undefined") return null;
   return createPortal(
     <div className={classNames("mobile-menu-layer", tourMode && "tutorial-menu-open")} data-modal-layer>
