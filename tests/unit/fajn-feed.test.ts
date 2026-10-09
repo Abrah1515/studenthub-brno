@@ -42,6 +42,12 @@ describe("bezpečný parser Fajn XML", () => {
     await expect(parseFajnXml(`<nabidky/>`)).rejects.toThrow(/kořen/);
   });
 
+  it("povolí běžná slova SYSTEM a PUBLIC v textu nabídky", async () => {
+    const result = await parseFajnXml(item(`<popis_cs>Knowledge of System Administration and public services is an advantage.</popis_cs>`));
+    expect(result.jobs).toHaveLength(1);
+    expect(result.jobs[0].description).toContain("System Administration");
+  });
+
   it("odmítne neplatné ID a URL mimo allowlist", async () => {
     const invalidId = await parseFajnXml(item("").replace("<id_inzeratu>1", "<id_inzeratu>x")); expect(invalidId.rejections[0].code).toBe("invalid_id");
     const invalidUrl = await parseFajnXml(item("").replace("https://www.fajn-brigady.cz/brigady/brno/1-test/", "https://evil.example/job")); expect(invalidUrl.rejections[0].code).toBe("invalid_url");

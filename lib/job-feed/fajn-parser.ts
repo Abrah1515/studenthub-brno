@@ -127,7 +127,7 @@ async function parseCandidate(item: XmlRecord, warnings: string[], targetCity: N
 export async function parseFajnXml(input: Uint8Array | string, options: FajnParserOptions = {}): Promise<FajnParseResult> {
   const targetCity = options.city || "brno";
   const xml = typeof input === "string" ? input : new TextDecoder("utf-8", { fatal: true }).decode(input);
-  if (/<!DOCTYPE|<!ENTITY|\bSYSTEM\b|\bPUBLIC\b/i.test(xml)) throw new Error("XML obsahuje zakázanou deklaraci DTD nebo entity.");
+  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("XML obsahuje zakázanou deklaraci DTD nebo entity.");
   const validation = XMLValidator.validate(xml, { allowBooleanAttributes: false });
   if (validation !== true) throw new Error("XML feed není platný.");
   const parsed = new XMLParser({ ignoreAttributes: false, ignoreDeclaration: true, trimValues: true, parseTagValue: false, processEntities: false, htmlEntities: false }).parse(xml) as XmlRecord;
