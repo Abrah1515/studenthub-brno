@@ -9,6 +9,11 @@ const isFacultyCodes: Record<string, string> = {
   "jamu-hf": "5451", "jamu-df": "5453",
 };
 
+const upolFacultyAbbreviations: Record<string, string> = {
+  "upol-cmtf": "CMTF", "upol-lf": "LF", "upol-ff": "FF", "upol-prf": "PřF",
+  "upol-pdf": "PdF", "upol-ftk": "FTK", "upol-pf": "PF", "upol-fzv": "FZV",
+};
+
 function decodeEntities(value: string) {
   return value
     .replace(/&nbsp;|&#160;/gi, " ")
@@ -164,4 +169,42 @@ export async function parseMendeluPef(context: ConnectorContext): Promise<Connec
     }
   }
   return { events, warnings: events.length ? [] : ["Strukturovaná tabulka PEF nebyla nalezena nebo změnila záhlaví."], sourceText: htmlText(html), documentTitle: "Harmonogram PEF MENDELU", normalizedHash: await sha256(JSON.stringify(events.map((item) => [item.externalId, item.sourceHash]))), extractionMethod: "structured" };
+}
+
+function upolFacultyScope(title: string) {
+  return Object.entries(upolFacultyAbbreviations)
+    .filter(([, abbreviation]) => new RegExp(`(^|[^\\p{L}])${abbreviation.replace("ř", "[řr]")}([^\\p{L}]|$)`, "iu").test(title))
+    .map(([facultyId]) => facultyId);
+}
+
+export async function parseUpolSchedule(context: ConnectorContext): Promise<ConnectorResult> {
+  const html = new TextDecoder().decode(context.body);
+  const pageText = htmlText(html);
+  const academicYear = context.source.academicYear || pageText.match(/akademick(?:ý|y) rok\s+(20\d{2}\/20\d{2})/iu)?.[1] || null;
+  const events: NormalizedEvent[] = [];
+  if (!academicYear) return { events, warnings: ["Harmonogram UP neobsahuje jednoznačný aktuální akademický rok."], sourceText: pageText, extractionMethod: "structured" };
+
+  for (const table of html.matchAll(/<table\b[^>]*>([\s\S]*?)<\/table>/gi)) {
+    for (const row of rows(table[0])) {
+      if (row.cells.length < 2) continue;
+      const title = row.cells[0].text.trim();
+      const dateText = row.cells[1].text.trim();
+      const targetFaculties = upolFacultyScope(title);
+      if (targetFaculties.length && !targetFaculties.includes(context.source.facultyId)) continue;
+      const parsed = parseCzechDateRange(dateText);
+      const category = inferCategory(title);
+      if (!parsed || category === "Ostatní") continue;
+      events.push(await event(context, { title, startAt: parsed.start, endAt: parsed.end, allDay: parsed.allDay, academicYear, originalText: `${title}: ${dateText}` }));
+    }
+  }
+
+  const unique = [...new Map(events.map((item) => [item.externalId, item])).values()];
+  return {
+    events: unique,
+    warnings: unique.length ? [] : ["Strukturovaná tabulka harmonogramu UP neobsahuje žádný použitelný termín pro zvolenou fakultu."],
+    sourceText: pageText,
+    documentTitle: `Harmonogram akademického roku ${academicYear} UP`,
+    normalizedHash: await sha256(JSON.stringify(unique.map((item) => [item.externalId, item.sourceHash]))),
+    extractionMethod: "structured",
+  };
 }

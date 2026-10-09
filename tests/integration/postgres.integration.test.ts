@@ -45,7 +45,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
         grant all on auth.sessions to service_role;
       `);
       const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
-      expect(files).toHaveLength(63);
+      expect(files).toHaveLength(64);
       // PGlite does not provide the production pg_cron/pg_net extensions. Dedicated
       // unit tests verify both scheduler migrations and their Vault-only secrets.
       for (const file of files.filter((file) => !file.includes("_scheduler.sql") && !file.includes("_dispatcher.sql") && !file.includes("daily_vercel_calendar_review.sql"))) {
@@ -90,7 +90,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.community_events where city_id='ostrava' and status='published' and source_type='external'")).rows[0].count).toBe(2);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_events where city_id='olomouc' and university_id='upol' and academic_year='2026/2027'")).rows[0].count).toBe(22);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_events where city_id='praha' and academic_year='2026/2027'")).rows[0].count).toBe(26);
-      expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_events where city_id='ostrava' and academic_year='2026/2027'")).rows[0].count).toBe(13);
+      expect((await db.query<{ count: number }>("select count(*)::int as count from public.academic_events where city_id='ostrava' and academic_year='2026/2027'")).rows[0].count).toBe(21);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.faculties where university_id='upol' and is_active")).rows[0].count).toBe(8);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.faculties where university_id in ('cuni','cvut','vse','czu','vscht') and is_active")).rows[0].count).toBe(37);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.faculties where university_id in ('vsbtuo','osu') and is_active")).rows[0].count).toBe(13);
@@ -217,7 +217,7 @@ describe("PostgreSQL migrace, seed, fixture synchronizace a RLS", () => {
       const modes = await db.query<{ monitoring_mode: string; count: number }>("select monitoring_mode, count(*)::int as count from public.content_sources where source_type='academic_calendar' group by monitoring_mode order by monitoring_mode");
       expect(modes.rows).toEqual([
         { monitoring_mode: "automatic_publish", count: 19 },
-        { monitoring_mode: "automatic_review", count: 70 },
+        { monitoring_mode: "automatic_review", count: 72 },
       ]);
       expect((await db.query<{ count: number }>("select count(*)::int as count from public.content_sources where source_type='academic_calendar' and enabled")).rows[0].count).toBeGreaterThanOrEqual(85);
       expect((await db.query<{ count: number }>(`select count(*)::int as count

@@ -13,7 +13,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --configLoader runner",
+    "test": "vitest run --configLoader runner --maxWorkers=4",
     "test:backup": "node --test scripts/backup/*.test.mjs",
     "test:watch": "vitest --configLoader runner",
     "test:e2e": "node scripts/run-e2e.mjs",

@@ -12,8 +12,15 @@ function allowed(url, source) {
 }
 function mime(value) { return String(value || "").toLowerCase().split(";", 1)[0].trim(); }
 function academicYear(value) {
-  const full = value.match(/(20\d{2})\s*[\/_-]\s*(20\d{2})/); if (full && Number(full[2]) === Number(full[1]) + 1) return `${full[1]}/${full[2]}`;
-  const short = value.match(/(20\d{2})\s*[\/_-]\s*(\d{2})(?!\d)/); if (short && Number(short[1]) + 1 === Number(`${short[1].slice(0, 2)}${short[2]}`)) return `${short[1]}/${Number(short[1]) + 1}`;
+  const years = new Set();
+  for (const match of value.matchAll(/(20\d{2})\s*[\/_-]\s*(20\d{2})/g)) if (Number(match[2]) === Number(match[1]) + 1) years.add(`${match[1]}/${match[2]}`);
+  for (const match of value.matchAll(/(20\d{2})\s*[\/_-]\s*(\d{2})(?!\d)/g)) {
+    const end = Number(match[1].slice(0, 2) + match[2]);
+    if (end === Number(match[1]) + 1) years.add(`${match[1]}/${end}`);
+  }
+  const ordered = [...years].sort();
+  if (ordered.includes(expectedAcademicYear)) return expectedAcademicYear;
+  if (ordered.length) return ordered.at(-1);
   const semester = value.normalize("NFD").replace(/\p{Diacritic}/gu, "").match(/(?:podzim|zima)\s*(20\d{2})/i); return semester ? `${semester[1]}/${Number(semester[1]) + 1}` : null;
 }
 function expectedMime(source) { return source.format === "pdf" ? "application/pdf" : source.format === "ics" ? "text/calendar" : source.format === "json" || source.format === "api" ? "application/json" : "text/html"; }

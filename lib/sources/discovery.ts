@@ -32,15 +32,20 @@ function allowedHost(host: string, source: ContentSource) {
   return [source.officialDomain, ...(source.allowedDomains || [])].some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
 
-export function academicYearFromText(value: string) {
-  const full = value.match(/(20\d{2})\s*[\/_-]\s*(20\d{2})/);
-  if (full && Number(full[2]) === Number(full[1]) + 1) return `${full[1]}/${full[2]}`;
-  const short = value.match(/(20\d{2})\s*[\/_-]\s*(\d{2})(?!\d)/);
-  if (short) {
-    const end = Number(short[1].slice(0, 2) + short[2]);
-    if (end === Number(short[1]) + 1) return `${short[1]}/${end}`;
+export function academicYearsFromText(value: string) {
+  const years = new Set<string>();
+  for (const match of value.matchAll(/(20\d{2})\s*[\/_-]\s*(20\d{2})/g)) {
+    if (Number(match[2]) === Number(match[1]) + 1) years.add(`${match[1]}/${match[2]}`);
   }
-  return null;
+  for (const match of value.matchAll(/(20\d{2})\s*[\/_-]\s*(\d{2})(?!\d)/g)) {
+    const end = Number(match[1].slice(0, 2) + match[2]);
+    if (end === Number(match[1]) + 1) years.add(`${match[1]}/${end}`);
+  }
+  return [...years].sort();
+}
+
+export function academicYearFromText(value: string) {
+  return academicYearsFromText(value)[0] || null;
 }
 
 function anchorsFromHtml(html: string, baseUrl: string, source: ContentSource) {

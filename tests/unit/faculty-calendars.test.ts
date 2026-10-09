@@ -16,7 +16,8 @@ describe("stabilní katalog fakult", () => {
     const sourceFaculties = new Set(academicSources.map((source) => source.facultyId));
     expect(faculties.every((faculty) => sourceFaculties.has(faculty.id))).toBe(true);
     expect(new Set(academicSources.filter((source) => source.cityId === "ostrava").map((source) => source.facultyId)).size).toBe(13);
-    expect(academicSources.filter((source) => source.cityId === "ostrava" && source.monitoringMode === "not_found_monitored").map((source) => source.facultyId).sort()).toEqual(["osu-ff", "osu-fu", "osu-lf", "osu-pdf"]);
+    expect(academicSources.filter((source) => source.cityId === "ostrava" && source.monitoringMode === "not_found_monitored")).toEqual([]);
+    expect(academicSources.filter((source) => source.universityId === "osu").every((source) => ["complete", "covered_by_central"].includes(source.coverageStatus || "") && source.academicYear === "2026/2027")).toBe(true);
     expect(contentSources.every((source) => source.notes && source.officialDomain)).toBe(true);
   });
 });

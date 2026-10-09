@@ -31,19 +31,33 @@ async function sourceRows() {
   return (legacy.data || []).map((row) => ({ ...row, coverage_status: null }));
 }
 
-const [sources, events, community, runs, findings, queue] = await Promise.all([
+const [sources, events, community, runs, findings, queue, faculties] = await Promise.all([
   sourceRows(),
-  rows("academic_events", "id,university_id,faculty_id,source_id,academic_year,status,verification_status,is_cancelled,starts_at,manual_override,category"),
+  rows("academic_events", "id,city_id,scope_type,university_id,faculty_id,source_id,academic_year,status,verification_status,is_cancelled,starts_at,manual_override,category"),
   rows("community_events", "id,city_id,status,starts_at,source_url"),
   rows("source_sync_runs", "id,source_id,city_id,status,started_at,finished_at,error_message"),
   rows("academic_calendar_ai_findings", "id,city_id,status,source_id"),
   rows("source_review_queue", "id,source_id,status,reason"),
+  rows("faculties", "id,university_id,name,short_name,is_active"),
 ]);
 
 const summary = {};
 for (const [city, universityIds] of Object.entries(cityUniversities)) {
   const citySources = sources.filter((row) => row.source_type === "academic_calendar" && row.enabled && (row.city_id === city || (!row.city_id && universityIds.includes(row.university_id))));
   const cityEvents = events.filter((row) => universityIds.includes(row.university_id) && row.academic_year === "2026/2027" && row.status === "approved" && row.verification_status === "verified" && !row.is_cancelled);
+  const cityFaculties = faculties.filter((row) => row.is_active && universityIds.includes(row.university_id));
+  const facultyCoverage = cityFaculties.map((faculty) => {
+    const sourceStates = citySources.filter((source) => source.faculty_id === faculty.id).map((source) => source.coverage_status || source.sync_status);
+    const effectiveEvents = cityEvents.filter((event) => event.university_id === faculty.university_id && (event.scope_type === "university" || event.faculty_id === faculty.id));
+    return {
+      facultyId: faculty.id,
+      faculty: faculty.short_name || faculty.name,
+      sourceStates,
+      effectiveEvents: effectiveEvents.length,
+      individualExams: effectiveEvents.filter((event) => ["final_exam", "exam"].includes(event.category)).length,
+      functional: sourceStates.length > 0 && effectiveEvents.length > 0,
+    };
+  });
   const futureCommunity = community.filter((row) => row.city_id === city && row.status === "published" && new Date(row.starts_at) >= from && new Date(row.starts_at) <= to);
   summary[city] = {
     sources: citySources.length,
@@ -54,6 +68,9 @@ for (const [city, universityIds] of Object.entries(cityUniversities)) {
     coverage: Object.fromEntries(["complete", "covered_by_central", "partial", "needs_review", "blocked", "unavailable", "stale"].map((status) => [status, citySources.filter((row) => row.coverage_status === status).length])),
     academicEvents: cityEvents.length,
     individualExams: cityEvents.filter((row) => ["final_exam", "exam"].includes(row.category)).length,
+    faculties: facultyCoverage.length,
+    functionalFaculties: facultyCoverage.filter((row) => row.functional).length,
+    facultyGaps: facultyCoverage.filter((row) => !row.functional),
     communityNext180Days: futureCommunity.length,
     latestCommunityEvent: futureCommunity.map((row) => row.starts_at).sort().at(-1) || null,
     openFindings: findings.filter((row) => row.city_id === city && ["new", "needs_review", "cannot_verify"].includes(row.status)).length,

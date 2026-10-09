@@ -11,7 +11,7 @@ import { contentSources } from "@/lib/sources/registry";
 import { faculties } from "@/lib/universities";
 import { parseCzechDateRange, semanticEventHash, sha256, zonedDateTimeToIso } from "@/lib/sources/normalize";
 import { reconcileEvents } from "@/lib/sources/reconcile";
-import { discoverAcademicDocument, discoverPaginationUrls } from "@/lib/sources/discovery";
+import { academicYearsFromText, discoverAcademicDocument, discoverPaginationUrls } from "@/lib/sources/discovery";
 import type { ConnectorContext, NormalizedEvent } from "@/lib/sources/types";
 import { fitCalendarSourceForYear, fsiCalendarSourceForYear, inspectConnectorResult, inspectSourcePayload } from "@/lib/sources/validation";
 import { sourceRunMayArchive } from "@/lib/sources/publish-policy";
@@ -58,6 +58,24 @@ describe("konektory veřejných zdrojů", () => {
     expect(result.events).toHaveLength(6);
     expect(result.events.map((item) => item.category)).toEqual(["Výuka", "Zkouškové období", "Registrace předmětů", "Výuka", "Zkouškové období", "Registrace předmětů"]);
     expect(result.events.every((item) => item.title !== "zimní semestr" && item.status === "approved")).toBe(true);
+  });
+  it("z centrální tabulky UP vybere společné a správné fakultní termíny", async () => {
+    const body = new TextEncoder().encode(`
+      <h2>Akademický rok 2026/2027</h2>
+      <table><tbody>
+        <tr><td>Výuka v zimním semestru na LF</td><td>7. 9. 2026 – 14. 2. 2027</td></tr>
+        <tr><td>Výuka v zimním semestru na FF a PdF</td><td>21. 9. 2026 – 18. 12. 2026</td></tr>
+        <tr><td>Hlavní prázdniny</td><td>1. 7. 2027 – 31. 8. 2027</td></tr>
+      </tbody></table>`);
+    const ff = contentSources.find((item) => item.id === "src-upol-ff")!;
+    const lf = contentSources.find((item) => item.id === "src-upol-lf")!;
+    const [ffResult, lfResult] = await Promise.all([
+      parseHtml({ source: ff, body, contentType: "text/html", checkedAt: "2026-10-09T10:00:00Z" }),
+      parseHtml({ source: lf, body, contentType: "text/html", checkedAt: "2026-10-09T10:00:00Z" }),
+    ]);
+    expect(ffResult.events.map((item) => item.title)).toEqual(["Výuka v zimním semestru na FF a PdF", "Hlavní prázdniny"]);
+    expect(lfResult.events.map((item) => item.title)).toEqual(["Výuka v zimním semestru na LF", "Hlavní prázdniny"]);
+    expect([...ffResult.events, ...lfResult.events].every((item) => item.academicYear === "2026/2027" && item.status === "approved")).toBe(true);
   });
   it("FIT a FSI čtou strukturované schedule položky bez dlouhých názvů a duplicit", async () => {
     const body = await readFile("tests/fixtures/vut-schedule.html");
@@ -191,11 +209,15 @@ it("registr dává každé aktivní fakultě jednoznačný stav pokrytí", () =>
   expect(new Set(academic.filter((item) => item.cityId === "ostrava").map((item) => item.facultyId)).size).toBe(13);
   expect(new Set(academic.filter((item) => item.cityId === "olomouc").map((item) => item.facultyId)).size).toBe(8);
 });
+it("kontrola stránky s více roky najde všechny platné akademické roky", () => {
+  expect(academicYearsFromText("Harmonogram 2024/25, archiv 2025-2026 a aktuální 2026/2027")).toEqual(["2024/2025", "2025/2026", "2026/2027"]);
+});
 it("odděluje automatické, kontrolované a monitorované zdroje", () => {
   const academic = contentSources.filter((item) => item.sourceType === "academic_calendar");
   expect(academic.some((item) => item.monitoringMode === "automatic_publish")).toBe(true);
   expect(academic.some((item) => item.monitoringMode === "automatic_review")).toBe(true);
-  expect(academic.filter((item) => item.monitoringMode === "not_found_monitored").map((item) => item.facultyId).sort()).toEqual(["osu-ff", "osu-fu", "osu-lf", "osu-pdf"]);
+  expect(academic.filter((item) => item.monitoringMode === "not_found_monitored").map((item) => item.facultyId).sort()).toEqual([]);
+  expect(academic.filter((item) => item.universityId === "osu").every((item) => ["complete", "covered_by_central"].includes(item.coverageStatus || "") && item.academicYear === "2026/2027")).toBe(true);
 });
 it("každá fakulta má aktivní oficiální HTTPS zdroj nebo monitorovaný oficiální rozcestník", () => { expect(contentSources.every((item) => item.enabled && item.sourceUrl.startsWith("https://"))).toBe(true); });
 it("FIT odvodí URL z aktuálního akademického roku bez hardcodování", () => { const fit = fitCalendarSourceForYear(source, new Date("2026-08-02T00:00:00Z")); expect(fit.sourceUrl).toBe("https://www.fit.vut.cz/study/calendar/2026/.cs"); expect(fit.academicYear).toBe("2026/2027"); expect(fitCalendarSourceForYear(source, new Date("2027-02-02T00:00:00Z")).sourceUrl).toContain("/2026/.cs"); });
