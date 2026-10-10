@@ -19,7 +19,7 @@ export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}
   if(Object.keys(parsed.data.drawing.colors).some(key=>!validIds.has(key)))return NextResponse.json({message:"Neplatná oblast omalovánky."},{status:422});
   const client=await coloringClient();
   const {data,error}=await client.rpc("save_coloring_progress",{p_coloring_id:id,p_revision:parsed.data.revision,p_drawing:parsed.data.drawing,p_percentage:completion(parsed.data.drawing,regions)});
-  if(error?.code==="40001") {const current=await client.from("coloring_progress").select("drawing,revision,updated_at").eq("coloring_id",id).maybeSingle();return NextResponse.json({message:"Na jiném zařízení jsou novější změny. Vaše místní kresba zůstala zachovaná.",current:current.data},{status:409})}
+  if(error?.code==="40001"||(error?.code==="P0001"&&error.message==="coloring_revision_conflict")) {const current=await client.from("coloring_progress").select("drawing,revision,updated_at").eq("coloring_id",id).maybeSingle();return NextResponse.json({message:"Na jiném zařízení jsou novější změny. Vaše místní kresba zůstala zachovaná.",current:current.data},{status:409})}
   if(error?.code==="54000")return NextResponse.json({message:"Ukládání je příliš časté. Zkuste to za chvíli."},{status:429});
   if(error)return NextResponse.json({message:"Uložení se nezdařilo – zkusit znovu."},{status:503});
   return NextResponse.json({item:data},{headers:{"Cache-Control":"private, no-store"}});

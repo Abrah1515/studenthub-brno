@@ -36,5 +36,8 @@ API i RPC omezují počet zápisů; nejvýše 300 tahů / 16000 bodů / 600 kB.
 Undo/redo uchovává nejvýše 30 kroků. Export PNG probíhá pouze na zařízení.
 
 Migrace: `202610100001_private_coloring_progress.sql`.
+Navazující oprava: `202610100002_coloring_conflict_no_retry.sql`.
+Aplikační konflikt používá `P0001`, nikoliv `40001` (ten může PostgREST
+opakovat bez konce). API jej převádí na HTTP 409 a vyžádá volbu uživatele.
 Před nasazením `pnpm exec supabase db push --linked` po ověření seznamu migrací.
 Výpadek cloudového ukládání nemění ostatní funkce aplikace.
