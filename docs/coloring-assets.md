@@ -26,6 +26,17 @@ oblasti pod 180 px nejsou klikací. Jednopixelové mezery uzavírá morfologick�
 filtr. Masky se připravují offline, nikoliv při každém klepnutí. Každý vzor má
 768 × 1024 px. Není nutné přenášet zdrojové generované PNG do produkce.
 
+## Navigace a aktivity
+
+`/<city>/odpocinek` je výběr aktivních aktivit z typového registru
+`lib/rest-activities.ts`. Galerie je `/<city>/odpocinek/omalovanky`, editor
+`/<city>/odpocinek/omalovanky/<slug>`. Staré editorové odkazy mají 308 redirect.
+Profil odkazuje přímo do galerie. Nová aktivita potřebuje vlastní stránku
+a aktivní položku registru; žádná další databázová tabulka není potřeba.
+Zoom a pozice se ukládají jen do sessionStorage, odděleně podle vlastníka
+a motivu, společně napříč městy. Procento vychází z vyplněných oblastí;
+tahy štětce nejsou odhadem vyplněné plochy. Dokončení lze označit ručně.
+
 ## Ukládání
 
 Lokální rozehrání: localStorage, assety: IndexedDB a verzovaná PWA cache.

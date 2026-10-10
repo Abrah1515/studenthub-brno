@@ -39,6 +39,13 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: { "/api/coloring/*": ["./public/coloring/v1/*/regions.json"] },
   poweredByHeader: false,
   reactStrictMode: true,
+  async redirects() {
+    return [{
+      source: "/:city(brno|praha|olomouc|ostrava)/odpocinek/:slug(botanical|desk|library|cafe|brno|praha|olomouc|ostrava)",
+      destination: "/:city/odpocinek/omalovanky/:slug",
+      permanent: true,
+    }];
+  },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },

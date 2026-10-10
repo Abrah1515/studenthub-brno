@@ -13,7 +13,7 @@ it('nepotvrdí neúspěšný zápis a konflikt ponechá k rozhodnutí uživateli
  function Harness(){progress=useColoringProgress('desk',owner);return null;}
  const root=createRoot(document.createElement('div'));
  try{
-  await act(async()=>root.render(createElement(Harness)));expect(progress!.ready).toBe(true);
+  await act(async()=>root.render(createElement(Harness)));expect(progress!.ready).toBe(true);expect(progress!.status).toBe('Připraveno k vybarvování');
   await act(async()=>{progress!.change({...emptyDrawing(),colors:{1:'#abcdef'}});});
   fetcher.mockRejectedValueOnce(new Error('connection lost'));
   await act(async()=>progress!.retry());expect(progress!.status).toContain('nezdařilo');expect(progress!.value.dirty).toBe(true);

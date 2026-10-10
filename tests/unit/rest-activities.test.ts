@@ -1,0 +1,6 @@
+import { expect,it,vi } from "vitest";
+import { activeRestActivities } from "@/lib/rest-activities";
+import { readColoringView,saveColoringView,recentColor } from "@/lib/coloring-session";
+it('registr nabízí pouze jednu skutečnou aktivitu a správnou galerii',()=>{const activities=activeRestActivities();expect(activities).toHaveLength(1);expect(activities[0].enabled).toBe(true);expect(activities[0].href).toBe('/odpocinek/omalovanky');});
+it('poslední barvy mají omezený počet, validaci a žádné duplicity',()=>{expect(recentColor('#abcdef',['#abcdef','#ffffff','bad'])).toEqual(['#abcdef','#ffffff']);expect(recentColor('#111111',Array.from({length:8},(_,n)=>`#00000${n}`))).toHaveLength(6);});
+it('pohled zůstává v relaci společný pro města a izolovaný podle účtu',()=>{const entries=new Map<string,string>();vi.stubGlobal('sessionStorage',{getItem:(k:string)=>entries.get(k)||null,setItem:(k:string,v:string)=>entries.set(k,v)});try{saveColoringView('guest','desk',{zoom:2,pan:{x:20,y:30}});expect(readColoringView('guest','desk').zoom).toBe(2);expect(readColoringView('other','desk').zoom).toBe(1);entries.set('coloring-view:guest:desk','{"zoom":99}');expect(readColoringView('guest','desk').zoom).toBe(1);}finally{vi.unstubAllGlobals();}});
