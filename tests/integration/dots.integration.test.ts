@@ -1,0 +1,16 @@
+import { PGlite } from "@electric-sql/pglite";
+import { readFile } from "node:fs/promises";
+import { expect,it } from "vitest";
+import { dotsGames } from "@/lib/connect-dots";
+it('soukromé aktivity: idempotentní migrace, RLS, vlastník, revize, stav a limity',{timeout:30000},async()=>{
+ const db=new PGlite();try{
+ await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table public.profiles(id uuid primary key,active boolean);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;create function public.is_active_profile() returns boolean language sql security definer set search_path='' as $$select exists(select 1 from public.profiles where id=auth.uid() and active)$$;create function public.consume_marketplace_rate_limit(text,text,integer,integer) returns boolean language sql as $$select true$$;grant usage on schema auth,public to authenticated,anon;insert into profiles values('11111111-1111-4111-8111-111111111111',true),('22222222-2222-4222-8222-222222222222',true);`);
+ const sql=await readFile('supabase/migrations/202610100003_private_rest_activity_progress.sql','utf8');await db.exec(sql);await db.exec(sql);await db.exec(`set role authenticated;set request.jwt.claim.sub='11111111-1111-4111-8111-111111111111'`);
+ const save=(game:string,revision:number,cursor:number,extras={})=>db.query<{revision:number;percentage:number;completed:boolean}>(`select * from public.save_rest_activity_progress($1,$2,$3::jsonb)`,[game,revision,JSON.stringify({manifestVersion:1,cursor,undo:[],redo:[],...extras})]);
+ expect((await save('desk',0,2)).rows[0].revision).toBe(1);await expect(save('desk',0,3)).rejects.toMatchObject({message:'activity_revision_conflict',code:'P0001'});expect((await save('desk',1,6)).rows[0]).toMatchObject({revision:2,percentage:100,completed:true});
+ for(const game of dotsGames)expect((await save(game.id,game.id==='desk'?2:0,game.points.length)).rows[0].percentage).toBe(100);
+ await expect(save('desk',3,7)).rejects.toThrow('activity_invalid_payload');await expect(save('desk',3,2,{manifestVersion:2})).rejects.toThrow('activity_invalid_payload');await expect(save('desk',3,2,{undo:Array(31).fill(1)})).rejects.toThrow('activity_invalid_payload');await expect(save('desk',3,2,{user_id:'foreign'})).rejects.toThrow('activity_invalid_payload');
+ await db.exec(`set request.jwt.claim.sub='22222222-2222-4222-8222-222222222222'`);expect((await db.query('select * from public.rest_activity_progress')).rows).toHaveLength(0);await expect(db.exec("update public.rest_activity_progress set user_id='22222222-2222-4222-8222-222222222222'")).rejects.toThrow();await expect(db.exec("delete from public.rest_activity_progress")).rejects.toThrow();
+ await db.exec(`reset role;update public.profiles set active=false where id='22222222-2222-4222-8222-222222222222';set role authenticated`);await expect(save('desk',0,1)).rejects.toThrow('activity_auth_required');await db.exec('reset role;set role anon');await expect(db.query('select * from public.rest_activity_progress')).rejects.toThrow();await expect(save('desk',0,1)).rejects.toThrow();
+ }finally{await db.close();}
+});

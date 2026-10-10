@@ -1,0 +1,15 @@
+import { beforeEach,expect,it,vi } from "vitest";
+vi.mock('server-only',()=>({}));
+const mock=vi.hoisted(()=>({account:vi.fn(),limit:vi.fn(),rpc:vi.fn()}));
+vi.mock('@/lib/user-auth',()=>({getCurrentAccount:mock.account}));
+vi.mock('@/lib/auth-rate-limit',()=>({allowAuthRequest:mock.limit}));
+const current={progress:{manifestVersion:1,cursor:2,undo:[0,1],redo:[]},revision:3,updated_at:'2026-10-10T10:00:00Z'};
+vi.mock('@/lib/coloring-server',()=>({coloringClient:async()=>({rpc:mock.rpc,from:()=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({data:current})})})})})})}));
+import { PUT } from '@/app/api/rest-progress/dots/[id]/route';
+const send=(data:unknown,origin='https://studenthubapp.cz')=>PUT(new Request('https://studenthubapp.cz/api/rest-progress/dots/desk',{method:'PUT',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify(data)}),{params:Promise.resolve({id:'desk'})});
+const payload={revision:0,progress:{manifestVersion:1,cursor:1,undo:[0],redo:[]}};
+beforeEach(()=>{vi.clearAllMocks();mock.account.mockResolvedValue({id:'11111111-1111-4111-8111-111111111111',accountStatus:'active'});mock.limit.mockResolvedValue(true);mock.rpc.mockResolvedValue({data:current,error:null});});
+it('auth, pozastavení a cizí origin jsou odmítnuté před uložením',async()=>{mock.account.mockResolvedValue(null);expect((await send(payload)).status).toBe(401);mock.account.mockResolvedValue({accountStatus:'suspended'});expect((await send(payload)).status).toBe(403);mock.account.mockResolvedValue({accountStatus:'active'});expect((await send(payload,'https://foreign.test')).status).toBe(403);expect(mock.rpc).not.toHaveBeenCalled();});
+it('odmítne cizího vlastníka, překročení trasy, verzi a příliš velký payload',async()=>{expect((await send({...payload,user_id:'foreign'})).status).toBe(422);expect((await send({...payload,progress:{...payload.progress,cursor:7}})).status).toBe(422);expect((await send({...payload,progress:{...payload.progress,manifestVersion:2}})).status).toBe(422);expect((await send({huge:'a'.repeat(4097)})).status).toBe(413);});
+it('RPC používá pouze ověřenou hru a serverového vlastníka',async()=>{expect((await send(payload)).status).toBe(200);expect(mock.rpc).toHaveBeenCalledWith('save_rest_activity_progress',{p_game_id:'desk',p_revision:0,p_progress:payload.progress});expect(`auth-${mock.limit.mock.calls[0][1]}`.length).toBeLessThanOrEqual(40);});
+it('konflikt, rate limit a výpadek nemohou být falešný úspěch',async()=>{mock.rpc.mockResolvedValue({error:{code:'P0001',message:'activity_revision_conflict'}});const response=await send(payload);expect(response.status).toBe(409);expect((await response.json()).current.revision).toBe(3);mock.rpc.mockResolvedValue({error:{code:'54000'}});expect((await send(payload)).status).toBe(429);mock.rpc.mockResolvedValue({error:{code:'other'}});expect((await send(payload)).status).toBe(503);mock.limit.mockResolvedValue(false);expect((await send(payload)).status).toBe(429);});
