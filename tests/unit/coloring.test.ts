@@ -1,6 +1,7 @@
 import { describe,expect,it } from "vitest";
-import { colorSchema,completion,drawingSchema,emptyDrawing,historyChange,historyRedo,historyUndo,reconcileDrawing,regionAt,simplifyPoints,type SavedDrawing } from "@/lib/coloring";
+import { colorSchema,completion,drawingSchema,emptyDrawing,historyChange,historyRedo,historyUndo,panForKey,reconcileDrawing,regionAt,simplifyPoints,type SavedDrawing } from "@/lib/coloring";
 describe("omalovánky",()=>{
+ it("posun funguje klávesnicí a nemutuje původní pozici",()=>{const p={x:0,y:0};expect(panForKey(p,'ArrowRight')).toEqual({x:20,y:0});expect(panForKey(p,'ArrowUp')).toEqual({x:0,y:-20});expect(p).toEqual({x:0,y:0});expect(panForKey(p,'Tab')).toBe(p);});
  it("serializuje a validuje kresbu",()=>{const d={...emptyDrawing(),colors:{1:'#abcdef'}};expect(drawingSchema.parse(JSON.parse(JSON.stringify(d)))).toEqual(d);});
  it("čte ID regionu a chrání hranice",()=>{const mask=new Uint8ClampedArray([1,2,0,255,0,0,0,255]);expect(regionAt(mask,2,1,0,0)).toBe(513);expect(regionAt(mask,2,1,-1,0)).toBe(0);expect(regionAt(mask,2,1,2,0)).toBe(0);});
  it("vrátí zpět a znovu bez mutace",()=>{const a=emptyDrawing(),b={...a,colors:{1:'#ffffff'}},h=historyChange({past:[],present:a,future:[]},b);expect(historyUndo(h).present).toEqual(a);expect(historyRedo(historyUndo(h)).present).toEqual(b);expect(a.colors).toEqual({});});

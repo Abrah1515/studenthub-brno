@@ -12,7 +12,7 @@ export function useColoringProgress(id:string,owner:string){
   if(busy.current||!current.current.dirty||owner==="guest")return;
   if(!navigator.onLine){setStatus("Offline – uložíme po připojení");return;}
   busy.current=true;const snapshot=current.current;setStatus("Ukládám…");
-  try{const res=await fetch(`/api/coloring/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({revision:snapshot.revision,drawing:snapshot.drawing})});const data=await res.json();
+  try{const res=await fetch(`/api/coloring/${id}`,{method:"PUT",signal:AbortSignal.timeout(15000),headers:{"Content-Type":"application/json"},body:JSON.stringify({revision:snapshot.revision,drawing:snapshot.drawing})});const data=await res.json();
    if(res.status===409){setConflict(data.current?cloudDrawing(data.current):{drawing:emptyDrawing(),revision:0,updatedAt:"",dirty:false});setStatus("Konflikt zařízení – vyberte, kterou kresbu zachovat.");}
    else if(!res.ok)throw Error(data.message);
    else{const saved=cloudDrawing(data.item);const newer=current.current.drawing!==snapshot.drawing;apply(newer?{...current.current,revision:saved.revision}:saved);setStatus(newer?"Ukládám…":"Uloženo v profilu");}

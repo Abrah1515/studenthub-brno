@@ -51,6 +51,7 @@ export type History = { past: Drawing[]; present: Drawing; future: Drawing[] };
 export function historyChange(history: History, drawing: Drawing): History { return { past: [...history.past.slice(-29), history.present], present: drawing, future: [] }; }
 export function historyUndo(h: History): History { return h.past.length ? { past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future].slice(0, 30) } : h; }
 export function historyRedo(h: History): History { return h.future.length ? { past: [...h.past, h.present].slice(-30), present: h.future[0], future: h.future.slice(1) } : h; }
+export function panForKey(pan:{x:number;y:number},key:string){const offsets:Record<string,[number,number]>={ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]};const delta=offsets[key];return delta?{x:pan.x+delta[0],y:pan.y+delta[1]}:pan;}
 export function reconcileDrawing(local: SavedDrawing | null, cloud: SavedDrawing | null) {
   if (!local) return { value: cloud, conflict: false };
   if (!cloud) return { value: local, conflict: local.revision > 0 };
