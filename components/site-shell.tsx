@@ -14,6 +14,7 @@ import { SelectedStudyContext } from "@/components/selected-study-context";
 import { calendarPreferenceRequestedEvent, useStudentPreference } from "@/lib/client-preferences";
 import { useModalDialog } from "@/lib/use-modal-dialog";
 import { PwaInstallButton } from "@/components/pwa-install";
+import { InviteButton } from "@/components/invite-classmate";
 import { openTutorialEvent, tutorialMenuEvent, tutorialResetUiEvent } from "@/lib/tutorial";
 import { featureFlags } from "@/lib/feature-flags";
 import { WatcherBadge } from "@/components/watcher-badge";
@@ -100,6 +101,7 @@ function AuxiliaryNavigation({ variant, close, returnFocus, className }: { varia
     <button type="button" onClick={() => { close?.(); window.dispatchEvent(new Event(openTutorialEvent)); }}><BookOpen size={15} aria-hidden="true" /><span>Návod</span></button>
     <Link href="/kontakt" onClick={close} data-tour-id={tourIds.contact}><Mail size={15} aria-hidden="true" /><span>Kontakt</span></Link>
     <Link className="sidebar-utility-admin" href="/admin" onClick={close} data-tour-id={tourIds.admin}><ShieldCheck size={15} aria-hidden="true" /><span>Administrace</span></Link>
+    <InviteButton menu onBeforeOpen={close} returnFocus={returnFocus} />
   </nav>;
 }
 

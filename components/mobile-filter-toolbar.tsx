@@ -29,7 +29,7 @@ type FilterDialogProps = {
   applyLabel?: string;
 };
 
-function useFilterScrollLock(open: boolean) {
+export function useFilterScrollLock(open: boolean) {
   useEffect(() => {
     if (!open) return;
 

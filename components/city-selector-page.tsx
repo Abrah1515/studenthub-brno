@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, Clock3, MapPinned } from "lucide-react";
 import { cityEditions, type CityEdition } from "@/lib/city-editions";
 import { LegalLinks } from "@/components/legal-links";
+import { InviteButton } from "@/components/invite-classmate";
 
 function CityLogo({ city }: { city: CityEdition }) {
   return <span className="city-selection-logo" role="img" aria-label={`Logo StudentHub ${city.name}`} style={{ aspectRatio: `${city.logoWidth} / ${city.logoHeight}` }}>
@@ -38,6 +39,6 @@ export function CitySelectorPage() {
     <section className="city-selection-grid" aria-label="Výběr města">
       {cityEditions.map((city) => city.active && city.href ? <ActiveCity city={city as CityEdition & { href: `/${string}` }} key={city.slug} /> : <InactiveCity city={city} key={city.slug} />)}
     </section>
-    <footer className="city-selection-footer"><p>StudentHub je nezávislý studentský projekt a není oficiální službou žádné vysoké školy.</p><LegalLinks includeCookieSettings /></footer>
+    <footer className="city-selection-footer"><InviteButton /><p>StudentHub je nezávislý studentský projekt a není oficiální službou žádné vysoké školy.</p><LegalLinks includeCookieSettings /></footer>
   </main>;
 }

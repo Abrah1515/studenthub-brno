@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { CookieConsent } from "@/components/cookie-consent";
 import { PwaRegister } from "@/components/pwa-register";
 import { PwaInstallProvider } from "@/components/pwa-install";
+import { InviteProvider } from "@/components/invite-classmate";
 import { FirstRunPicker } from "@/components/preference-picker";
 import { PrivacyAnalytics } from "@/components/privacy-analytics";
 import { Suspense } from "react";
@@ -13,6 +14,7 @@ import { getPublishedCities } from "@/lib/city-data";
 import { getAcademicCatalog } from "@/lib/academic-catalog";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
+import "./invite.css";
 
 const siteUrl = brand.siteUrl;
 const themeBootstrap = `(function(){
@@ -86,6 +88,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body>
         <a className="skip-link" href="#hlavni-obsah">Přeskočit na obsah</a>
         <PwaInstallProvider>
+          <InviteProvider publishedSlugs={cities.map(city=>city.slug)}>
           <SiteShell cities={cities} catalog={catalog}>{children}</SiteShell>
           <TestModeNotice />
           <CookieConsent />
@@ -93,6 +96,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <FeatureTutorial />
           <Suspense fallback={null}><PrivacyAnalytics /></Suspense>
           <PwaRegister />
+          </InviteProvider>
         </PwaInstallProvider>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} />
       </body>
