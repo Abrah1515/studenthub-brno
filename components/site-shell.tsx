@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, BookOpen, BriefcaseBusiness, Building2, CalendarDays, Home, Info, Mail, MapPinned, Menu, MessageCircle, Monitor, Moon, Palette, Settings, ShieldCheck, ShoppingBag, Sun, Users, X } from "lucide-react";
+import { Bell, BookOpen, BriefcaseBusiness, Building2, CalendarDays, Home, MapPinned, Menu, MessageCircle, Monitor, Moon, Palette, Settings, ShoppingBag, Sun, Users, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { brand } from "@/lib/brand";
@@ -94,15 +94,21 @@ const auxiliaryTourIds = {
 } satisfies Record<AuxiliaryNavigationVariant, Record<"changeCity" | "about" | "install" | "contact" | "admin", string>>;
 function AuxiliaryNavigation({ variant, close, returnFocus, className }: { variant: AuxiliaryNavigationVariant; close?: () => void; returnFocus?: () => HTMLElement | null; className?: string }) {
   const tourIds = auxiliaryTourIds[variant];
-  return <nav className={classNames("sidebar-utility", className)} aria-label="Doplňkové odkazy">
+  return <div className={classNames("sidebar-utility", className)}>
+    <div className="sidebar-actions">
+      <InviteButton primary onBeforeOpen={close} returnFocus={returnFocus} />
+      <PwaInstallButton placement="action" onBeforeOpen={close} returnFocus={returnFocus} tourId={tourIds.install} />
+    </div>
+    <nav className="sidebar-helpers" aria-label="Pomocné odkazy">
     <Link href="/" onClick={close} data-tour-id={tourIds.changeCity}><MapPinned size={15} aria-hidden="true" /><span>Změnit město</span></Link>
-    <Link href="/o-projektu" onClick={close} data-tour-id={tourIds.about}><Info size={15} aria-hidden="true" /><span>O projektu</span></Link>
-    <PwaInstallButton onBeforeOpen={close} returnFocus={returnFocus} tourId={tourIds.install} />
     <button type="button" onClick={() => { close?.(); window.dispatchEvent(new Event(openTutorialEvent)); }}><BookOpen size={15} aria-hidden="true" /><span>Návod</span></button>
-    <Link href="/kontakt" onClick={close} data-tour-id={tourIds.contact}><Mail size={15} aria-hidden="true" /><span>Kontakt</span></Link>
-    <Link className="sidebar-utility-admin" href="/admin" onClick={close} data-tour-id={tourIds.admin}><ShieldCheck size={15} aria-hidden="true" /><span>Administrace</span></Link>
-    <InviteButton menu onBeforeOpen={close} returnFocus={returnFocus} />
-  </nav>;
+    </nav>
+    <nav className="sidebar-information" aria-label="Informační odkazy">
+      <Link href="/o-projektu" onClick={close} data-tour-id={tourIds.about}>O projektu</Link>
+      <Link href="/kontakt" onClick={close} data-tour-id={tourIds.contact}>Kontakt</Link>
+      <Link className="sidebar-utility-admin" href="/admin" onClick={close} data-tour-id={tourIds.admin}>Administrace</Link>
+    </nav>
+  </div>;
 }
 
 type NavigationItem = ReturnType<typeof navigationFor>[number];
@@ -143,7 +149,6 @@ function MobileMenu({ open, close, navigation, pathname, cityRoot, editionName, 
           <div className="mobile-theme-block" data-tour-id="appearance-navigation-menu"><strong>Nastavení vzhledu</strong><ThemeSettings /></div>
         </nav>
         <AuxiliaryNavigation variant="menu" close={close} returnFocus={returnFocus} className="phone-menu-extras" />
-        <div className="sidebar-note"><Info size={18} /><p>Nezávislý projekt. Není oficiálně spojený s žádnou univerzitou.</p></div>
         <AuxiliaryNavigation variant="tablet" close={close} returnFocus={returnFocus} className="tablet-menu-extras" />
       </aside>
     </div>,
@@ -166,10 +171,10 @@ export function SiteShell({ children, cities, catalog }: { children: React.React
   const hasModule = (suffix: string) => navigation.some((item) => item.href === `${cityRoot}/${suffix}`);
   const chatConversationOpen = new RegExp(`^${cityRoot}/chat/[^/]+`).test(pathname);
   return <AcademicCatalogProvider catalog={catalog}><CityProvider city={currentCity || cities[0]}><div className={classNames("app-shell", chatConversationOpen && "chat-route-active")}>
-    <aside className="sidebar desktop-sidebar" aria-label="Postranní panel"><div className="sidebar-head"><div className="brand-context"><Brand href={cityRoot} editionName={editionName} tourId="brand-desktop" /><SelectedStudyContext /></div></div><nav className="desktop-nav" aria-label="Hlavní navigace">{navigation.map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} tourVariant="desktop" />)}</nav><div className="sidebar-note"><Info size={18} aria-hidden="true" /><p>Nezávislý projekt. Není oficiálně spojený s žádnou univerzitou.</p></div><AuxiliaryNavigation variant="desktop" /></aside>
+    <aside className="sidebar desktop-sidebar" aria-label="Postranní panel"><div className="sidebar-head"><div className="brand-context"><Brand href={cityRoot} editionName={editionName} tourId="brand-desktop" /><SelectedStudyContext /></div></div><nav className="desktop-nav" aria-label="Hlavní navigace">{navigation.map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} tourVariant="desktop" />)}</nav><AuxiliaryNavigation variant="desktop" /></aside>
     <MobileMenu open={menuOpen || tourMenuOpen} close={() => { setMenuOpen(false); setTourMenuOpen(false); }} navigation={navigation} pathname={pathname} cityRoot={cityRoot} editionName={editionName} returnFocus={() => menuTriggerRef.current} tourMode={tourMenuOpen && !menuOpen} />
     {cities.length > 1 && <CitySwitcher cities={cities} pathname={pathname} />}
-    <div className="main-column"><header className="topbar"><button ref={menuTriggerRef} className="icon-button mobile-only" aria-label="Otevřít nabídku" data-tour-id="menu-trigger" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><div className="mobile-brand"><Brand href={cityRoot} editionName={editionName} compact tourId="brand-compact" /></div><div className="topbar-spacer" />{hasModule("chat") && <Link href={`${cityRoot}/chat`} className="icon-button mobile-chat-link" aria-label="Chat" data-tour-id="chat-navigation-compact"><MessageCircle size={23} aria-hidden="true" /><ChatBadge compact /></Link>}<ThemeToggle />{hasModule("burza") && <Link href={`${cityRoot}/burza`} className="button button-primary topbar-help" aria-label="Studentská burza" data-tour-id="marketplace-navigation-topbar"><ShoppingBag size={18} /><span>Burza</span></Link>}</header><main id="hlavni-obsah" className="content">{children}</main><footer className="footer"><p><BrandSymbol size={22} />{editionName} · nezávislý studentský projekt</p><LegalLinks includeCookieSettings /></footer></div>
+    <div className="main-column"><header className="topbar"><button ref={menuTriggerRef} className="icon-button mobile-only" aria-label="Otevřít nabídku" data-tour-id="menu-trigger" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><div className="mobile-brand"><Brand href={cityRoot} editionName={editionName} compact tourId="brand-compact" /></div><div className="topbar-spacer" />{hasModule("chat") && <Link href={`${cityRoot}/chat`} className="icon-button mobile-chat-link" aria-label="Chat" data-tour-id="chat-navigation-compact"><MessageCircle size={23} aria-hidden="true" /><ChatBadge compact /></Link>}<ThemeToggle />{hasModule("burza") && <Link href={`${cityRoot}/burza`} className="button button-primary topbar-help" aria-label="Studentská burza" data-tour-id="marketplace-navigation-topbar"><ShoppingBag size={18} /><span>Burza</span></Link>}</header><main id="hlavni-obsah" className="content">{children}</main><footer className="footer"><LegalLinks includeCookieSettings /></footer></div>
     <nav className="bottom-nav" aria-label="Mobilní navigace">{navigation.filter((item) => [cityRoot, `${cityRoot}/kalendar`, `${cityRoot}/mista`, `${cityRoot}/komunita`, `${cityRoot}/brigady`].includes(item.href)).map((item) => <PreferenceAwareNavLink key={item.href} item={item} pathname={pathname} cityRoot={cityRoot} compact tourVariant="bottom" />)}</nav>{hasModule("partak") && <Link href={`${cityRoot}/partak`} className="floating-help" title="Hledám parťáka" aria-label="Hledám parťáka" data-tour-id="buddy-navigation-floating"><Users size={22} /><span>Hledám parťáka</span></Link>}{hasModule("chat") && !pathname.startsWith(`${cityRoot}/chat`) && <ChatDock />}
   </div></CityProvider></AcademicCatalogProvider>;
 }

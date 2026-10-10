@@ -173,7 +173,17 @@ button { color: inherit; }
 .sidebar-note { margin-top: auto; padding: 14px; display: flex; align-items: flex-start; gap: 9px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .sidebar-note svg { flex: 0 0 auto; color: var(--accent); }
 .sidebar-note p { margin: 0; }
-.sidebar-utility { margin-top: 4px; padding-top: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 4px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.sidebar-utility { margin-top: auto; padding-top: 16px; display: grid; flex-shrink: 0; gap: 12px; color: var(--muted); font-size: 12px; }
+.sidebar-actions { display: grid; gap: 8px; }
+.sidebar-actions .button { width: 100%; min-height: 44px; padding: 10px 8px; font-size: 13px; line-height: 1.35; white-space: normal; }
+.sidebar-actions .button svg { flex-shrink: 0; }
+.sidebar-helpers { display: flex; flex-wrap: wrap; gap: 0 12px; }
+.sidebar-helpers :is(a, button) { min-height: 44px; padding: 0; display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.sidebar-helpers svg { flex-shrink: 0; }
+.sidebar-information { border-top: 1px solid var(--line); padding-top: 4px; display: flex; flex-wrap: wrap; gap: 0 12px; }
+.sidebar-information a { min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }
+.sidebar-information .sidebar-utility-admin { color: var(--muted); }
+.sidebar-helpers :is(a, button):hover, .sidebar-information a:hover { color: var(--ink); text-decoration: underline; }
 .sidebar-utility > :is(a, button) { width: 100%; min-width: 0; height: 22px; padding: 1px 2px; display: flex; align-items: center; justify-content: center; gap: 4px; overflow: hidden; border: 1px solid transparent; border-radius: 5px; background: transparent; color: inherit; font: inherit; font-weight: 650; line-height: 1; text-align: center; white-space: nowrap; cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
 .sidebar-utility > :is(a, button) svg { flex: 0 0 auto; color: var(--accent); }
 .sidebar-utility > :is(a, button) span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

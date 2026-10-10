@@ -59,8 +59,8 @@ export function InviteProvider({children,publishedSlugs}:{children:React.ReactNo
  }
  return <InviteContext.Provider value={request=>void share(request)}>{children}{data&&<InviteDialog data={data} close={close}/>}</InviteContext.Provider>;
 }
-export function InviteButton({menu=false,onBeforeOpen,returnFocus}:{menu?:boolean;onBeforeOpen?:()=>void;returnFocus?:()=>HTMLElement|null}){
+export function InviteButton({menu=false,primary=false,onBeforeOpen,returnFocus}:{menu?:boolean;primary?:boolean;onBeforeOpen?:()=>void;returnFocus?:()=>HTMLElement|null}){
  const share=useContext(InviteContext),ref=useRef<HTMLButtonElement>(null);
  if(!share)return null;
- return <button ref={ref} type="button" className={menu?'invite-menu-link':'button button-secondary invite-button'} aria-haspopup="dialog" onClick={()=>share({before:onBeforeOpen,focus:returnFocus||(()=>ref.current)})}><Share2 size={menu?15:18} aria-hidden="true"/><span>Pozvat spolužáka</span></button>;
+ return <button ref={ref} type="button" className={menu?'invite-menu-link':`button ${primary?'button-primary':'button-secondary'} invite-button`} aria-haspopup="dialog" onClick={()=>share({before:onBeforeOpen,focus:returnFocus||(()=>ref.current)})}><Share2 size={menu?15:18} aria-hidden="true"/><span>Pozvat spolužáka</span></button>;
 }
