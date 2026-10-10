@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { isRestActivityEnabled } from "@/lib/rest-activities";
 import { getCurrentAccount } from "@/lib/user-auth";
 import { coloringClient } from "@/lib/coloring-server";
 import { allowAuthRequest } from "@/lib/auth-rate-limit";
 import { dotsGames,dotsSaveSchema,validDotsProgress,DOTS_MAX_PAYLOAD } from "@/lib/connect-dots";
 export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}){
+ if(!isRestActivityEnabled('dots'))return NextResponse.json({message:"Aktivita není dostupná."},{status:404,headers:{"Cache-Control":"private, no-store"}});
  const account=await getCurrentAccount();if(!account)return NextResponse.json({message:"Pro synchronizaci se přihlaste."},{status:401});
  if(account.accountStatus!=="active")return NextResponse.json({message:"Účet je pozastavený."},{status:403});
  const {id}=await params,game=dotsGames.find(g=>g.id===id);if(!game)return NextResponse.json({message:"Obrázek neexistuje."},{status:404});

@@ -11,6 +11,7 @@ export const restActivities:readonly RestActivity[]=[{
   id:"dots",slug:"spojovani-bodu",title:"Spojování bodů",
   description:"Spojujte body a postupně odhalte kresbu. Bez spěchu a bez soutěžení.",
   icon:"route",previewAsset:"/coloring/v1/botanical/preview.webp",
-  href:"/odpocinek/spojovani-bodu",enabled:true,order:2,
+  href:"/odpocinek/spojovani-bodu",enabled:false,order:2,
 }];
 export function activeRestActivities(){return restActivities.filter(a=>a.enabled).toSorted((a,b)=>a.order-b.order);}
+export function isRestActivityEnabled(id:string){return restActivities.some(a=>a.id===id&&a.enabled);}

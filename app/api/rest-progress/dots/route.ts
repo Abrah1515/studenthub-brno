@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentAccount } from "@/lib/user-auth";
 import { coloringClient } from "@/lib/coloring-server";
+import { isRestActivityEnabled } from "@/lib/rest-activities";
 export async function GET(){
+ if(!isRestActivityEnabled('dots'))return NextResponse.json({message:"Aktivita není dostupná."},{status:404,headers:{"Cache-Control":"private, no-store"}});
  const account=await getCurrentAccount();
  if(!account)return NextResponse.json({userId:null,items:[]},{headers:{"Cache-Control":"private, no-store"}});
  if(account.accountStatus!=="active")return NextResponse.json({message:"Účet je pozastavený."},{status:403});

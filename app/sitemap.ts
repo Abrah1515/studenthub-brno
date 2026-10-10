@@ -4,6 +4,7 @@ import { universities } from "@/lib/universities";
 import { featureFlags } from "@/lib/feature-flags";
 import { getPublicSiteUrl } from "@/lib/seo";
 import type { City, CityModule } from "@/lib/cities";
+import { activeRestActivities } from "@/lib/rest-activities";
 
 const publicModulePaths: Array<{ module: CityModule; path: string; frequency: "daily" | "weekly" }> = [
   { module: "calendar", path: "/kalendar", frequency: "weekly" },
@@ -26,8 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const cities = await getPublishedCities();
   const local = cities.flatMap((city) => [
     { url: `${base}/${city.slug}/odpocinek`, changeFrequency: "monthly" as const, priority: .5 },
-    { url: `${base}/${city.slug}/odpocinek/omalovanky`, changeFrequency: "monthly" as const, priority: .5 },
-    { url: `${base}/${city.slug}/odpocinek/spojovani-bodu`, changeFrequency: "monthly" as const, priority: .5 },
+    ...activeRestActivities().map(activity=>({url:`${base}/${city.slug}${activity.href}`,changeFrequency:"monthly" as const,priority:.5})),
     { url: `${base}/${city.slug}`, lastModified: new Date(), changeFrequency: "daily" as const, priority: 1 },
     ...pathsForCity(city).map(({ path, frequency }) => ({ url: `${base}/${city.slug}${path}`, lastModified: new Date(), changeFrequency: frequency, priority: .8 })),
   ]);

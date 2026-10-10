@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Palette,Route,ArrowRight } from "lucide-react";
 import { useEffect,useState } from "react";
-import { activeRestActivities } from "@/lib/rest-activities";
+import { activeRestActivities,isRestActivityEnabled } from "@/lib/rest-activities";
 import { coloringAssets,type Drawing } from "@/lib/coloring";
 import { readLocalDrawing } from "@/lib/coloring-local";
 import { dotsGames } from "@/lib/connect-dots";
@@ -11,7 +11,7 @@ import { readLocalDots } from "@/lib/dots-local";
 export function RestActivities({city,owner}:{city:string;owner:string}){
  const [started,setStarted]=useState<number|null>(null);
  const [dotsStarted,setDotsStarted]=useState<number|null>(null);
- useEffect(()=>{let active=true;async function load(){const cursors=new Map<string,number>();let available=true;
+ useEffect(()=>{if(!isRestActivityEnabled('dots'))return;let active=true;async function load(){const cursors=new Map<string,number>();let available=true;
   if(owner!=="guest")try{const r=await fetch('/api/rest-progress/dots',{cache:'no-store',signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error();const data=await r.json();if(data.userId!==owner)throw Error();for(const row of data.items)cursors.set(row.game_id,row.progress.cursor);}catch{available=false;}
   for(const game of dotsGames){const local=readLocalDots(owner,game.id);if(local&&(local.dirty||!cursors.has(game.id)))cursors.set(game.id,local.drawing.cursor);}
   if(active)setDotsStarted(available?dotsGames.filter(game=>{const cursor=cursors.get(game.id)??0;return cursor>0&&cursor<game.points.length;}).length:null);

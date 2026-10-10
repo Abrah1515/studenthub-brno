@@ -1,5 +1,10 @@
 # Spojování bodů
 
+Aktivita je dočasně skrytá (`dots.enabled: false` v `lib/rest-activities.ts`).
+Nezobrazuje se ve výběru ani profilu, není v sitemapě a její stránky i API
+vracejí 404. Kód, databáze a uložený postup zůstávají zachované. Zapnutí
+registru znovu zpřístupní aktivitu i její zachované herní E2E scénáře.
+
 Odpočinek používá jediný registr `lib/rest-activities.ts`. Galerie a hry jsou
 pod `/<city>/odpocinek/spojovani-bodu`; město není součástí klíče postupu.
 

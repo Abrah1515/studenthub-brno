@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authCookieOptions, copyResponseCookies, isSupabaseSessionCookie } from "@/lib/auth-cookies";
 import { isCityModuleEnabled, staticCityBySlug, type CityModule } from "@/lib/cities";
 import { canonicalRedirectTarget, internalRouteForBrno, legacyPublicPath } from "@/lib/platform-routing";
+import { isRestActivityEnabled } from "@/lib/rest-activities";
 
 const reservedTopLevelRoutes = new Set([
   "admin",
@@ -80,6 +81,12 @@ function cityNotFoundResponse() {
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  if (!isRestActivityEnabled("dots") && /^\/[^/]+\/odpocinek\/spojovani-bodu(?:\/|$)/.test(pathname)) {
+    return NextResponse.rewrite(new URL("/_not-found", request.url), {
+      status: 404,
+      headers: { "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow" },
+    });
+  }
   const isInternalCityRewrite = request.headers.get("x-studenthub-city-rewrite") === "brno";
 
   if (removedAuthEndpoints.has(pathname)) {

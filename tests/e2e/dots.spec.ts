@@ -1,5 +1,7 @@
 import { expect,test } from "@playwright/test";
 import { dotsGames } from "../../lib/connect-dots";
+import { isRestActivityEnabled } from "../../lib/rest-activities";
+test.skip(!isRestActivityEnabled('dots'),'Spojování bodů je dočasně skryté; herní scénáře zůstávají pro opětovné zapnutí.');
 test.beforeEach(async({page})=>{await page.addInitScript(()=>{localStorage.setItem('studenthub-consent',JSON.stringify({analytics:false,marketing:false}));localStorage.setItem('studenthub-tutorial-state',JSON.stringify({tutorialVersion:3,introConfirmed:true,status:'completed',lastCompletedStep:null}));localStorage.setItem('studenthub-preference-v4',JSON.stringify({version:4,cityId:'brno',universityId:'vut',facultyId:'vut-fekt',completed:true}));});});
 test('dvě aktivity, galerie, správné body, historie, reload, dokončení a omalovánka',async({page,context},info)=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
