@@ -111,6 +111,7 @@ test("isolated restore forbids production credentials and disconnects networking
   assert.match(workflow, /workflow_run.conclusion == 'success'/);
   assert.match(workflow, /workflow_run.head_repository.full_name == github.repository/);
   assert.match(workflow, /workflow_run.head_branch == 'main'/);
+  assert.match(workflow, /version: 2\.121\.0/); // Older Auth baseline lacks production MFA recovery-code tables.
 });
 
 test("managed catalog export recreates custom Auth triggers and Storage policies in PostgreSQL", async () => {

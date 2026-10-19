@@ -45,6 +45,8 @@ The workflow keeps the newest seven daily snapshots and four Sunday snapshots. I
 
 The isolated job also automatically follows each successful backup from this repository's `main` branch, so a delayed backup does not require someone to trigger restoration at exactly the right moment. Failed backups and runs from other repositories/branches cannot start this privileged restore job. A queued job is not a passed restore check.
 
+The restore baseline pins Supabase CLI 2.121.0 (Auth v2.197.0). The earlier 2.117.0 baseline lacked production's `auth.mfa_recovery_code_sets` table; do not work around service-version drift by excluding Auth data. Upgrade the isolated baseline and rerun the complete restore. The empty database initially uses a dedicated bridge so CLI initialization can reach its loopback port; all network attachments are removed before private SQL is imported.
+
 The isolated job destroys its own container, volume, network and private temporary directory on exit. Decrypted SQL, diagnostics and files are not published as artifacts. Old format-1 archives can still be checksum-verified, but cannot pass the complete security/history restore check. Storage filesystem recovery is not a hosted Storage API round-trip test. Hosted project configuration (SMTP, OAuth, secrets, DNS, API keys and any Vault encryption keys) must be separately documented and securely retained; logical SQL backups do not recreate those external services. Never enable restored cron jobs or network access until their targets/secrets have been reviewed in an isolated environment.
 
 ## Restore check on Windows

@@ -18,6 +18,9 @@ export async function* restoreDataLines(files) {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) for await (const line of restoreDataLines(process.argv.slice(2))) {
-  if (!process.stdout.write(line)) await new Promise(resolve => process.stdout.once('drain', resolve));
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.stdout.on('error', error => { if (error.code === 'EPIPE') process.exit(1); else throw error; });
+  for await (const line of restoreDataLines(process.argv.slice(2))) {
+    if (!process.stdout.write(line)) await new Promise(resolve => process.stdout.once('drain', resolve));
+  }
 }

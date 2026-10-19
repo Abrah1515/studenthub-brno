@@ -28,7 +28,8 @@ jobs:
           node-version: '22'
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.117.0
+          # Includes Auth v2.197 recovery-code tables present in production.
+          version: 2.121.0
       - name: Install age
         shell: bash
         run: |
