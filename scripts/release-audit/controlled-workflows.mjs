@@ -119,7 +119,9 @@ try {
       let readyTimer;
       try { await Promise.race([databaseReady, new Promise((_, reject) => { readyTimer = setTimeout(() => reject(Error('PostgreSQL subscription not ready')), 15000); })]); }
       finally { clearTimeout(readyTimer); }
-      await b.page.goto(`${base}/brno/chat/${created.chat}`, { waitUntil: 'networkidle' });
+      // Live chat maintains background traffic; assert rendered UI rather than
+      // requiring all network activity to stop before checking actual delivery.
+      await b.page.goto(`${base}/brno/chat/${created.chat}`, { waitUntil: 'domcontentloaded' });
       await b.page.getByRole('textbox', { name: 'Zpráva', exact: true }).waitFor();
       await b.page.bringToFront();
       let message;
