@@ -11,6 +11,7 @@ import { keysToPrune } from "./prune-r2.mjs";
 import { copyCounts, safeObjectPath } from "./restore-verify.mjs";
 import { PGlite } from "@electric-sql/pglite";
 import { bootstrapDiagnostic } from "./bootstrap-diagnostic.mjs";
+import { restoreDataLines } from "./restore-data.mjs";
 
 async function temporaryDirectory(run) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "studenthub-backup-test-"));
@@ -132,6 +133,17 @@ test("bootstrap diagnostics expose a usable cause without environment secrets or
   const diagnostic = bootstrapDiagnostic(`Normal startup\nError failed to connect postgresql://user:password@host/db using ${secret}\nfailed password=secret-value\n${'a'.repeat(40)} failed`, { R2_SECRET_ACCESS_KEY: secret });
   assert.match(diagnostic, /failed to connect/);
   for (const privateValue of [secret, 'user:password', 'secret-value', 'a'.repeat(40)]) assert.ok(!diagnostic.includes(privateValue));
+});
+
+test("restore diagnostics identify COPY targets without interpreting or printing private rows", async () => {
+  await temporaryDirectory(async directory => {
+    const file = path.join(directory, 'data.sql');
+    const sql = 'COPY "auth"."users" ("email") FROM stdin;\nprivate@example.invalid\nCOPY "public"."not_a_table" ("text") FROM stdin;\n\\.\n';
+    await writeFile(file, sql);
+    let result = ''; for await (const line of restoreDataLines([file])) result += line;
+    assert.equal(result, '\\echo RESTORE_TABLE:auth.users\n' + sql);
+    assert.equal(result.match(/RESTORE_TABLE:/g).length, 1);
+  });
 });
 
 test("retention only selects known backup keys", () => {

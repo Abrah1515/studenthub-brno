@@ -56,10 +56,11 @@ if ! {
   printf '\\echo RESTORE_STAGE:schema\n'
   cat "$restore/schema.sql" "$restore/history_schema.sql" "$restore/managed.sql"
   printf '\\echo RESTORE_STAGE:data\nset session_replication_role = replica;\n'
-  cat "$restore/data.sql" "$restore/history_data.sql"
+  node scripts/backup/restore-data.mjs "$restore/data.sql" "$restore/history_data.sql"
   printf '\nset session_replication_role = origin;\n'
 } | docker exec -i "$container" psql -U supabase_admin -d postgres -Xq --single-transaction -v ON_ERROR_STOP=1 -v VERBOSITY=sqlstate > "$work_dir/sql.log" 2>&1; then
-  grep -Eo 'RESTORE_STAGE:[a-z]+|ERROR:  [A-Z0-9]{5}' "$work_dir/sql.log" | tail -2 || true
+  grep -Eo 'RESTORE_STAGE:[a-z]+|RESTORE_TABLE:[a-zA-Z0-9_.]+|ERROR:[[:space:]]+[A-Z0-9]{5}' "$work_dir/sql.log" | tail -3 || true
+  if grep -qi 'invalid command' "$work_dir/sql.log"; then echo 'PSQL_DIAGNOSTIC:invalid_command'; fi
   echo 'Isolated SQL restore failed; private diagnostics suppressed'; exit 1
 fi
 node scripts/backup/restore-verify.mjs "$work_dir/restored" "$container" "$work_dir/storage-restored"
