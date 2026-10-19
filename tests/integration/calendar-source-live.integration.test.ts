@@ -13,6 +13,8 @@ live("aktuální oficiální harmonogramy", () => {
     "src-vsbtuo-fei", "src-vsbtuo-fast", "src-vsbtuo-fbi",
     "src-upol-cmtf", "src-upol-lf", "src-upol-ff", "src-upol-prf",
     "src-upol-pdf", "src-upol-ftk", "src-upol-pf", "src-upol-fzv",
+    "src-cuni-ktf", "src-cvut-fsv", "src-cvut-fit", "src-praha-vscht",
+    "src-vscht-fcht", "src-vscht-ftop", "src-vscht-fpbt", "src-vscht-fchi",
   ]) {
     it(`${sourceId} vrací termíny 2026/2027`, async () => {
       const source = contentSources.find((item) => item.id === sourceId);

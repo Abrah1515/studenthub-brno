@@ -97,9 +97,11 @@ test("isolated restore forbids production credentials and disconnects networking
   const workflow = await readFile(new URL("../../.github/workflows/restore-check.yml", import.meta.url), "utf8");
   assert.match(script, /Production database credentials are forbidden/);
   assert.match(script, /docker network create --internal/);
-  assert.ok(script.indexOf('docker network disconnect') < script.indexOf('if ! cat "$restore/roles.sql"'));
+  assert.ok(script.indexOf('docker network disconnect') < script.indexOf('cat "$restore/roles.sql"'));
   assert.match(script, /cron.launch_active_jobs = 'off'/);
   assert.match(script, /--single-transaction -v ON_ERROR_STOP=1/);
+  assert.match(script, /set session_replication_role = replica/);
+  assert.match(script, /set session_replication_role = origin/);
   assert.match(script, /restore-verify.mjs/);
   assert.doesNotMatch(workflow, /SUPABASE_DB_URL|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_BACKUP_SECRET_KEY|upload-artifact/);
 });

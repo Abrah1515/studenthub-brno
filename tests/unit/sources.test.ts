@@ -26,6 +26,11 @@ const context = (body: Uint8Array): ConnectorContext => ({ source, body, content
 const pdfContext = (body: Uint8Array): ConnectorContext => ({ source: { ...source, format: "pdf", requiresReview: true }, body, contentType: "application/pdf", checkedAt: "2026-08-01T10:00:00Z" });
 
 describe("konektory veřejných zdrojů", () => {
+  it("rozcesníky KTF, FSv, FIT a VŠCHT nejprve otevřou odkazovaný aktuální dokument", () => {
+    for (const id of ["src-cuni-ktf", "src-cvut-fsv", "src-cvut-fit", "src-praha-vscht", "src-vscht-fcht", "src-vscht-ftop", "src-vscht-fpbt", "src-vscht-fchi"]) {
+      expect(contentSources.find(item => item.id === id), id).toMatchObject({ parserKey: "linked-document-review", monitoringMode: "automatic_review" });
+    }
+  });
   it("normalizuje RSS i Atom deterministicky", async () => {
     const body = await readFile("tests/fixtures/calendar-events.xml");
     const result = await parseRssAtom({ ...context(body), source: { ...source, format: "xml", parserKey: "rss-atom", requiresReview: false } });

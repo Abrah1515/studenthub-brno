@@ -41,6 +41,13 @@ async function verify(directory, container, storageDestination) {
   if (result.counts.length !== expected.length || result.counts.some((row, i) => Number(row.n) !== expected[i])) throw Error('Restored row counts differ from COPY snapshot');
   const managed = JSON.parse(await readFile(path.join(directory, 'database/managed.json'), 'utf8'));
   if (Number(result.triggers) !== managed.triggerCount || Number(result.policies) !== managed.policyCount || Number(result.protected) !== 6 || !result.cronDisabled) throw Error('Restored security metadata is incomplete');
+  // Disposable transaction in the network-disconnected clone only. Verify that
+  // restored Auth triggers still create an ordinary profile despite hostile metadata.
+  const probe = `begin; insert into auth.users(id,email,raw_user_meta_data) values ('00000000-0000-4000-8000-000000000001','isolated-restore-probe@example.invalid','{"role":"super_admin"}'); select role = 'user' and account_status = 'active' from public.profiles where id = '00000000-0000-4000-8000-000000000001'; set local role authenticated; select count(*) = 0 from public.chat_messages; rollback;`;
+  let security;
+  try { security = execFileSync('docker', ['exec', '-i', container, 'psql', '-U', 'supabase_admin', '-d', 'postgres', '-XqAt', '-v', 'ON_ERROR_STOP=1', '-c', probe], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim(); }
+  catch { throw Error('Restored Auth trigger/RLS probe failed; private diagnostics suppressed'); }
+  if (security !== 't\nt') throw Error('Restored Auth profile or private chat RLS probe did not pass');
   const storage = JSON.parse(await readFile(path.join(directory, 'storage/objects.json'), 'utf8'));
   for (const object of storage.objects) {
     const target = safeObjectPath(storageDestination, object.bucket, object.path);
@@ -49,6 +56,6 @@ async function verify(directory, container, storageDestination) {
     const hash = createHash('sha256'); for await (const bytes of createReadStream(target)) hash.update(bytes);
     if (hash.digest('hex') !== object.sha256) throw Error('Restored Storage object checksum differs');
   }
-  console.log(JSON.stringify({ status: 'PASS', databaseRestored: true, tables: counts.size, rows: expected.reduce((a, b) => a + b, 0), managedTriggers: result.triggers, managedPolicies: result.policies, protectedTables: result.protected, storageFilesRestored: storage.objects.length, networkAttachments: 0, cronDisabled: true }));
+  console.log(JSON.stringify({ status: 'PASS', databaseRestored: true, tables: counts.size, rows: expected.reduce((a, b) => a + b, 0), managedTriggers: result.triggers, managedPolicies: result.policies, protectedTables: result.protected, authTriggerProbe: true, privateChatRlsProbe: true, storageFilesRestored: storage.objects.length, networkAttachments: 0, cronDisabled: true }));
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await verify(...process.argv.slice(2));
