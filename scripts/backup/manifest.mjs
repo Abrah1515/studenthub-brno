@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const requiredFiles = ["database/roles.sql", "database/schema.sql", "database/data.sql", "storage/objects.json"];
+const completeFiles = [...requiredFiles, 'database/managed.sql', 'database/managed.json', 'database/history_schema.sql', 'database/history_data.sql'];
 
 async function walk(directory, prefix = "") {
   const result = [];
@@ -26,10 +27,10 @@ async function digest(filePath) {
 
 export async function createManifest(directory) {
   const files = await walk(directory);
-  for (const file of requiredFiles) {
+  for (const file of completeFiles) {
     if (!files.includes(file) || (await stat(path.join(directory, file))).size === 0) throw new Error(`Missing or empty backup file: ${file}`);
   }
-  const manifest = { format: 1, createdAt: new Date().toISOString(), files: {} };
+  const manifest = { format: 2, createdAt: new Date().toISOString(), files: {} };
   for (const file of files) manifest.files[file] = await digest(path.join(directory, file));
   await writeFile(path.join(directory, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
   return manifest;
@@ -37,11 +38,11 @@ export async function createManifest(directory) {
 
 export async function verifyManifest(directory) {
   const manifest = JSON.parse(await readFile(path.join(directory, "manifest.json"), "utf8"));
-  if (manifest.format !== 1 || !manifest.files || typeof manifest.files !== "object") throw new Error("Invalid backup manifest.");
+  if (![1, 2].includes(manifest.format) || !manifest.files || typeof manifest.files !== "object") throw new Error("Invalid backup manifest.");
   const actual = await walk(directory);
   const expected = Object.keys(manifest.files).sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("Backup file list differs from manifest.");
-  for (const file of requiredFiles) if (!expected.includes(file)) throw new Error(`Missing backup file: ${file}`);
+  for (const file of manifest.format === 2 ? completeFiles : requiredFiles) if (!expected.includes(file)) throw new Error(`Missing backup file: ${file}`);
   for (const file of expected) {
     if (path.isAbsolute(file) || file.split("/").some((part) => part === ".." || part === ".")) throw new Error("Invalid manifest path.");
     const actualDigest = await digest(path.join(directory, file));

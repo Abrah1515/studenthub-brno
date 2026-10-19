@@ -8,6 +8,7 @@ import { exportStorage, listStorageFiles } from "./export-storage.mjs";
 import { validateSupabaseTarget } from "./check-config.mjs";
 import { createManifest, verifyManifest } from "./manifest.mjs";
 import { keysToPrune } from "./prune-r2.mjs";
+import { copyCounts, safeObjectPath } from "./restore-verify.mjs";
 
 async function temporaryDirectory(run) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "studenthub-backup-test-"));
@@ -45,13 +46,62 @@ test("manifest catches changed backup files", async () => {
   await temporaryDirectory(async (directory) => {
     await mkdir(path.join(directory, "database"));
     await mkdir(path.join(directory, "storage", "objects"), { recursive: true });
-    for (const name of ["roles", "schema", "data"]) await writeFile(path.join(directory, "database", `${name}.sql`), `${name}\n`);
+    for (const name of ["roles", "schema", "data", "managed", "history_schema", "history_data"]) await writeFile(path.join(directory, "database", `${name}.sql`), `${name}\n`);
+    await writeFile(path.join(directory, "database", "managed.json"), '{"triggerCount":1,"policyCount":1}');
     await writeFile(path.join(directory, "storage", "objects.json"), '{"buckets":[],"objects":[]}');
     await createManifest(directory);
+    const manifestPath = path.join(directory, "manifest.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    assert.equal(manifest.format, 2);
     assert.equal((await verifyManifest(directory)).storageObjectCount, 0);
+    // Existing archives remain verifiable, but the restore runner requires v2 metadata.
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, format: 1 }));
+    assert.equal((await verifyManifest(directory)).storageObjectCount, 0);
+    await writeFile(manifestPath, JSON.stringify(manifest));
     await writeFile(path.join(directory, "database", "data.sql"), "changed\n");
     await assert.rejects(verifyManifest(directory), /checksum mismatch/);
   });
+});
+
+test("new backups require Auth/Storage security metadata and migration history", async () => {
+  await temporaryDirectory(async (directory) => {
+    await mkdir(path.join(directory, "database"));
+    await mkdir(path.join(directory, "storage"));
+    for (const name of ["roles", "schema", "data"]) await writeFile(path.join(directory, "database", `${name}.sql`), "-- snapshot\n");
+    await writeFile(path.join(directory, "storage", "objects.json"), '{"buckets":[],"objects":[]}');
+    await assert.rejects(createManifest(directory), /managed.sql/);
+  });
+});
+
+test("restore counts COPY rows without treating escaped newlines or terminators as rows", async () => {
+  await temporaryDirectory(async (directory) => {
+    const file = path.join(directory, "data.sql");
+    const sql = 'COPY "public"."profiles" ("id", "bio") FROM stdin;\n1\tline\\nline\n2\t\\\\.\n\\.\nCOPY "auth"."users" ("id") FROM stdin;\n\\.\n';
+    await writeFile(file, sql);
+    assert.deepEqual([...await copyCounts([file])], [['"public"."profiles"', 2], ['"auth"."users"', 0]]);
+    await assert.rejects(copyCounts([file, file]), /Duplicate COPY/);
+    await writeFile(file, sql + 'COPY "public"."unfinished" ("id") FROM stdin;\n1\n');
+    await assert.rejects(copyCounts([file]), /Incomplete COPY/);
+  });
+});
+
+test("Storage restore rejects paths escaping its private destination", () => {
+  const root = path.join(os.tmpdir(), "studenthub-test-restore");
+  assert.equal(safeObjectPath(root, "avatars", "profile/image.webp"), path.join(root, "avatars", "profile", "image.webp"));
+  for (const invalid of ["../secret", "/root", "a/../../secret", "a\\secret", "a//b", "."]) assert.throws(() => safeObjectPath(root, "avatars", invalid), /Unsafe Storage/);
+  assert.throws(() => safeObjectPath(root, "../bucket", "image.webp"), /Unsafe Storage/);
+});
+
+test("isolated restore forbids production credentials and disconnects networking before SQL import", async () => {
+  const script = await readFile(new URL("./restore-check.sh", import.meta.url), "utf8");
+  const workflow = await readFile(new URL("../../.github/workflows/restore-check.yml", import.meta.url), "utf8");
+  assert.match(script, /Production database credentials are forbidden/);
+  assert.match(script, /docker network create --internal/);
+  assert.ok(script.indexOf('docker network disconnect') < script.indexOf('if ! cat "$restore/roles.sql"'));
+  assert.match(script, /cron.launch_active_jobs = 'off'/);
+  assert.match(script, /--single-transaction -v ON_ERROR_STOP=1/);
+  assert.match(script, /restore-verify.mjs/);
+  assert.doesNotMatch(workflow, /SUPABASE_DB_URL|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_BACKUP_SECRET_KEY|upload-artifact/);
 });
 
 test("retention only selects known backup keys", () => {

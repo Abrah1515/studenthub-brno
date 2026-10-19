@@ -38,6 +38,9 @@ mkdir -p "$work_dir/database" "$work_dir/storage"
 supabase db dump --db-url "$SUPABASE_DB_URL" -f "$work_dir/database/roles.sql" --role-only
 supabase db dump --db-url "$SUPABASE_DB_URL" -f "$work_dir/database/schema.sql"
 supabase db dump --db-url "$SUPABASE_DB_URL" -f "$work_dir/database/data.sql" --use-copy --data-only -x storage.buckets_vectors -x storage.vector_indexes
+supabase db dump --db-url "$SUPABASE_DB_URL" -f "$work_dir/database/history_schema.sql" --schema supabase_migrations
+supabase db dump --db-url "$SUPABASE_DB_URL" -f "$work_dir/database/history_data.sql" --use-copy --data-only --schema supabase_migrations
+node scripts/backup/export-managed.mjs "$work_dir/database"
 node scripts/backup/export-storage.mjs "$work_dir/storage"
 node scripts/backup/manifest.mjs create "$work_dir"
 node scripts/backup/manifest.mjs verify "$work_dir"

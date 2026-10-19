@@ -1,6 +1,6 @@
 # StudentHub production backups
 
-Backups are exported by `.github/workflows/backup.yml` and uploaded to the private EU R2 bucket `studenthub-backups`. Each archive contains Supabase database roles, schema, data, Storage objects, and SHA-256 manifests. The archive is encrypted with an age public recipient before upload. No database dump or Storage file is committed to GitHub or uploaded as an Actions artifact.
+Backups are exported by `.github/workflows/backup.yml` and uploaded to the private EU R2 bucket `studenthub-backups`. Each archive contains Supabase database roles, schema, data, Storage objects, and SHA-256 manifests. Format 2 additionally preserves custom Auth/Storage triggers and RLS policies plus `supabase_migrations` history, which the default CLI dump does not include. The archive is encrypted with an age public recipient before upload. No database dump or Storage file is committed to GitHub or uploaded as an Actions artifact.
 
 This is a logical export, not point-in-time recovery. Database and Storage are copied sequentially, so a file changed during the run may not represent exactly the same instant as its database row. Supabase's database backup alone does not include Storage object bytes.
 
@@ -38,10 +38,12 @@ The second command prints the public recipient for `BACKUP_AGE_RECIPIENT`. Store
 2. Open GitHub Actions > Encrypted Supabase backup > Run workflow. This runs once even while the daily schedule is disabled.
 3. Check that the run succeeded and that a `.tar.gz.age` object appears under `studenthub/daily/` in the private R2 bucket. A failed or partial export must not be considered a backup.
 4. Download the encrypted object and decrypt it locally with the offline identity. Extract into a temporary, private directory and run `node scripts/backup/manifest.mjs verify <extracted-directory>`.
-5. For a complete restore exercise, restore the SQL and Storage objects into a separate Supabase test project following Supabase's official restore guide. Never test restoration against production. Record the date and outcome.
+5. Run GitHub Actions > **Isolated backup restore check** > Run workflow on the same branch. It downloads the latest complete daily archive, verifies its manifest, initializes an ephemeral local Supabase database, disables cron, disconnects its Docker network, and then actually imports roles, schema, custom security metadata, data and migration history in one transaction. It compares every COPY table's row count, checks critical RLS/managed triggers/policies, and restores Storage bytes into a private filesystem tree with SHA-256 verification. Record the run URL and outcome. The restore job has no production database/API credentials and never writes to production or R2.
 6. Only after these checks set the repository variable `BACKUP_ENABLED=true`. The workflow then runs daily at 02:17 UTC.
 
 The workflow keeps the newest seven daily snapshots and four Sunday snapshots. It prunes only archive names under its own `studenthub/daily/` and `studenthub/weekly/` prefixes, after a fresh upload has been downloaded and compared byte-for-byte. This is not immutable retention; review R2 usage and GitHub Actions run history regularly. GitHub Actions failure notifications should be enabled for the repository owner.
+
+The isolated job destroys its own container, volume, network and private temporary directory on exit. Decrypted SQL, diagnostics and files are not published as artifacts. Old format-1 archives can still be checksum-verified, but cannot pass the complete security/history restore check. Storage filesystem recovery is not a hosted Storage API round-trip test. Hosted project configuration (SMTP, OAuth, secrets, DNS, API keys and any Vault encryption keys) must be separately documented and securely retained; logical SQL backups do not recreate those external services. Never enable restored cron jobs or network access until their targets/secrets have been reviewed in an isolated environment.
 
 ## Restore check on Windows
 
