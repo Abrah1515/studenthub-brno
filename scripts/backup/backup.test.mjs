@@ -10,6 +10,7 @@ import { createManifest, verifyManifest } from "./manifest.mjs";
 import { keysToPrune } from "./prune-r2.mjs";
 import { copyCounts, safeObjectPath } from "./restore-verify.mjs";
 import { PGlite } from "@electric-sql/pglite";
+import { bootstrapDiagnostic } from "./bootstrap-diagnostic.mjs";
 
 async function temporaryDirectory(run) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "studenthub-backup-test-"));
@@ -124,6 +125,13 @@ test("managed catalog export recreates custom Auth triggers and Storage policies
     const checks = await restored.query(`select (select count(*)::int from pg_trigger where not tgisinternal and tgname='profile_hook') as triggers, (select count(*)::int from pg_policies where schemaname='storage') as policies`);
     assert.deepEqual(checks.rows, [{ triggers: 1, policies: 2 }]);
   } finally { await original.close(); await restored.close(); }
+});
+
+test("bootstrap diagnostics expose a usable cause without environment secrets or database URLs", () => {
+  const secret = 'private-test-secret';
+  const diagnostic = bootstrapDiagnostic(`Normal startup\nError failed to connect postgresql://user:password@host/db using ${secret}\nfailed password=secret-value\n${'a'.repeat(40)} failed`, { R2_SECRET_ACCESS_KEY: secret });
+  assert.match(diagnostic, /failed to connect/);
+  for (const privateValue of [secret, 'user:password', 'secret-value', 'a'.repeat(40)]) assert.ok(!diagnostic.includes(privateValue));
 });
 
 test("retention only selects known backup keys", () => {

@@ -36,7 +36,7 @@ test -s "$work_dir/restored/database/managed.sql" && test -s "$work_dir/restored
 echo "Restoring R2 snapshot: $key"
 supabase init --workdir "$stack_dir" --yes > "$work_dir/init.log" 2>&1
 docker network create --internal "$network" >/dev/null
-supabase db start --workdir "$stack_dir" --network-id "$network" > "$work_dir/start.log" 2>&1 || { echo 'Isolated Supabase bootstrap failed before production data import'; exit 1; }
+supabase db start --workdir "$stack_dir" --network-id "$network" > "$work_dir/start.log" 2>&1 || { echo 'Isolated Supabase bootstrap failed before production data import'; node scripts/backup/bootstrap-diagnostic.mjs "$work_dir/start.log"; exit 1; }
 docker exec -i "$container" psql -U supabase_admin -d postgres -Xq -v ON_ERROR_STOP=1 > "$work_dir/setup.log" 2>&1 <<'SQL'
 alter system set cron.launch_active_jobs = 'off';
 alter system set log_statement = 'none';
