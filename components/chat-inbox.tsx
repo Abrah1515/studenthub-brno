@@ -9,7 +9,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ChatConversation } from "@/lib/chat-types";
 import { ChatComposerCard } from "@/components/chat-composer-card";
-import { createChatRealtimeTopic } from "@/lib/chat-realtime";
+import { createChatRealtimeTopic, refreshChatAfterSubscribe } from "@/lib/chat-realtime";
 import { createAuthenticatedRealtimeClient } from "@/lib/authenticated-realtime";
 import { useCurrentCity } from "@/components/city-context";
 
@@ -51,6 +51,7 @@ export function ChatInbox() {
     void createAuthenticatedRealtimeClient().then((client)=>{ if(disposed||!client)return; realtime=client; channel=client.channel(createChatRealtimeTopic("inbox"))
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, refresh)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_conversations" }, refresh)
+      .on("system", { event: "*" }, (payload) => refreshChatAfterSubscribe(payload, refresh))
       .subscribe(); });
     return () => { disposed=true; window.removeEventListener("focus", visible); window.removeEventListener("online", visible); document.removeEventListener("visibilitychange", visible); if (realtime && channel) void realtime.removeChannel(channel); };
   }, [refresh]);

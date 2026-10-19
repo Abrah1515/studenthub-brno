@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/brno", { waitUntil: "domcontentloaded" }); await dismissOverlays(page);
 });
 
-test("načte použitelný dashboard bez veřejných demo dat", async ({ page }, testInfo) => { test.skip(testInfo.project.name !== "desktop-1440"); await expect(page.getByRole("heading", { name: "StudentHub Brno" })).toBeVisible(); await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Studentská burza", exact: true })).toHaveCount(0); await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Studentská burza", exact: true })).toBeVisible(); await expect(page.getByText("DEMO DATA")).toHaveCount(0); await expect(page.getByText(/Nezávislý projekt\. Není oficiálně spojený/)).toHaveCount(1); await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/brno$/); });
+test("načte použitelný dashboard bez veřejných demo dat", async ({ page }, testInfo) => { test.skip(testInfo.project.name !== "desktop-1440"); await expect(page.getByRole("heading", { name: "StudentHub Brno" })).toBeVisible(); await expect(page.locator("#hlavni-obsah").getByRole("link", { name: "Studentská burza", exact: true })).toHaveCount(0); await expect(page.getByRole("navigation", { name: "Hlavní navigace" }).getByRole("link", { name: "Studentská burza", exact: true })).toBeVisible(); await expect(page.getByText("DEMO DATA")).toHaveCount(0); await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/brno$/); });
 
 test("Přehled nemá rychlé akce školy ani burzy, funkce zůstávají v navigaci a nastavení", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440");
@@ -246,7 +246,7 @@ test("existující uživatel dostane novou prohlídku a může ji znovu otevří
   await expect(tour).toHaveAttribute("data-tour-step", "welcome");
   await expect(page.getByTestId("tutorial-intro")).toHaveCount(0);
   await tour.getByRole("button", { name: "Přeskočit" }).click();
-  const guideTrigger = page.getByRole("navigation", { name: "Doplňkové odkazy" }).getByRole("button", { name: "Návod" });
+  const guideTrigger = page.getByRole("navigation", { name: "Pomocné odkazy" }).getByRole("button", { name: "Návod" });
   await guideTrigger.click();
   await expect(tour).toHaveAttribute("data-tour-step", "welcome");
   await page.keyboard.press("Escape");
@@ -291,7 +291,7 @@ test("PWA manifest, ikony a service worker jsou dostupné a necachují dynamick�
   await page.reload();
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   const cacheAudit = await page.evaluate(async () => ({ keys: await caches.keys(), dynamic: Boolean(await caches.match("/brno")), admin: Boolean(await caches.match("/admin")), api: Boolean(await caches.match("/api/service-requests")) }));
-  expect(cacheAudit.keys).toEqual(["studenthub-static-v8"]); expect(cacheAudit.dynamic).toBe(false); expect(cacheAudit.admin).toBe(false); expect(cacheAudit.api).toBe(false);
+  expect(cacheAudit.keys).toEqual(["studenthub-static-v9"]); expect(cacheAudit.dynamic).toBe(false); expect(cacheAudit.admin).toBe(false); expect(cacheAudit.api).toBe(false);
 });
 
 test("instalační nabídka zavře mobilní menu, drží focus a je nad mapou", async ({ page }, testInfo) => {

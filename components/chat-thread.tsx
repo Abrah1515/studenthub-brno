@@ -9,7 +9,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import type { ChatConversation, ChatMessage } from "@/lib/chat-types";
 import { chatUnreadEvent } from "@/components/chat-badge";
-import { createChatRealtimeTopic } from "@/lib/chat-realtime";
+import { createChatRealtimeTopic, refreshChatAfterSubscribe } from "@/lib/chat-realtime";
 import { createAuthenticatedRealtimeClient } from "@/lib/authenticated-realtime";
 import { useCurrentCity } from "@/components/city-context";
 
@@ -31,7 +31,7 @@ export function ChatThread({ conversationId, dock = false, onClose }: { conversa
   }, [conversationId]);
   useEffect(() => { void refresh(true); const focused = () => document.visibilityState === "visible" && void refresh(); window.addEventListener("focus", focused); window.addEventListener("online", focused); document.addEventListener("visibilitychange", focused); const timer = window.setInterval(focused, 20000);
     let disposed=false; let realtime: Awaited<ReturnType<typeof createAuthenticatedRealtimeClient>>=null; let channel: RealtimeChannel|null=null;
-    void createAuthenticatedRealtimeClient().then((client)=>{ if(disposed||!client)return; realtime=client; channel=client.channel(createChatRealtimeTopic(conversationId)).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh(true)).on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh()).subscribe(); });
+    void createAuthenticatedRealtimeClient().then((client)=>{ if(disposed||!client)return; realtime=client; channel=client.channel(createChatRealtimeTopic(conversationId)).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh(true)).on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void refresh()).on("system", { event: "*" }, (payload) => refreshChatAfterSubscribe(payload, () => refresh(true))).subscribe(); });
     return () => { disposed=true; window.removeEventListener("focus", focused); window.removeEventListener("online", focused); document.removeEventListener("visibilitychange", focused); window.clearInterval(timer); if (realtime && channel) void realtime.removeChannel(channel); };
   }, [conversationId, refresh]);
   async function loadOlder() { if (!cursor) return; const response = await fetch(`/api/chat/conversations/${conversationId}/messages?before=${encodeURIComponent(cursor)}`, { cache: "no-store" }); if (!response.ok) return; const body = await response.json(); setMessages((current) => [...(body.items || []), ...current]); setCursor(body.nextCursor || null); }

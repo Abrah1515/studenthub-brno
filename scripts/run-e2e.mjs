@@ -95,7 +95,8 @@ try {
   rmSync(resolve(root, ".data", "e2e-test-store.json"), { force: true });
   rmSync(resolve(root, ".next"), { recursive: true, force: true });
   console.log("\n[E2E] Vytvářím produkční build…\n");
-  await waitForExit(run(process.execPath, [nextCli, "build"]));
+  const buildArguments = process.env.E2E_BUILD_ENGINE === "webpack" ? ["build", "--webpack"] : ["build"];
+  await waitForExit(run(process.execPath, [nextCli, ...buildArguments]));
 
   console.log("\n[E2E] Spouštím izolovaný produkční server…\n");
   server = run(process.execPath, [nextCli, "start", "--hostname", "127.0.0.1", "--port", e2ePort]);

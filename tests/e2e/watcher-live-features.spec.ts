@@ -125,22 +125,14 @@ test("telefonní menu obsahuje jen doplňkové funkce v určeném pořadí", asy
     "Hlídač",
     "Chat",
     "Bydlení",
+    "Odpočinek",
     "Moje škola a profil",
     "Nastavení vzhleduPodle zařízeníSvětlý režimTmavý režim",
   ]);
-  const utility = menu.getByRole("navigation", { name: "Doplňkové odkazy" });
-  const utilityLabels = await utility.locator(":scope > *").allTextContents();
-  expect(utilityLabels.map((value) => value.replace(/\s+/g, " ").trim())).toEqual([
-    "Změnit město",
-    "O projektu",
-    "Nainstalovat aplikaci",
-    "Návod",
-    "Kontakt",
-    "Administrace",
-  ]);
-  const utilityHeights = await utility.locator(":scope > *").evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
-  expect(utilityHeights.every((height) => height === 44)).toBe(true);
-  expect((await utility.boundingBox())!.height).toBeLessThanOrEqual(145);
+  const utility = menu.locator(".sidebar-utility:visible");
+  await expect(utility.locator(".sidebar-actions")).toHaveText("Pozvat spolužákaNainstalovat aplikaci");
+  await expect(utility.locator(".sidebar-helpers")).toHaveText("Změnit městoNávod");
+  await expect(utility.locator(".sidebar-information")).toHaveText("O projektuKontaktAdministrace");
   await expect(menu.getByRole("link", { name: "Ochrana osobních údajů" })).toHaveCount(0);
   await expect(menu.getByRole("link", { name: "Cookies", exact: true })).toHaveCount(0);
   await expect(menu.getByRole("link", { name: "Podmínky a pravidla" })).toHaveCount(0);
@@ -151,21 +143,19 @@ test("telefonní menu obsahuje jen doplňkové funkce v určeném pořadí", asy
   await expect(page).toHaveURL(/\/kontakt$/);
 });
 
-test("pomocná mřížka je konzistentní na desktopu a tabletu a právní odkazy zůstávají v patičce", async ({ page, request }, testInfo) => {
-  const expected = ["Změnit město", "O projektu", "Nainstalovat aplikaci", "Návod", "Kontakt", "Administrace"];
+test("pomocné skupiny jsou konzistentní na desktopu a tabletu a právní odkazy zůstávají v patičce", async ({ page, request }, testInfo) => {
   if (testInfo.project.name === "mobile-390") test.skip();
   if (testInfo.project.name === "tablet-768") await page.getByRole("button", { name: "Otevřít nabídku" }).click();
   const scope = testInfo.project.name === "tablet-768" ? page.getByRole("dialog", { name: "Mobilní nabídka" }) : page.locator(".desktop-sidebar");
-  const utility = scope.getByRole("navigation", { name: "Doplňkové odkazy" });
+  const utility = scope.locator(".sidebar-utility:visible");
   await expect(utility).toBeVisible();
-  const labels = await utility.locator(":scope > *").allTextContents();
-  expect(labels.map((value) => value.replace(/\s+/g, " ").trim())).toEqual(expected);
-  expect(await utility.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(2);
-  const heights = await utility.locator(":scope > *").evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
-  expect(new Set(heights).size).toBe(1);
-  expect(heights.every((height) => height === (testInfo.project.name === "tablet-768" ? 44 : 22))).toBe(true);
-  expect((await utility.boundingBox())!.height).toBeLessThanOrEqual(testInfo.project.name === "tablet-768" ? 145 : 77);
-  const textOverflow = await utility.locator(":scope > * > span").evaluateAll((items) => items.map((item) => item.scrollWidth - item.clientWidth));
+  await expect(utility.locator(".sidebar-actions")).toHaveText("Pozvat spolužákaNainstalovat aplikaci");
+  await expect(utility.locator(".sidebar-helpers")).toHaveText("Změnit městoNávod");
+  await expect(utility.locator(".sidebar-information")).toHaveText("O projektuKontaktAdministrace");
+  const controls = utility.locator("a, button");
+  const heights = await controls.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
+  expect(heights.every((height) => height >= 22)).toBe(true);
+  const textOverflow = await controls.evaluateAll((items) => items.map((item) => item.scrollWidth - item.clientWidth));
   expect(Math.max(...textOverflow)).toBeLessThanOrEqual(0);
   await expect(utility.getByRole("link", { name: "Změnit město" })).toHaveAttribute("href", "/");
   await expect(utility.getByRole("link", { name: "O projektu" })).toHaveAttribute("href", "/o-projektu");

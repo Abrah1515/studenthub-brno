@@ -176,7 +176,7 @@ test("ruční spuštění zavře chat a instalační dialog, vrátí Přehled na
   await expect(page.locator("html")).toHaveAttribute("data-chat-dock-ready", "true");
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("studenthub-open-chat", { detail: { id: "00000000-0000-4000-8000-000000000001" } })));
   await expect(page.locator(".chat-dock")).toBeVisible();
-  await page.getByRole("navigation", { name: "Doplňkové odkazy" }).getByRole("button", { name: "Nainstalovat aplikaci" }).click();
+  await page.locator(".desktop-sidebar .sidebar-actions").getByRole("button", { name: "Nainstalovat aplikaci" }).click();
   await expect(page.getByTestId("pwa-install-dialog")).toBeVisible();
   await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), openTutorialEvent);
   const tour = await waitForStep(page, "welcome");

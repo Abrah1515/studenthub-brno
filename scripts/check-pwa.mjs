@@ -5,6 +5,7 @@ import { createCanvas, loadImage } from "@napi-rs/canvas";
 const root = resolve(import.meta.dirname, "..");
 const target = process.argv[2] || process.env.PWA_CHECK_URL || "";
 const errors = [];
+const auditHeaders = { "user-agent": "Mozilla/5.0 StudentHub-PWA-Audit/1.0 (+https://studenthubapp.cz/kontakt)" };
 const ok = (condition, message) => { if (!condition) errors.push(message); };
 const read = (path) => readFileSync(resolve(root, path));
 
@@ -62,7 +63,7 @@ ok(brandSource.includes('primary: "#4F46E5"'), "PWA musí používat primární 
 ok(brandSource.includes('lightTheme: "#F8FAFC"') && brandSource.includes('darkTheme: "#0F172A"'), "PWA musí používat schválená pozadí Campus Indigo.");
 ok(brandSource.includes('studenthub-logo-v3.png') && brandSource.includes('studenthub-logo-dark-v3.png'), "Aplikace musí používat světlou i tmavou variantu dodaného loga.");
 ok(brandSource.includes('studenthub-apple-touch-v3-180.png'), "Metadata musí používat samostatnou Apple Touch Icon.");
-ok(workerSource.includes('studenthub-static-v8'), "Service worker musí po změně loga používat novou verzi cache.");
+ok(workerSource.includes('studenthub-static-v9'), "Service worker musí po změně loga používat novou verzi cache.");
 ok(!workerSource.includes('"/brand/brno/icon-'), "Service worker nesmí aktivně odkazovat na nezverzované staré ikony.");
 ok(workerSource.includes('request.mode === "navigate"'), "Service worker musí obsloužit offline navigaci.");
 ok(workerSource.includes("isPrivatePath(url.pathname)"), "Service worker musí vyloučit soukromé cesty.");
@@ -72,7 +73,7 @@ ok(!workerSource.includes("cache.put(event.request"), "Service worker nesmí bez
 if (target) {
   const base = new URL(target);
   ok(base.protocol === "https:" || ["localhost", "127.0.0.1"].includes(base.hostname), "PWA musí běžet přes HTTPS nebo localhost.");
-  const manifestResponse = await fetch(new URL("/manifest.webmanifest", base), { redirect: "follow" });
+  const manifestResponse = await fetch(new URL("/manifest.webmanifest", base), { redirect: "follow", headers: auditHeaders });
   ok(manifestResponse.ok, `Manifest vrací HTTP ${manifestResponse.status}.`);
   ok((manifestResponse.headers.get("content-type") || "").includes("manifest+json"), "Manifest má neočekávaný MIME typ.");
   const manifest = await manifestResponse.json();
@@ -87,14 +88,14 @@ if (target) {
   ok(icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"), "Chybí maskable ikona 512×512.");
   ok(icons.every((icon) => String(icon.src).includes("studenthub-icon") && String(icon.src).includes("v3")), "Manifest musí odkazovat pouze na nové verzované logo assety.");
   for (const icon of icons) {
-    const response = await fetch(new URL(icon.src, base));
+    const response = await fetch(new URL(icon.src, base), { headers: auditHeaders });
     ok(response.ok && (response.headers.get("content-type") || "").includes("image/png"), `Ikona ${icon.src} není dostupná jako PNG.`);
   }
-  const workerResponse = await fetch(new URL("/sw.js", base));
+  const workerResponse = await fetch(new URL("/sw.js", base), { headers: auditHeaders });
   ok(workerResponse.ok, `Service worker vrací HTTP ${workerResponse.status}.`);
   ok((workerResponse.headers.get("cache-control") || "").includes("no-cache") || (workerResponse.headers.get("cache-control") || "").includes("no-store"), "Service worker musí mít revalidační Cache-Control.");
   ok((workerResponse.headers.get("service-worker-allowed") || "/") === "/", "Service worker nemá scope /.");
-  const offlineResponse = await fetch(new URL("/offline.html", base));
+  const offlineResponse = await fetch(new URL("/offline.html", base), { headers: auditHeaders });
   ok(offlineResponse.ok && (await offlineResponse.text()).includes("Teď jste offline"), "Offline stránka není dostupná.");
 }
 

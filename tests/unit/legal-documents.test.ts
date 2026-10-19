@@ -32,7 +32,10 @@ describe("veřejné právní dokumenty", () => {
 
   it("popisují skutečné technické úložiště a opt-in analytiku", async () => {
     const cookies = await readFile("app/cookies/page.tsx", "utf8");
-    for (const key of ["sh_installation", "sh_help_owner", "sh_password_recovery", "studenthub-consent", "studenthub-theme", "studenthub-preference-v4", "studenthub-tutorial-state", "studenthub-static-v8"]) expect(cookies).toContain(key);
+    const worker = await readFile("public/sw.js", "utf8");
+    const cacheName = worker.match(/studenthub-static-v\d+/)?.[0];
+    expect(cacheName).toBeTruthy();
+    for (const key of ["sh_installation", "sh_help_owner", "sh_password_recovery", "studenthub-consent", "studenthub-theme", "studenthub-preference-v4", "studenthub-tutorial-state", cacheName!]) expect(cookies).toContain(key);
     expect(cookies).toContain("sh_analytics_consent");
     expect(cookies).toContain("po vašem souhlasu");
   });

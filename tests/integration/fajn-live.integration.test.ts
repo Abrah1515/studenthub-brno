@@ -57,9 +57,22 @@ describe.runIf(productionLive)("ostrý smluvní XML feed Fajn-brigády", () => {
     })).toBe(true);
 
     const parsed = await parseFajnXml(body);
+    console.info('FAJN_REJECTION_COUNTS', JSON.stringify(Object.fromEntries(Object.entries(Object.groupBy(parsed.rejections, item => item.code)).map(([code, rows]) => [code, rows?.length || 0]))));
+    for (const rejection of parsed.rejections.filter(row => row.code === 'outside_brno')) {
+      const item = items.find(row => String(row.id_inzeratu) === rejection.externalId);
+      const address = String(item?.adresa_pracoviste_adresa || '');
+      console.info('FAJN_LOCATION_DIAGNOSTIC', JSON.stringify({ officialBrnoId: String(item?.adresa_pracoviste_id_mesta) === '582786', streetNameMatch: /olomoucká|ostravská/i.test(address), explicitOutsideCity: /\b(?:praha|ostrava|olomouc)\b/iu.test(address) }));
+    }
     expect(parsed.total).toBe(items.length);
-    expect(parsed.jobs).toHaveLength(items.length);
-    expect(parsed.rejected).toBe(0);
+    // The live feed can contain a Brno municipality code together with an
+    // explicit different city in its public address. Those conflicts must stay
+    // rejected, not be published merely to match an old all-valid snapshot.
+    expect(parsed.jobs).toHaveLength(items.length - parsed.rejected);
+    expect(parsed.jobs.length).toBeGreaterThan(0);
+    expect(parsed.rejections.every(rejection => {
+      const item = items.find(row => String(row.id_inzeratu) === rejection.externalId);
+      return rejection.code === 'outside_brno' && /\b(?:praha|ostrava|olomouc)\b/iu.test(String(item?.adresa_pracoviste_adresa || ''));
+    })).toBe(true);
     expect(parsed.jobs.every((job) => !/[\w.+-]+@[\w.-]+\.[a-z]{2,}/iu.test(job.description))).toBe(true);
     expect(parsed.jobs.every((job) => !/(?:\+?\d[\d\s().-]{7,}\d)/u.test(job.description))).toBe(true);
 

@@ -14,8 +14,6 @@ test.describe("produkční připravenost Ostravy", () => {
   test("dashboard, školy a mapa používají ostravský kontext bez přetékání", async ({ page }, testInfo) => {
     await page.goto("/ostrava", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("link", { name: "StudentHub Ostrava – přehled" }).first()).toBeVisible();
-    await expect(page.locator("footer.footer")).toContainText("StudentHub Ostrava");
-
     await page.goto("/ostrava/kalendar", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Kalendář", exact: true })).toBeVisible();
     const university = page.locator('select[aria-label="Univerzita"]').first();

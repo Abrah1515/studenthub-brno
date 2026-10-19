@@ -29,7 +29,12 @@ export function robotsAllowsPath(pathname: string, text: string, productToken = 
   if (!matching.length) return true;
   const specificity = Math.max(...matching.map((item) => item.specificity));
   const rules = matching.filter((item) => item.specificity === specificity).flatMap((item) => item.candidate.rules)
-    .filter((rule) => pathname.startsWith(rule.path))
+    .filter((rule) => {
+      const end = rule.path.endsWith("$");
+      const path = end ? rule.path.slice(0, -1) : rule.path;
+      const pattern = path.split("*").map(part => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+      return new RegExp(`^${pattern}${end ? "$" : ""}`).test(pathname);
+    })
     .sort((a, b) => b.path.length - a.path.length || Number(b.allow) - Number(a.allow));
   return rules[0]?.allow ?? true;
 }

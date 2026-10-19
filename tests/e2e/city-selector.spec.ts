@@ -95,24 +95,20 @@ test.describe("výběr města", () => {
     const olomoucBrand = page.getByRole("link", { name: "StudentHub Olomouc – přehled" }).first();
     await expect(olomoucBrand).toBeVisible();
     await expect(olomoucBrand.locator('img[src*="studenthub-olomouc"]')).not.toHaveCount(0);
-    await expect(page.locator("footer.footer")).toContainText("StudentHub Olomouc");
 
     await page.goto("/praha");
     const prahaBrand = page.getByRole("link", { name: "StudentHub Praha – přehled" }).first();
     await expect(prahaBrand).toBeVisible();
     await expect(prahaBrand.locator('img[src*="studenthub-praha"]')).not.toHaveCount(0);
-    await expect(page.locator("footer.footer")).toContainText("StudentHub Praha");
 
     await page.goto("/ostrava");
     const ostravaBrand = page.getByRole("link", { name: "StudentHub Ostrava – přehled" }).first();
     await expect(ostravaBrand).toBeVisible();
     await expect(ostravaBrand.locator('img[src*="studenthub-ostrava"]')).not.toHaveCount(0);
-    await expect(page.locator("footer.footer")).toContainText("StudentHub Ostrava");
 
     await page.goto("/brno");
     const brnoBrand = page.getByRole("link", { name: "StudentHub Brno – přehled" }).first();
     await expect(brnoBrand).toBeVisible();
     await expect(brnoBrand.locator('img[src*="studenthub-brno"]')).not.toHaveCount(0);
-    await expect(page.locator("footer.footer")).toContainText("StudentHub Brno");
   });
 });

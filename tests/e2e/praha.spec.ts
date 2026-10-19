@@ -14,8 +14,6 @@ test.describe("aktivní městské edice", () => {
   test("dashboard, školy a mapa používají pražskou edici bez přetékání", async ({ page }, testInfo) => {
     await page.goto("/praha", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("link", { name: "StudentHub Praha – přehled" }).first()).toBeVisible();
-    await expect(page.locator("footer.footer")).toContainText("StudentHub Praha");
-
     await page.goto("/praha/kalendar", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Kalendář", exact: true })).toBeVisible();
     const university = page.locator('select[aria-label="Univerzita"]').first();

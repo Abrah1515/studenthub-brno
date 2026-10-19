@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
+import { withoutIsoDates } from "@/lib/contact-text";
 import type { CommunityComment, CommunityPlace, CommunityPost } from "@/lib/community-types";
 import type { PublicProfileIdentity } from "@/lib/profile-types";
 import { legacyProfileIdentity } from "@/lib/profile-server";
@@ -16,7 +17,7 @@ export function cleanCommunityText(value: string, multiline = false) {
 export function containsPersonalContact(value: string) {
   const email = /\b[\w.+-]{1,64}@[\w.-]{1,190}\.[a-z]{2,24}\b/iu;
   const phone = /(?:^|[^\p{L}\p{N}])(?:\+?\d[\s().-]*){7,15}(?!\d)/u;
-  return email.test(value) || phone.test(value);
+  return email.test(value) || phone.test(withoutIsoDates(value));
 }
 
 export function looksLikeCommunitySpam(value: string) {

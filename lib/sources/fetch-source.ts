@@ -30,23 +30,59 @@ export async function validateSourceUrl(value: string, source: ContentSource) {
 async function assertRobotsAllowed(url: URL, source: ContentSource) {
   const robotsUrl = new URL("/robots.txt", url.origin);
   const cached = process.env.NODE_ENV === "test" ? undefined : robotsCache.get(robotsUrl.href);
+  const disallowed = () => new SourceBlockedError({ code: "robots_disallowed", status: "blocked", message: "Stahování této oficiální cesty zakazuje robots.txt; zdroj zůstává v ručním režimu." }, { finalUrl: url.href });
   if (cached && cached.expiresAt > Date.now()) {
-    if (cached.value === null || robotsAllowsPath(`${url.pathname}${url.search}`, cached.value)) return;
-    throw new SourceBlockedError({ code: "robots_disallowed", status: "blocked", message: "Stahování této oficiální cesty zakazuje robots.txt; pravidlo respektujeme a zdroj zůstává v ručním režimu." }, { finalUrl: url.href, contentType: "text/plain" });
+    if (cached.value !== null && !robotsAllowsPath(`${url.pathname}${url.search}`, cached.value)) throw disallowed();
+    return;
   }
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 12_000);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12_000);
+  let target = robotsUrl;
   try {
-    await validateSourceUrl(robotsUrl.href, source); let response = await fetch(robotsUrl, { headers: { "user-agent": userAgent, accept: "text/plain", connection: "close" }, signal: controller.signal, cache: "no-store" });
-    if ([404, 410].includes(response.status)) { if (process.env.NODE_ENV !== "test") robotsCache.set(robotsUrl.href, { value: null, expiresAt: Date.now() + robotsCacheMs }); return; }
-    if (!response.ok) throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: `Pravidla robots.txt nejsou dočasně dostupná (HTTP ${response.status}); zdroj jsme preventivně nestáhli.` }, { finalUrl: robotsUrl.href, contentType: response.headers.get("content-type") || undefined });
-    let text = await response.text();
-    if (/meta\s+http-equiv=["']?refresh/i.test(text) && response.headers.get("set-cookie")) { const cookie = response.headers.get("set-cookie")!.split(";", 1)[0]; await new Promise((resolve) => setTimeout(resolve, 100)); response = await fetch(robotsUrl, { headers: { "user-agent": userAgent, accept: "text/plain", connection: "close", cookie }, signal: controller.signal, cache: "no-store" }); if (!response.ok) throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: `Pravidla robots.txt po session výzvě odpověděla HTTP ${response.status}.` }, { finalUrl: robotsUrl.href, contentType: response.headers.get("content-type") || undefined }); text = await response.text(); }
-    if (!String(response.headers.get("content-type") || "").toLowerCase().startsWith("text/plain")) throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: "Pravidla robots.txt mají neočekávaný MIME typ; zdroj jsme preventivně nestáhli." }, { finalUrl: robotsUrl.href, contentType: response.headers.get("content-type") || undefined });
-    if (process.env.NODE_ENV !== "test") robotsCache.set(robotsUrl.href, { value: text, expiresAt: Date.now() + robotsCacheMs });
-    if (!robotsAllowsPath(`${url.pathname}${url.search}`, text)) throw new SourceBlockedError({ code: "robots_disallowed", status: "blocked", message: "Stahování této oficiální cesty zakazuje robots.txt; pravidlo respektujeme a zdroj zůstává v ručním režimu." }, { finalUrl: url.href, contentType: "text/plain" });
+    for (let redirects = 0; redirects <= 3; redirects += 1) {
+      await validateSourceUrl(target.href, source);
+      const response = await fetch(target, { headers: { "user-agent": userAgent, accept: "text/plain", connection: "close" }, redirect: "manual", signal: controller.signal, cache: "no-store" });
+      const contentType = response.headers.get("content-type") || "";
+      const fail = (message: string, status: "blocked" | "needs_review" = "needs_review", code: "challenge" | "robots_unavailable" = "robots_unavailable"): never => {
+        throw new SourceBlockedError({ code, status, message }, { finalUrl: target.href, contentType });
+      };
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const location = response.headers.get("location");
+        await response.body?.cancel();
+        if (!location || redirects === 3) fail("Neplatné nebo příliš dlouhé přesměrování robots.txt.");
+        const next = new URL(location!, target);
+        if (/turnstile|captcha|challenge/i.test(next.pathname)) fail("robots.txt přesměroval na ochrannou stránku; ochranu neobcházíme.", "blocked", "challenge");
+        target = await validateSourceUrl(next.href, source);
+        continue;
+      }
+      // Bound even untrusted policy responses. Never solve/replay a cookie or JS challenge.
+      const reader = response.body?.getReader();
+      const chunks: Uint8Array[] = []; let length = 0;
+      if (reader) while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        length += value.length;
+        if (length > 512 * 1024) { await reader.cancel(); fail("robots.txt překročil bezpečný limit velikosti."); }
+        chunks.push(value);
+      }
+      const bytes = new Uint8Array(length); let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+      const text = new TextDecoder().decode(bytes);
+      if (/<(?:!doctype|html|head|script|meta)\b/i.test(text) && /cf-turnstile|captcha|challenge|crypto\.subtle|http-equiv\s*=\s*["']?refresh/i.test(text)) fail("robots.txt vrátil ochrannou HTML/JavaScript výzvu; zdroj zůstává v ručním režimu.", "blocked", "challenge");
+      if ([401, 403].includes(response.status)) fail(`Přístup k robots.txt je zakázán (HTTP ${response.status}).`, "blocked");
+      if ([404, 410].includes(response.status)) {
+        if (process.env.NODE_ENV !== "test") robotsCache.set(robotsUrl.href, { value: null, expiresAt: Date.now() + robotsCacheMs });
+        return;
+      }
+      if (!response.ok) fail(`Pravidla robots.txt nejsou dočasně dostupná (HTTP ${response.status}).`);
+      if (!/^text\/plain(?:\s*;|$)/i.test(contentType.trim())) fail("Pravidla robots.txt mají neplatný MIME typ; zdroj jsme preventivně nestáhli.");
+      if (/<[a-z!][^>]*>/i.test(text) || text.includes("\u0000")) fail("Pravidla robots.txt neobsahují platný textový dokument.");
+      if (process.env.NODE_ENV !== "test") robotsCache.set(robotsUrl.href, { value: text, expiresAt: Date.now() + robotsCacheMs });
+      if (!robotsAllowsPath(`${url.pathname}${url.search}`, text)) throw disallowed();
+      return;
+    }
   } catch (error) {
     if (error instanceof SourceBlockedError) throw error;
-    throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: "Pravidla robots.txt se nepodařilo bezpečně ověřit; zdroj jsme preventivně nestáhli a zkusíme jej později." }, { finalUrl: robotsUrl.href });
+    throw new SourceBlockedError({ code: "robots_unavailable", status: "needs_review", message: "Pravidla robots.txt se nepodařilo bezpečně ověřit (síť, timeout nebo nepovolené přesměrování); zdroj jsme nestáhli." }, { finalUrl: target.href });
   } finally { clearTimeout(timer); }
 }
 
@@ -54,7 +90,6 @@ export async function fetchRegisteredSource(source: ContentSource, conditional: 
   let url = await validateSourceUrl(source.sourceUrl, source); await assertRobotsAllowed(url, source);
   const headers = new Headers({ "user-agent": userAgent, accept: "text/calendar, application/json, application/xml, text/html, application/pdf;q=0.9, */*;q=0.1", connection: "close" });
   if (conditional.etag) headers.set("if-none-match", conditional.etag); if (conditional.lastModified) headers.set("if-modified-since", conditional.lastModified);
-  let metaRefreshes = 0;
   for (let redirects = 0; redirects <= 3; redirects += 1) {
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -76,9 +111,8 @@ export async function fetchRegisteredSource(source: ContentSource, conditional: 
       while (true) { const { done, value } = await reader.read(); if (done) break; length += value.length; if (length > maxBytes) { await reader.cancel(); throw new Error("Dokument překračuje povolenou velikost 5 MB."); } chunks.push(value); }
       const body = new Uint8Array(length); let offset = 0; for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.length; }
       const contentType = response.headers.get("content-type") || "application/octet-stream";
-      if (contentType.toLowerCase().includes("text/html") && metaRefreshes < 1 && /<meta\s+http-equiv=["']?refresh/i.test(new TextDecoder().decode(body))) {
-        const cookie = response.headers.get("set-cookie")?.split(";", 1)[0];
-        if (cookie) { headers.set("cookie", cookie); metaRefreshes += 1; redirects -= 1; await new Promise((resolve) => setTimeout(resolve, 100)); continue; }
+      if (contentType.toLowerCase().includes("html") && /crypto\.subtle|cf-turnstile|captcha-container|verify you are human|<meta\s+http-equiv=["']?refresh/i.test(new TextDecoder().decode(body))) {
+        throw new SourceBlockedError({ code: "challenge", status: "blocked", message: "Zdroj vrátil ochrannou nebo automaticky přesměrovávající stránku; zdroj zůstává v ručním režimu bez opakování cookies." }, { finalUrl: url.href, contentType });
       }
       return { status: response.status, body, contentType, contentDisposition: response.headers.get("content-disposition"), etag: response.headers.get("etag"), lastModified: response.headers.get("last-modified"), finalUrl: url.href };
     } finally { clearTimeout(timer); }
