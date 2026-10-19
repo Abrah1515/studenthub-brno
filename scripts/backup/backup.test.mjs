@@ -104,6 +104,10 @@ test("isolated restore forbids production credentials and disconnects networking
   assert.match(script, /set session_replication_role = origin/);
   assert.match(script, /restore-verify.mjs/);
   assert.doesNotMatch(workflow, /SUPABASE_DB_URL|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_BACKUP_SECRET_KEY|upload-artifact/);
+  assert.match(workflow, /workflows: \[Encrypted Supabase backup\]/);
+  assert.match(workflow, /workflow_run.conclusion == 'success'/);
+  assert.match(workflow, /workflow_run.head_repository.full_name == github.repository/);
+  assert.match(workflow, /workflow_run.head_branch == 'main'/);
 });
 
 test("retention only selects known backup keys", () => {

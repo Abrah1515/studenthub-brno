@@ -1,6 +1,10 @@
 name: Isolated backup restore check
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: [Encrypted Supabase backup]
+    types: [completed]
+    branches: [main]
 permissions:
   contents: read
 concurrency:
@@ -8,6 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   restore:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:

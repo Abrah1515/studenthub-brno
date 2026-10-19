@@ -43,6 +43,8 @@ The second command prints the public recipient for `BACKUP_AGE_RECIPIENT`. Store
 
 The workflow keeps the newest seven daily snapshots and four Sunday snapshots. It prunes only archive names under its own `studenthub/daily/` and `studenthub/weekly/` prefixes, after a fresh upload has been downloaded and compared byte-for-byte. This is not immutable retention; review R2 usage and GitHub Actions run history regularly. GitHub Actions failure notifications should be enabled for the repository owner.
 
+The isolated job also automatically follows each successful backup from this repository's `main` branch, so a delayed backup does not require someone to trigger restoration at exactly the right moment. Failed backups and runs from other repositories/branches cannot start this privileged restore job. A queued job is not a passed restore check.
+
 The isolated job destroys its own container, volume, network and private temporary directory on exit. Decrypted SQL, diagnostics and files are not published as artifacts. Old format-1 archives can still be checksum-verified, but cannot pass the complete security/history restore check. Storage filesystem recovery is not a hosted Storage API round-trip test. Hosted project configuration (SMTP, OAuth, secrets, DNS, API keys and any Vault encryption keys) must be separately documented and securely retained; logical SQL backups do not recreate those external services. Never enable restored cron jobs or network access until their targets/secrets have been reviewed in an isolated environment.
 
 ## Restore check on Windows
