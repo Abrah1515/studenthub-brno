@@ -35,7 +35,10 @@ node scripts/backup/manifest.mjs verify "$work_dir/restored"
 test -s "$work_dir/restored/database/managed.sql" && test -s "$work_dir/restored/database/history_data.sql" || { echo 'Legacy backup lacks complete security/migration metadata'; exit 1; }
 echo "Restoring R2 snapshot: $key"
 supabase init --workdir "$stack_dir" --yes > "$work_dir/init.log" 2>&1
-docker network create --internal "$network" >/dev/null
+# CLI initialization uses the host-published loopback port; an --internal
+# Docker bridge suppresses that mapping. Initialize the EMPTY database on its
+# own bridge, then disconnect it completely before importing any private data.
+docker network create --driver bridge "$network" >/dev/null
 supabase db start --workdir "$stack_dir" --network-id "$network" > "$work_dir/start.log" 2>&1 || { echo 'Isolated Supabase bootstrap failed before production data import'; node scripts/backup/bootstrap-diagnostic.mjs "$work_dir/start.log"; exit 1; }
 docker exec -i "$container" psql -U supabase_admin -d postgres -Xq -v ON_ERROR_STOP=1 > "$work_dir/setup.log" 2>&1 <<'SQL'
 alter system set cron.launch_active_jobs = 'off';
