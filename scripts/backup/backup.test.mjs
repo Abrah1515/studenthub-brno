@@ -9,6 +9,7 @@ import { validateSupabaseTarget } from "./check-config.mjs";
 import { createManifest, verifyManifest } from "./manifest.mjs";
 import { keysToPrune } from "./prune-r2.mjs";
 import { copyCounts, safeObjectPath } from "./restore-verify.mjs";
+import { PGlite } from "@electric-sql/pglite";
 
 async function temporaryDirectory(run) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "studenthub-backup-test-"));
@@ -108,6 +109,21 @@ test("isolated restore forbids production credentials and disconnects networking
   assert.match(workflow, /workflow_run.conclusion == 'success'/);
   assert.match(workflow, /workflow_run.head_repository.full_name == github.repository/);
   assert.match(workflow, /workflow_run.head_branch == 'main'/);
+});
+
+test("managed catalog export recreates custom Auth triggers and Storage policies in PostgreSQL", async () => {
+  const original = new PGlite(); const restored = new PGlite();
+  const baseline = `create schema auth; create schema storage; create role authenticated; create table auth.users(id uuid); create table storage.objects(owner_id uuid); create function public.backup_profile_trigger() returns trigger language plpgsql as $$begin return new; end$$;`;
+  try {
+    await original.exec(baseline); await restored.exec(baseline);
+    await original.exec(`create trigger profile_hook after insert on auth.users for each row execute function public.backup_profile_trigger(); create policy "read own files" on storage.objects as permissive for select to authenticated using (owner_id is not null); create policy "public read" on storage.objects for select to public using (false);`);
+    const results = await original.exec(await readFile(new URL("./managed-metadata.sql", import.meta.url), "utf8"));
+    const metadata = results.at(-1).rows[0].json_build_object;
+    assert.equal(metadata.triggerCount, 1); assert.equal(metadata.policyCount, 2);
+    await restored.exec(metadata.sql);
+    const checks = await restored.query(`select (select count(*)::int from pg_trigger where not tgisinternal and tgname='profile_hook') as triggers, (select count(*)::int from pg_policies where schemaname='storage') as policies`);
+    assert.deepEqual(checks.rows, [{ triggers: 1, policies: 2 }]);
+  } finally { await original.close(); await restored.close(); }
 });
 
 test("retention only selects known backup keys", () => {

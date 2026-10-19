@@ -25,4 +25,4 @@ Nevkládejte citlivé osobní údaje, skutečné platební údaje, cizí kontakt
 
 Kontakt: studenthubbrno@gmail.com. Přiložte adresu stránky bez tokenů, datum a čas, zařízení, prohlížeč, jednotlivé kroky, očekávaný a skutečný výsledek. Screenshot nejdříve zbavte soukromých zpráv a osobních údajů. Nikdy neposílejte heslo, session cookies ani potvrzovací/obnovovací odkaz.
 
-Známá omezení a stav dostupnosti domény jsou v dokumentu release-audit-2026-09-13.md. Akademické zdroje blokované jejich provozovatelem vyžadují ruční ověření; StudentHub není oficiální informační systém univerzit.
+Známá omezení: některé oficiální akademické zdroje blokují automatické načítání nebo vyžadují ruční kontrolu dokumentu. StudentHub u nich ponechává poslední ověřená data a není oficiálním informačním systémem univerzit. Některé externí detaily brigád mohou být chráněné provozovatelem. Před důležitým rozhodnutím vždy otevřete oficiální zdroj a případnou chybu nahlaste. Aktuální schválení vydání a důkazy jsou v posledním release reportu; tento návod není tvrzením, že byly uzavřeny všechny kontrolní body. Bezpečná obnova zálohy je popsána v [backups.md](backups.md).
